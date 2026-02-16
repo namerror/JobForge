@@ -58,3 +58,26 @@ Response (example):
   "Concepts": ["Machine Learning", "Distributed Systems"]
 }
 ```
+
+---
+## Configuration
+
+The service can be configured via environment variables or a config file to specify:
+```
+METHOD=your_method_here # e.g., baseline, embeddings, hybrid
+DEV_MODE="true" # Enable verbose logging and mock data for development
+TOP_N=your_number_here # Number of top skills to return per category
+```
+
+## Running Locally
+
+### Install Requirements
+Ensure you have Python 3.10+ and pip installed, then run:
+```bash
+pip install -r requirements.txt
+```
+
+### Start the Service
+```bash
+uvicorn app.main:app --reload
+```

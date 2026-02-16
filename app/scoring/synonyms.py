@@ -1,0 +1,22 @@
+# mapping synonyms so they can be normalized to a single term for better matching
+NORMALIZATION_MAP = {
+    "nodejs": ["node.js", "node"],
+    "react": ["reactjs", "react.js"],
+    "vue": ["vuejs", "vue.js"],
+    "angular": ["angularjs", "angular.js"],
+    "bootstrap": ["bootstrapcss", "bootstrap css"],
+    "tailwind": ["tailwindcss", "tailwind css"],
+    "aws": ["amazon web services", "amazon cloud"],
+    "azure": ["microsoft azure", "azure cloud"],
+    "gcp": ["google cloud platform", "google cloud"],
+    "ci/cd": ["continuous integration", "continuous delivery", "continuous deployment", "ci", "cd", "cicd", "cicd pipelines"],
+    "react native": ["reactnative", "react-native"],
+    "postgresql": ["postgres"],
+    "javascript": ["js"],
+    "c#": ["csharp"],
+    "rnn": ["recurrent neural network"],
+    "cnn": ["convolutional neural network"],
+    "nlp": ["natural language processing"],
+    "genai": ["generative ai", "generative artificial intelligence"],
+    "random forest": ["randomforest", "random-forest", "random forest classifier", "random forests"],
+}
