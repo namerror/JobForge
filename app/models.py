@@ -11,3 +11,4 @@ class SkillSelectResponse(BaseModel):
     technology: List[str]
     programming: List[str]
     concepts: List[str]
+    details: Dict[str, Dict] | None = None  # Optional field for dev mode
