@@ -27,7 +27,7 @@ If asked to jump to embeddings/LLM too early, push back and enforce steps 1–4.
 
 ## Baseline scorer expectations
 - Normalize strings (lowercase, trim, punctuation)
-- Apply aliases from `app/data/skill_aliases.yml` to canonicalize
+- Apply synonyms from `app/scoring/synonyms.py` to canonicalize (may switch to yaml later)
 - Score by:
   - role profile keyword hits
   - category alignment
@@ -38,7 +38,7 @@ If asked to jump to embeddings/LLM too early, push back and enforce steps 1–4.
 - Production: only selected skills JSON by category.
 - Dev mode may include: scores, explanations, confidence, warnings.
 
-## When editing YAML knowledge files
+## When editing knowledge files
 - Keep them small and readable.
 - Prefer adding synonyms/aliases rather than hardcoding special cases in code.
 - Add/adjust corresponding tests and evaluation cases.
