@@ -49,3 +49,55 @@ A feature is done when:
 - evaluation script runs and reports metrics
 - behavior is deterministic
 - API contract unchanged unless explicitly intended
+- work is logged in `docs/dev-log.md`
+
+## Development Logging (required)
+
+After completing any non-trivial task or making architectural decisions, you MUST document your work in the appropriate log file.
+
+### Session Log (`docs/dev-log.md`)
+After completing tasks, append an entry with:
+- **Date & Summary**: ISO date + brief task description (1 line)
+- **Changes**: Files modified/created with line references where relevant
+- **Rationale**: Why you made certain decisions or chose this approach
+- **Tests**: What tests were added/modified and what they validate
+- **Impact**: What this enables, fixes, or unlocks for future work
+
+**Format:**
+```markdown
+### YYYY-MM-DD - [Brief Summary]
+
+**Changes:**
+- `path/to/file.py:10-25` - Description of change
+- `tests/test_file.py` - Added tests for X
+
+**Rationale:**
+Explain why these changes were made and key decisions...
+
+**Tests:**
+- test_name: what it validates
+- test_edge_case: what scenario it covers
+
+**Impact:**
+What this enables or fixes...
+```
+
+### Changelog (`docs/CHANGELOG.md`)
+For user-facing changes, update using [Keep a Changelog](https://keepachangelog.com/) format:
+- **Added**: new features
+- **Changed**: changes to existing functionality
+- **Fixed**: bug fixes
+- **Removed**: removed features
+
+Keep entries in the `[Unreleased]` section until a version is tagged.
+
+### Decision Records (`docs/decisions/`)
+For significant architectural choices, create numbered ADRs (Architectural Decision Records):
+- Format: `NNN-short-title.md` (e.g., `001-baseline-scoring.md`)
+- Include: Context, Decision, Consequences, Alternatives Considered
+- These are permanent records - don't modify old ADRs, create new ones instead
+
+### When NOT to log
+- Trivial changes (typo fixes, minor formatting)
+- Exploratory work that gets reverted
+- Changes explicitly marked as temporary experiments
