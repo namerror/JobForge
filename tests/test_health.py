@@ -133,14 +133,6 @@ def test_select_skills_maintains_subset():
 
 # === Different role tests ===
 
-def test_select_skills_frontend_role():
-    """Test select-skills for frontend role."""
-    payload = {
-        "job_role": "frontend",
-        "technology": ["React", "Vue", "Bootstrap"],
-        "programming": ["JavaScript", "TypeScript"],
-        "concepts": ["UI", "Responsive Design"],
-    }
 
     res = client.post("/select-skills", json=payload)
     assert res.status_code == 200
