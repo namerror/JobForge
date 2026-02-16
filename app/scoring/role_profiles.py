@@ -1,8 +1,9 @@
 # Mapping of role profiles to their associated keywords and boost terms.
 ROLE_PROFILES = {
     "general": {
+        "inherits": ["fullstack", "ml/ai"],
         "concepts": {
-            "keywords": ["software", "api", "development", "programming", "systems", "architecture","testing", "debugging","agile", "scrum"],
+            "keywords": ["software", "programming", "architecture","testing", "debugging","agile", "scrum"],
         },
         "technology": {
             "keywords": ["git", "rest", "docker", "kubernetes", "aws", "azure", "gcp", "linux"],
@@ -101,3 +102,27 @@ ROLE_PROFILES = {
         },
     }
 }
+
+def detect_role_family(job_role: str) -> str:
+    job_role_clean = job_role.lower().strip()
+    tokens = job_role_clean.replace("-", " ").split()
+
+    # Most specific first
+    if "mobile" in tokens:
+        return "mobile"
+    if "fullstack" in tokens or ("full" in tokens and "stack" in tokens):
+        return "fullstack"
+    if "backend" in tokens:
+        return "backend"
+    if "frontend" in tokens:
+        return "frontend"
+    if "devops" in tokens:
+        return "devops"
+    if "ml" in tokens or "machine" in tokens and "learning" in tokens or "ai" in tokens:
+        return "ml"
+    if "data" in tokens:
+        return "data"
+    if "security" in tokens or "cybersecurity" in tokens:
+        return "security"
+
+    return "general"

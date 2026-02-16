@@ -1,6 +1,8 @@
 import dotenv
 import os
 from app.scoring.synonyms import SYNONYM_TO_NORMALIZED
+from app.models import SkillSelectRequest
+from app.scoring.role_profiles import detect_role_family
 
 DEV_MODE = os.getenv("DEV_MODE", "false").lower() == "true"
 TOP_N = int(os.getenv("TOP_N", "10"))  # Number of top skills to return per category
@@ -49,3 +51,18 @@ def rank_skills(skills: list[str], role_family: str, category: str, job_text: st
     details_dict = {skill: {"score": score, **details} for skill, score, details in scored_skills}
 
     return ranked_skills[:TOP_N], details_dict if DEV_MODE else None
+
+def baseline_select_skills(skills: SkillSelectRequest) -> tuple[dict, dict | None]:
+    """Select top skills for a given role family and category."""
+    role_family = detect_role_family(skills.job_role)
+    selected_skills = {}
+    details = {}
+
+    for category in ["technology", "programming", "concepts"]:
+        category_skills = getattr(skills, category, [])
+        ranked_skills, category_details = rank_skills(category_skills, role_family, category)
+        selected_skills[category] = ranked_skills
+        if DEV_MODE:
+            details[category] = category_details
+    
+    return selected_skills, details if DEV_MODE else None
