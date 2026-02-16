@@ -1,6 +1,16 @@
 # Mapping of role profiles to their associated keywords and boost terms.
-
 ROLE_PROFILES = {
+    "general": {
+        "concepts": {
+            "keywords": ["software", "api", "development", "programming", "systems", "architecture","testing", "debugging","agile", "scrum"],
+        },
+        "technology": {
+            "keywords": ["git", "rest", "docker", "kubernetes", "aws", "azure", "gcp", "linux"],
+        },
+        "programming": {
+            "keywords": ["python", "java", "javascript", "c#", "c++", "c", "sql", "rust"],
+        }
+    },
     "backend": {
         "concepts": {
             "keywords": ["database", "server", "api", "microservices", "cloud", "authentication", "authorization"], 
@@ -51,7 +61,7 @@ ROLE_PROFILES = {
             "keywords": ["system", "infrastructure", "automation", "ci/cd", "monitoring", "cloud", "containerization", "orchestration", "networking", "scripting"],
         },
         "technology": {
-            "keywords": ["linux", "aws", "azure", "docker", "kubernetes", "ansible", "terraform", "jenkins", "prometheus", "grafana", "google cloud"],
+            "keywords": ["linux", "aws", "azure", "docker", "kubernetes", "ansible", "terraform", "jenkins", "prometheus", "grafana", "gcp"],
         },
         "programming": {
             "keywords": ["python", "bash", "powershell", "rust", "go", "c", "c++"],
