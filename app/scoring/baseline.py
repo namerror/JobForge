@@ -1,4 +1,9 @@
+import dotenv
+import os
 from app.scoring.synonyms import SYNONYM_TO_NORMALIZED
+
+DEV_MODE = os.getenv("DEV_MODE", "false").lower() == "true"
+TOP_N = int(os.getenv("TOP_N", "10"))  # Number of top skills to return per category
 
 def normalize_skill(skill: str) -> str:
     """Normalize skill names to a standard format."""
@@ -7,7 +12,7 @@ def normalize_skill(skill: str) -> str:
     return SYNONYM_TO_NORMALIZED.get(s, s)
 
 
-def score_skill(skill: str, role_family: str, category: str, job_text: str | None=None) -> tuple[float, dict]:
+def score_skill(skill: str, role_family: str, category: str, job_text: str | None=None) -> tuple[float, dict | None]:
     """Score a skill based on its presence in the job text and its relevance to the role profile."""
     normalized_skill = normalize_skill(skill)
 
@@ -28,4 +33,19 @@ def score_skill(skill: str, role_family: str, category: str, job_text: str | Non
     elif normalized_skill and any(normalized_skill in keyword for keyword in keywords):
         score = 1.0
 
-    return score, {"normalized_skill": normalized_skill, "matched_keywords": list(keywords)}
+    return score, {"normalized_skill": normalized_skill, "matched_keywords": list(keywords)} if DEV_MODE else None
+
+def rank_skills(skills: list[str], role_family: str, category: str, job_text: str | None=None) -> tuple[list[str], dict | None]:
+    """Rank skills based on their scores."""
+    scored_skills = []
+    for skill in skills:
+        score, details = score_skill(skill, role_family, category, job_text)
+        scored_skills.append((skill, score, details))
+
+    # Sort by score (descending) and then alphabetically
+    scored_skills.sort(key=lambda x: (-x[1], x[0]))
+
+    ranked_skills = [skill for skill, score, details in scored_skills]
+    details_dict = {skill: {"score": score, **details} for skill, score, details in scored_skills}
+
+    return ranked_skills[:TOP_N], details_dict if DEV_MODE else None

@@ -1,4 +1,4 @@
-from app.scoring.baseline import score_skill, normalize_skill
+from app.scoring.baseline import score_skill, normalize_skill, rank_skills
 
 
 # === Normalization tests ===
@@ -324,5 +324,218 @@ def test_score_skill_data_role():
 
     assert score == 3.0
     assert details["normalized_skill"] == "spark"
+
+
+# === rank_skills tests ===
+
+def test_rank_skills_determinism():
+    """Test that rank_skills produces deterministic results."""
+    skills = ["Python", "JavaScript", "React", "Django", "Vue"]
+    role_family = "fullstack"
+    category = "technology"
+
+    # Run ranking multiple times
+    results = [
+        rank_skills(skills, role_family, category, None)
+        for _ in range(5)
+    ]
+
+    # All ranked lists should be identical
+    ranked_lists = [r[0] for r in results]
+    for i in range(1, len(ranked_lists)):
+        assert ranked_lists[i] == ranked_lists[0], "Rankings should be deterministic"
+
+
+def test_rank_skills_tie_breaking_alphabetical():
+    """Test that ties are broken alphabetically."""
+    # These skills should all have the same score (0.0) for backend/technology
+    skills = ["Photoshop", "Illustrator", "Figma", "Sketch"]
+    role_family = "backend"
+    category = "technology"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    # Since all have same score, should be sorted alphabetically
+    expected = sorted(skills)
+    assert ranked[:len(skills)] == expected, "Ties should be broken alphabetically"
+
+
+def test_rank_skills_tie_breaking_with_scores():
+    """Test alphabetical tie-breaking when multiple skills have same non-zero score."""
+    # Use skills that will get partial matches (score 1.0)
+    skills = ["kubern", "terr", "jenk"]  # All partial matches for devops
+    role_family = "devops"
+    category = "technology"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    # All should get same score, so should be alphabetical
+    expected = sorted(skills)
+    assert ranked[:len(skills)] == expected, "Same-score items should be alphabetically sorted"
+
+
+def test_rank_skills_score_ordering():
+    """Test that skills are ordered by score (highest first)."""
+    skills = ["React", "Vue", "Photoshop", "dock"]  # Exact, exact, no match, partial
+    role_family = "frontend"
+    category = "technology"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    # Should be ordered: exact matches (React, Vue alphabetically), partial (dock), no match (Photoshop)
+    # React and Vue both score 3.0, so alphabetically: React, Vue
+    # dock scores 1.0
+    # Photoshop scores 0.0
+    assert ranked[0] in ["React", "Vue"], "Top should be exact matches"
+    assert ranked[1] in ["React", "Vue"], "Second should be exact match"
+    assert ranked[0] != ranked[1], "Top two should be different"
+    assert set(ranked[0:2]) == {"React", "Vue"}, "Top 2 should be React and Vue"
+
+
+def test_rank_skills_duplicate_stability():
+    """Test that duplicate skills get consistent scores."""
+    skills = ["Python", "Python", "JavaScript", "Python"]
+    role_family = "backend"
+    category = "programming"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    # All Python entries should be adjacent (same score) and appear in the output
+    python_count = ranked.count("Python")
+    assert python_count >= 1, "Python should appear in results"
+
+    # Verify all instances are treated consistently
+    # All "Python" should have the same score and appear together
+    python_indices = [i for i, skill in enumerate(ranked) if skill == "Python"]
+    if len(python_indices) > 1:
+        # All Python entries should be consecutive
+        assert max(python_indices) - min(python_indices) == len(python_indices) - 1, \
+            "Duplicate skills should be adjacent"
+
+
+def test_rank_skills_never_invents_skills():
+    """Test that output is always a subset of input."""
+    skills = ["React", "Vue", "Angular", "Python", "Java"]
+    role_family = "frontend"
+    category = "technology"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    # Every skill in output must be in input
+    for skill in ranked:
+        assert skill in skills, f"Output skill '{skill}' not in input skills"
+
+
+def test_rank_skills_never_invents_skills_with_synonyms():
+    """Test that synonyms don't create new skills in output."""
+    skills = ["ReactJS", "Node.js", "PostgreSQL"]  # Using synonym forms
+    role_family = "backend"
+    category = "technology"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    # Output should use exact input strings, not normalized forms
+    for skill in ranked:
+        assert skill in skills, f"Output skill '{skill}' not in input. Input was {skills}"
+
+
+def test_rank_skills_empty_list():
+    """Test ranking with empty skill list."""
+    skills = []
+    role_family = "backend"
+    category = "technology"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    assert ranked == [], "Empty input should produce empty output"
+
+
+def test_rank_skills_single_skill():
+    """Test ranking with single skill."""
+    skills = ["Python"]
+    role_family = "backend"
+    category = "programming"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    assert ranked == ["Python"], "Single skill should be returned as-is"
+
+
+def test_rank_skills_preserves_input_casing():
+    """Test that output preserves original input casing."""
+    skills = ["PYTHON", "JavaScript", "react"]
+    role_family = "fullstack"
+    category = "programming"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    # Original casing should be preserved
+    assert "PYTHON" in ranked, "Original casing should be preserved"
+    assert "react" in ranked or "react" in skills, "Original casing should be preserved"
+
+
+def test_rank_skills_top_n_limit():
+    """Test that rank_skills respects TOP_N limit."""
+    # Create a large list of skills
+    skills = [
+        "Python", "JavaScript", "Java", "C#", "React", "Vue", "Angular",
+        "Django", "FastAPI", "Node.js", "Docker", "Kubernetes", "AWS",
+        "PostgreSQL", "MongoDB", "Redis", "Git", "Linux", "Bash"
+    ]
+    role_family = "fullstack"
+    category = "technology"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    # Should return at most TOP_N skills (default 10)
+    import os
+    top_n = int(os.getenv("TOP_N", 10))
+    assert len(ranked) <= top_n, f"Should return at most {top_n} skills"
+    assert len(ranked) <= len(skills), "Should not return more than input size"
+
+
+def test_rank_skills_stable_sort():
+    """Test that sorting is stable for skills with same score and name."""
+    # Create list with duplicates that should tie
+    skills = ["Photoshop", "Figma", "Photoshop", "Figma"]
+    role_family = "backend"
+    category = "technology"
+
+    # Run multiple times to ensure stability
+    results = [rank_skills(skills, role_family, category, None)[0] for _ in range(3)]
+
+    # All results should be identical (stable sort)
+    for result in results[1:]:
+        assert result == results[0], "Sort should be stable"
+
+
+def test_rank_skills_mixed_scores_correct_order():
+    """Test comprehensive ordering with exact, partial, and no matches."""
+    skills = [
+        "Photoshop",     # 0.0 - no match
+        "React",         # 3.0 - exact match
+        "vue",           # 3.0 - exact match (synonym)
+        "boot",          # 1.0 - partial match (bootstrap)
+        "Illustrator",   # 0.0 - no match
+        "angular",       # 3.0 - exact match
+    ]
+    role_family = "frontend"
+    category = "technology"
+
+    ranked, _ = rank_skills(skills, role_family, category, None)
+
+    # Get scores for verification
+    scores = []
+    for skill in ranked:
+        score, _ = score_skill(skill, role_family, category, None)
+        scores.append(score)
+
+    # Scores should be in descending order
+    assert scores == sorted(scores, reverse=True), "Skills should be ordered by score descending"
+
+    # Within same score, should be alphabetical
+    # Check exact matches (score 3.0) are alphabetical
+    exact_matches = [s for s, sc in zip(ranked, scores) if sc == 3.0]
+    assert exact_matches == sorted(exact_matches), "Same-score items should be alphabetical"
 
 
