@@ -20,3 +20,19 @@ NORMALIZATION_MAP = {
     "genai": ["generative ai", "generative artificial intelligence"],
     "random forest": ["randomforest", "random-forest", "random forest classifier", "random forests"],
 }
+
+if __name__ == "__main__":
+    import os
+
+    file_dir = os.path.dirname(__file__)
+
+    # reverse the normalization map to create a mapping from synonyms to their normalized form
+    SYNONYM_TO_NORMALIZED = {}
+    for normalized, synonyms in NORMALIZATION_MAP.items():
+        for synonym in synonyms:
+            SYNONYM_TO_NORMALIZED[synonym] = normalized
+    
+    # store the reversed mapping
+    with open(os.path.join(file_dir, "synonym_to_normalized.json"), "w") as f:
+        import json
+        json.dump(SYNONYM_TO_NORMALIZED, f, indent=4)
