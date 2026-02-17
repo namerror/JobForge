@@ -1,5 +1,4 @@
 from app.scoring.baseline import score_skill, normalize_skill, rank_skills, baseline_select_skills
-from app.models import SkillSelectRequest
 
 
 # === Normalization tests ===
@@ -486,11 +485,11 @@ def test_rank_skills_top_n_limit():
     role_family = "fullstack"
     category = "technology"
 
-    ranked, _ = rank_skills(skills, role_family, category, None)
-
-    # Should return at most TOP_N skills (default 10)
     import os
     top_n = int(os.getenv("TOP_N", 10))
+    ranked, _ = rank_skills(skills, role_family, category, None, top_n=top_n)
+
+    # Should return at most TOP_N skills (default 10)
     assert len(ranked) <= top_n, f"Should return at most {top_n} skills"
     assert len(ranked) <= len(skills), "Should not return more than input size"
 
@@ -544,23 +543,19 @@ def test_rank_skills_mixed_scores_correct_order():
 
 def test_baseline_select_skills_determinism_different_order():
     """Test that different input order produces same ranked output."""
-    # Same skills, different orders
-    request1 = SkillSelectRequest(
+    result1, _ = baseline_select_skills(
         job_role="Backend Engineer",
         technology=["Python", "Django", "React", "PostgreSQL", "Docker"],
         programming=["Python", "JavaScript", "Java"],
-        concepts=["API", "Database", "Microservices"]
+        concepts=["API", "Database", "Microservices"],
     )
 
-    request2 = SkillSelectRequest(
+    result2, _ = baseline_select_skills(
         job_role="Backend Engineer",
         technology=["Docker", "PostgreSQL", "React", "Django", "Python"],  # Different order
         programming=["Java", "Python", "JavaScript"],  # Different order
-        concepts=["Microservices", "API", "Database"]  # Different order
+        concepts=["Microservices", "API", "Database"],  # Different order
     )
-
-    result1, _ = baseline_select_skills(request1)
-    result2, _ = baseline_select_skills(request2)
 
     # Rankings should be identical regardless of input order
     assert result1["technology"] == result2["technology"], "Technology ranking should be deterministic"
@@ -570,14 +565,15 @@ def test_baseline_select_skills_determinism_different_order():
 
 def test_baseline_select_skills_determinism_multiple_runs():
     """Test that multiple runs produce identical results."""
-    request = SkillSelectRequest(
-        job_role="Frontend Developer",
-        technology=["React", "Vue", "Angular", "Bootstrap", "Webpack"],
-        programming=["JavaScript", "TypeScript", "Python"],
-        concepts=["UI", "UX", "Responsive Design"]
-    )
-
-    results = [baseline_select_skills(request)[0] for _ in range(5)]
+    results = [
+        baseline_select_skills(
+            job_role="Frontend Developer",
+            technology=["React", "Vue", "Angular", "Bootstrap", "Webpack"],
+            programming=["JavaScript", "TypeScript", "Python"],
+            concepts=["UI", "UX", "Responsive Design"],
+        )[0]
+        for _ in range(5)
+    ]
 
     # All results should be identical
     for result in results[1:]:
@@ -586,14 +582,12 @@ def test_baseline_select_skills_determinism_multiple_runs():
 
 def test_baseline_select_skills_backend_engineer():
     """Test role detection for 'Backend Engineer'."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="Backend Engineer",
         technology=["Django", "FastAPI", "React", "PostgreSQL"],
         programming=["Python", "JavaScript", "Java"],
-        concepts=["API", "Database", "UI"]
+        concepts=["API", "Database", "UI"],
     )
-
-    result, _ = baseline_select_skills(request)
 
     # Backend-relevant skills should rank higher
     assert "Django" in result["technology"], "Django should be selected for backend"
@@ -605,14 +599,16 @@ def test_baseline_select_skills_backend_engineer():
 
 def test_baseline_select_skills_swe_intern():
     """Test role detection for 'SWE Intern' (should use general profile)."""
-    request = SkillSelectRequest(
-        job_role="SWE Intern",
-        technology=["Git", "Docker", "AWS"],
-        programming=["Python", "JavaScript", "C++"],
-        concepts=["Software Development", "Testing", "Agile"]
-    )
+    technology = ["Git", "Docker", "AWS"]
+    programming = ["Python", "JavaScript", "C++"]
+    concepts = ["Software Development", "Testing", "Agile"]
 
-    result, _ = baseline_select_skills(request)
+    result, _ = baseline_select_skills(
+        job_role="SWE Intern",
+        technology=technology,
+        programming=programming,
+        concepts=concepts,
+    )
 
     # General skills should be selected
     assert len(result["technology"]) > 0, "Should select technology skills"
@@ -621,23 +617,21 @@ def test_baseline_select_skills_swe_intern():
 
     # All outputs should be from inputs
     for skill in result["technology"]:
-        assert skill in request.technology
+        assert skill in technology
     for skill in result["programming"]:
-        assert skill in request.programming
+        assert skill in programming
     for skill in result["concepts"]:
-        assert skill in request.concepts
+        assert skill in concepts
 
 
 def test_baseline_select_skills_software_engineer():
     """Test role detection for 'Software Engineer'."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="Software Engineer",
         technology=["Python", "Git", "Docker", "AWS"],
         programming=["Python", "Java", "JavaScript"],
-        concepts=["Architecture", "Testing", "Agile"]
+        concepts=["Architecture", "Testing", "Agile"],
     )
-
-    result, _ = baseline_select_skills(request)
 
     # Should use general profile and select relevant skills
     assert "Git" in result["technology"], "Git is in general profile"
@@ -646,14 +640,12 @@ def test_baseline_select_skills_software_engineer():
 
 def test_baseline_select_skills_fullstack_developer():
     """Test role detection for 'Full Stack Developer'."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="Full Stack Developer",
         technology=["React", "Django", "Docker", "PostgreSQL"],
         programming=["JavaScript", "Python", "TypeScript"],
-        concepts=["API", "UI", "Database"]
+        concepts=["API", "UI", "Database"],
     )
-
-    result, _ = baseline_select_skills(request)
 
     # Fullstack should inherit from backend, frontend, and devops
     assert "React" in result["technology"], "React (frontend) should rank high"
@@ -664,14 +656,12 @@ def test_baseline_select_skills_fullstack_developer():
 
 def test_baseline_select_skills_devops_engineer():
     """Test role detection for 'DevOps Engineer'."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="DevOps Engineer",
         technology=["Docker", "Kubernetes", "Jenkins", "Terraform", "AWS"],
         programming=["Python", "Bash", "JavaScript"],
-        concepts=["CI/CD", "Automation", "Monitoring"]
+        concepts=["CI/CD", "Automation", "Monitoring"],
     )
-
-    result, _ = baseline_select_skills(request)
 
     # DevOps-specific skills should rank high
     assert "Docker" in result["technology"], "Docker is devops tech"
@@ -682,14 +672,12 @@ def test_baseline_select_skills_devops_engineer():
 
 def test_baseline_select_skills_all_categories_processed():
     """Test that all three categories are processed."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="Backend Developer",
         technology=["Django", "PostgreSQL"],
         programming=["Python", "Java"],
-        concepts=["API", "Database"]
+        concepts=["API", "Database"],
     )
-
-    result, _ = baseline_select_skills(request)
 
     # All three categories should be in the result
     assert "technology" in result, "Technology category should be present"
@@ -704,34 +692,34 @@ def test_baseline_select_skills_all_categories_processed():
 
 def test_baseline_select_skills_never_invents_skills():
     """Test that output is always a subset of input."""
-    request = SkillSelectRequest(
-        job_role="Frontend Developer",
-        technology=["React", "Vue", "Photoshop"],
-        programming=["JavaScript", "TypeScript"],
-        concepts=["UI", "UX", "Design"]
-    )
+    technology = ["React", "Vue", "Photoshop"]
+    programming = ["JavaScript", "TypeScript"]
+    concepts = ["UI", "UX", "Design"]
 
-    result, _ = baseline_select_skills(request)
+    result, _ = baseline_select_skills(
+        job_role="Frontend Developer",
+        technology=technology,
+        programming=programming,
+        concepts=concepts,
+    )
 
     # Every output skill must be in input
     for skill in result["technology"]:
-        assert skill in request.technology, f"Invented skill: {skill}"
+        assert skill in technology, f"Invented skill: {skill}"
     for skill in result["programming"]:
-        assert skill in request.programming, f"Invented skill: {skill}"
+        assert skill in programming, f"Invented skill: {skill}"
     for skill in result["concepts"]:
-        assert skill in request.concepts, f"Invented skill: {skill}"
+        assert skill in concepts, f"Invented skill: {skill}"
 
 
 def test_baseline_select_skills_empty_categories():
     """Test handling of empty skill lists."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="Backend Engineer",
         technology=[],
         programming=["Python"],
-        concepts=[]
+        concepts=[],
     )
-
-    result, _ = baseline_select_skills(request)
 
     # Empty input should produce empty output
     assert result["technology"] == [], "Empty input should produce empty output"
@@ -741,14 +729,12 @@ def test_baseline_select_skills_empty_categories():
 
 def test_baseline_select_skills_all_empty():
     """Test handling when all categories are empty."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="Software Engineer",
         technology=[],
         programming=[],
-        concepts=[]
+        concepts=[],
     )
-
-    result, _ = baseline_select_skills(request)
 
     # All should be empty
     assert result["technology"] == []
@@ -758,14 +744,12 @@ def test_baseline_select_skills_all_empty():
 
 def test_baseline_select_skills_preserves_original_casing():
     """Test that output preserves original input casing."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="Backend Developer",
         technology=["DJANGO", "PostgreSQL", "docker"],
         programming=["PYTHON", "java"],
-        concepts=["api", "DATABASE"]
+        concepts=["api", "DATABASE"],
     )
-
-    result, _ = baseline_select_skills(request)
 
     # Original casing should be preserved
     if "DJANGO" in result["technology"]:
@@ -776,14 +760,12 @@ def test_baseline_select_skills_preserves_original_casing():
 
 def test_baseline_select_skills_role_with_hyphens():
     """Test role detection with hyphenated job titles."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="Full-Stack Developer",
         technology=["React", "Django"],
         programming=["JavaScript", "Python"],
-        concepts=["API", "UI"]
+        concepts=["API", "UI"],
     )
-
-    result, _ = baseline_select_skills(request)
 
     # Should detect as fullstack
     assert len(result["technology"]) > 0
@@ -792,22 +774,19 @@ def test_baseline_select_skills_role_with_hyphens():
 
 def test_baseline_select_skills_role_case_insensitive():
     """Test that role detection is case-insensitive."""
-    request1 = SkillSelectRequest(
+    result1, _ = baseline_select_skills(
         job_role="BACKEND ENGINEER",
         technology=["Django", "PostgreSQL"],
         programming=["Python"],
-        concepts=["API"]
+        concepts=["API"],
     )
 
-    request2 = SkillSelectRequest(
+    result2, _ = baseline_select_skills(
         job_role="backend engineer",
         technology=["Django", "PostgreSQL"],
         programming=["Python"],
-        concepts=["API"]
+        concepts=["API"],
     )
-
-    result1, _ = baseline_select_skills(request1)
-    result2, _ = baseline_select_skills(request2)
 
     # Should produce identical results
     assert result1 == result2, "Role detection should be case-insensitive"
@@ -815,14 +794,12 @@ def test_baseline_select_skills_role_case_insensitive():
 
 def test_baseline_select_skills_ml_engineer():
     """Test role detection for 'ML Engineer'."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="ML Engineer",
         technology=["TensorFlow", "PyTorch", "Pandas", "React"],
         programming=["Python", "C++", "JavaScript"],
-        concepts=["Machine Learning", "Deep Learning", "UI"]
+        concepts=["Machine Learning", "Deep Learning", "UI"],
     )
-
-    result, _ = baseline_select_skills(request)
 
     # ML-specific skills should rank higher
     assert "TensorFlow" in result["technology"], "TensorFlow is ML tech"
@@ -838,14 +815,13 @@ def test_baseline_select_skills_respects_top_n():
     # Create request with more skills than TOP_N
     tech_skills = [f"Skill{i}" for i in range(top_n + 5)] + ["Python", "Django", "React"]
 
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="Backend Developer",
         technology=tech_skills,
         programming=["Python", "Java", "JavaScript"],
-        concepts=["API", "Database"]
+        concepts=["API", "Database"],
+        top_n=top_n,
     )
-
-    result, _ = baseline_select_skills(request)
 
     # Each category should have at most TOP_N skills
     assert len(result["technology"]) <= top_n, f"Should return at most {top_n} technology skills"
@@ -855,14 +831,12 @@ def test_baseline_select_skills_respects_top_n():
 
 def test_baseline_select_skills_consistency_across_categories():
     """Test that same role produces consistent behavior across categories."""
-    request = SkillSelectRequest(
+    result, _ = baseline_select_skills(
         job_role="Backend Engineer",
         technology=["Django", "React", "PostgreSQL"],
         programming=["Python", "JavaScript", "Photoshop"],  # Photoshop doesn't belong
-        concepts=["API", "Design", "Database"]  # Design is less relevant
+        concepts=["API", "Design", "Database"],  # Design is less relevant
     )
-
-    result, _ = baseline_select_skills(request)
 
     # Backend-relevant skills should be selected across all categories
     # Django and PostgreSQL are backend tech

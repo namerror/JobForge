@@ -106,9 +106,9 @@ def test_select_skills_response_structure():
     assert res.status_code == 200
 
     data = res.json()
-    # Check all required fields are present
+    # Check all required fields are present (details may also appear in dev mode)
     required_fields = {"technology", "programming", "concepts"}
-    assert set(data.keys()) == required_fields
+    assert required_fields.issubset(set(data.keys()))
 
 
 def test_select_skills_maintains_subset():
