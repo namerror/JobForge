@@ -1,5 +1,13 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 
-TOP_N = int(os.getenv("TOP_N", 5)) # how many skills to return per category, in the future could be broken down by category or customized in request body
-METHOD = os.getenv("METHOD", "baseline")
-DEV_MODE = os.getenv("DEV_MODE", "true").lower() == "true"
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    TOP_N: int = 10
+    METHOD: str = "baseline"
+    DEV_MODE: bool = True
+    LOG_LEVEL: str = "INFO"
+
+settings = Settings()

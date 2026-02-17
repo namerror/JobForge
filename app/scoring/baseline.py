@@ -1,11 +1,7 @@
 import dotenv
 import os
 from app.scoring.synonyms import SYNONYM_TO_NORMALIZED
-from app.models import SkillSelectRequest
 from app.scoring.role_profiles import detect_role_family
-
-DEV_MODE = os.getenv("DEV_MODE", "false").lower() == "true"
-TOP_N = int(os.getenv("TOP_N", "10"))  # Number of top skills to return per category
 
 def normalize_skill(skill: str) -> str:
     """Normalize skill names to a standard format."""
@@ -35,9 +31,9 @@ def score_skill(skill: str, role_family: str, category: str, job_text: str | Non
     elif normalized_skill and any(normalized_skill in keyword for keyword in keywords):
         score = 1.0
 
-    return score, {"normalized_skill": normalized_skill, "matched_keywords": list(keywords)} if DEV_MODE else None
+    return score, {"normalized_skill": normalized_skill, "matched_keywords": list(keywords)}
 
-def rank_skills(skills: list[str], role_family: str, category: str, job_text: str | None=None) -> tuple[list[str], dict | None]:
+def rank_skills(skills: list[str], role_family: str, category: str, job_text: str | None=None, top_n: int | None=None) -> tuple[list[str], dict | None]:
     """Rank skills based on their scores."""
     scored_skills = []
     for skill in skills:
@@ -50,19 +46,32 @@ def rank_skills(skills: list[str], role_family: str, category: str, job_text: st
     ranked_skills = [skill for skill, score, details in scored_skills]
     details_dict = {skill: {"score": score, **details} for skill, score, details in scored_skills}
 
-    return ranked_skills[:TOP_N], details_dict if DEV_MODE else None
+    return ranked_skills[:top_n], details_dict
 
-def baseline_select_skills(skills: SkillSelectRequest) -> tuple[dict, dict | None]:
+def baseline_select_skills(
+    job_role: str,
+    technology: list[str],
+    programming: list[str],
+    concepts: list[str],
+    job_text: str | None = None,
+    top_n: int | None = None,
+    dev_mode: bool = False,
+) -> tuple[dict, dict | None]:
     """Select top skills for a given role family and category."""
-    role_family = detect_role_family(skills.job_role)
+    role_family = detect_role_family(job_role)
     selected_skills = {}
     details = {}
 
-    for category in ["technology", "programming", "concepts"]:
-        category_skills = getattr(skills, category, [])
-        ranked_skills, category_details = rank_skills(category_skills, role_family, category)
+    category_inputs = {
+        "technology": technology,
+        "programming": programming,
+        "concepts": concepts,
+    }
+
+    for category, category_skills in category_inputs.items():
+        ranked_skills, category_details = rank_skills(category_skills, role_family, category, job_text=job_text, top_n=top_n)
         selected_skills[category] = ranked_skills
-        if DEV_MODE:
+        if dev_mode:
             details[category] = category_details
-    
-    return selected_skills, details if DEV_MODE else None
+
+    return selected_skills, details if dev_mode else None
