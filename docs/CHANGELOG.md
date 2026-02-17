@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Role family detection and inheritance in baseline scorer
 - Baseline scoring algorithm with role-specific boosts
+- Skill selection service with latency tracking and structured logging
 
 ### Fixed
 - Empty string handling in baseline scorer to prevent false partial matches
