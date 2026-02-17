@@ -353,7 +353,7 @@ def test_rank_skills_tie_breaking_alphabetical():
     role_family = "backend"
     category = "technology"
 
-    ranked, _ = rank_skills(skills, role_family, category, None)
+    ranked, _ = rank_skills(skills, role_family, category, None, include_zero=True)
 
     # Since all have same score, should be sorted alphabetically
     expected = sorted(skills)
