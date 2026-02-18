@@ -1,0 +1,262 @@
+[
+    {
+        "input": {
+            "job_role": "Software Developer",
+            "technology": ["Node.JS", "React.JS", "MongoDB", "TensorFlow", "Arduino", "MATLAB", "Tableau", "Android Studio"],
+            "programming": ["JavaScript", "TypeScript", "C", "Swift", "Assembly", "Kotlin"],
+            "concepts": ["REST APIs", "Microservices", "Agile Methodology", "System Design", "Deep Learning", "Mobile App Development", "Data Analysis", "Linear Algebra"]
+        },
+        "expected": {
+            "technology": ["Node.JS", "MongoDB", "React.JS", "TensorFlow", "Android Studio"],
+            "programming": ["C", "JavaScript", "TypeScript", "Kotlin", "Swift", "Assembly"],
+            "concepts": ["Agile Methodology", "Microservices", "Mobile App Development", "REST APIs", "System Design", "Deep Learning"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Data Scientist",
+            "technology": ["Node", "React", "Redis", "Linux", "AWS", "Azure", "PyTorch", "Unity", "Bootstrap", "Android Studio", "Selenium"],
+            "programming": ["Python", "R", "C++", "SQL", "Java", "JavaScript", "Swift", "Lua"],
+            "concepts": ["Generative AI", "Machine Learning", "OOP", "Security", "Data Analysis", "Statistical Modeling", "Big Data", "Game Physics", "Responsive Design", "3D Rendering"]
+        },
+        "expected": {
+            "technology": ["AWS", "Azure", "PyTorch", "Redis"],
+            "programming": ["Python", "R", "SQL"],
+            "concepts": ["Big Data", "Data Analysis", "Machine Learning", "Statistical Modeling", "Generative AI"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Frontend Engineer",
+            "technology": ["ReactJS", "VueJS", "Tailwind CSS", "Figma", "Webpack", "Storybook", "JIRA", "Docker", "TensorFlow", "Arduino", "Raspberry Pi", "Android Studio"],
+            "programming": ["JavaScript", "TypeScript", "HTML", "CSS", "Python", "Java", "C", "C++", "Assembly", "R"],
+            "concepts": ["Component Architecture", "Responsive Design", "Accessibility", "REST APIs", "Agile", "Machine Learning", "OOP", "Firmware Development", "Deep Learning", "Penetration Testing"]
+        },
+        "expected": {
+            "technology": ["Figma", "ReactJS", "Storybook", "Tailwind CSS", "VueJS", "Webpack"],
+            "programming": ["CSS", "HTML", "JavaScript", "TypeScript"],
+            "concepts": ["Accessibility", "Component Architecture", "Responsive Design"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Full Stack Developer",
+            "technology": ["React.js", "Node JS", "PostgreSQL", "Redis", "Docker", "AWS", "Nginx", "JIRA", "Unity", "Tableau", "MATLAB", "Android Studio", "Selenium"],
+            "programming": ["JavaScript", "TypeScript", "Python", "SQL", "Bash", "R", "C", "Swift", "Lua", "Assembly"],
+            "concepts": ["Microservices", "REST APIs", "GraphQL", "CI/CD", "System Design", "Agile", "Statistical Modeling", "Game Physics", "Mobile App Development", "Computer Graphics"]
+        },
+        "expected": {
+            "technology": ["Node JS", "PostgreSQL", "React.js", "Redis", "AWS", "Docker", "Nginx"],
+            "programming": ["JavaScript", "TypeScript", "Python", "SQL", "Bash"],
+            "concepts": ["GraphQL", "Microservices", "REST APIs", "System Design", "Agile", "CI/CD"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Back-End Engineer",
+            "technology": ["Django", "FastAPI", "MongoDB", "MySQL", "RabbitMQ", "Docker", "React", "Kubernetes", "Unity", "TensorFlow", "Xcode", "Tableau", "MATLAB"],
+            "programming": ["Python", "Java", "Go", "TypeScript", "Swift", "Kotlin", "Lua", "Assembly", "C"],
+            "concepts": ["Database Optimization", "Caching", "Message Queues", "Authentication", "Authorization", "UI/UX Design", "OOP", "Big Data", "Game Physics", "Mobile App Development", "3D Rendering", "Deep Learning"]
+        },
+        "expected": {
+            "technology": ["Django", "FastAPI", "MongoDB", "MySQL", "RabbitMQ", "Docker", "Kubernetes"],
+            "programming": ["Python", "Go", "Java"],
+            "concepts": ["Authentication", "Authorization", "Caching", "Database Optimization", "Message Queues", "OOP"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "devops engineer",
+            "technology": ["Docker", "Kubernetes", "Terraform", "Ansible", "Jenkins", "GitHub Actions", "Prometheus", "Grafana", "Linux", "AWS", "Azure", "TensorFlow", "Unity", "Android Studio", "Xcode", "Tableau"],
+            "programming": ["Python", "Bash", "Go", "Java", "JavaScript", "Swift", "Kotlin", "Lua", "Assembly", "R", "C"],
+            "concepts": ["CI/CD", "Infrastructure as Code", "Monitoring", "Containerization", "Machine Learning", "Networking", "Security", "Agile", "Deep Learning", "Game Physics", "Mobile App Development", "3D Rendering"]
+        },
+        "expected": {
+            "technology": ["Ansible", "AWS", "Azure", "Docker", "GitHub Actions", "Grafana", "Jenkins", "Kubernetes", "Linux", "Prometheus", "Terraform"],
+            "programming": ["Bash", "Go", "Python"],
+            "concepts": ["CI/CD", "Containerization", "Infrastructure as Code", "Monitoring", "Networking", "Security"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Machine Learning Engineer",
+            "technology": ["Pytorch", "TensorFlow", "Scikit-Learn", "Pandas", "NumPy", "Spark", "Docker", "Kubernetes", "React", "Unity", "Android Studio", "Xcode", "Arduino", "Selenium", "Tableau"],
+            "programming": ["Python", "C++", "Java", "Scala", "R", "Swift", "Kotlin", "Lua", "Assembly", "JavaScript"],
+            "concepts": ["Deep Learning", "Neural Networks", "NLP", "Computer Vision", "MLOps", "Feature Engineering", "REST APIs", "Agile", "CI/CD", "Game Physics", "Mobile App Development", "Firmware Development", "3D Rendering", "Penetration Testing"]
+        },
+        "expected": {
+            "technology": ["NumPy", "Pandas", "Pytorch", "Scikit-Learn", "TensorFlow", "Docker", "Kubernetes", "Spark"],
+            "programming": ["Python", "C++", "R"],
+            "concepts": ["Computer Vision", "Deep Learning", "Feature Engineering", "MLOps", "Neural Networks", "NLP"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Data analyst",
+            "technology": ["Excel", "Tableau", "Power BI", "Looker", "MySQL", "Google Sheets", "Amazon Web Services", "Spark", "Unity", "Angular", "Bootstrap", "Android Studio", "Xcode", "TensorFlow"],
+            "programming": ["SQL", "Python", "R", "VBA", "JavaScript", "Swift", "Kotlin", "C", "Assembly", "Lua"],
+            "concepts": ["Data Visualization", "Business Intelligence", "ETL", "OOP", "Machine Learning", "Reporting", "Statistical Modeling", "Microservices", "Game Physics", "Mobile App Development", "Firmware Development", "3D Rendering", "Responsive Design"]
+        },
+        "expected": {
+            "technology": ["Excel", "Looker", "MySQL", "Power BI", "Tableau", "Google Sheets"],
+            "programming": ["SQL", "Python", "R", "VBA"],
+            "concepts": ["Business Intelligence", "Data Visualization", "Reporting", "ETL", "Statistical Modeling"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Cloud Architect",
+            "technology": ["Amazon Web Services", "Microsoft Azure", "Google Cloud", "Terraform", "Kubernetes", "Docker", "Ansible", "Linux", "Oracle Cloud", "Unity", "TensorFlow", "Android Studio", "Xcode", "MATLAB", "Arduino"],
+            "programming": ["Python", "Go", "Bash", "Java", "TypeScript", "Swift", "Kotlin", "Assembly", "Lua", "R"],
+            "concepts": ["Cloud Migration", "Infrastructure as Code", "High Availability", "Networking", "Security", "Microservices", "Data Science", "Generative AI", "Game Physics", "Mobile App Development", "3D Rendering", "Deep Learning", "Firmware Development"]
+        },
+        "expected": {
+            "technology": ["Amazon Web Services", "Google Cloud", "Microsoft Azure", "Docker", "Kubernetes", "Terraform", "Ansible", "Linux", "Oracle Cloud"],
+            "programming": ["Bash", "Go", "Python", "Java"],
+            "concepts": ["Cloud Migration", "High Availability", "Infrastructure as Code", "Security", "Microservices", "Networking"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Cyber Security Analyst",
+            "technology": ["Kali Linux", "Metasploit", "Wireshark", "Nmap", "Burp Suite", "Splunk", "AWS", "Azure", "Docker", "React", "Unity", "TensorFlow", "Android Studio", "Tableau", "Firebase", "MATLAB"],
+            "programming": ["Python", "Bash", "C", "C++", "PowerShell", "Java", "JavaScript", "Swift", "Kotlin", "Lua", "Go", "R"],
+            "concepts": ["Penetration Testing", "Vulnerability Assessment", "Incident Response", "Threat Intelligence", "Cryptography", "Compliance", "Agile", "Machine Learning", "Firewall Management", "Game Physics", "Mobile App Development", "Deep Learning", "3D Rendering", "Data Analysis"]
+        },
+        "expected": {
+            "technology": ["Burp Suite", "Kali Linux", "Metasploit", "Nmap", "Splunk", "Wireshark", "AWS", "Azure"],
+            "programming": ["Bash", "Python", "C", "C++", "PowerShell"],
+            "concepts": ["Incident Response", "Penetration Testing", "Threat Intelligence", "Vulnerability Assessment", "Compliance", "Cryptography", "Firewall Management"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "iOS Developer",
+            "technology": ["Xcode", "SwiftUI", "UIKit", "Firebase", "CocoaPods", "Figma", "TestFlight", "React-Native", "TensorFlow", "Kubernetes", "Arduino", "Tableau", "Selenium", "Unreal Engine", "Spark"],
+            "programming": ["Swift", "Objective-C", "Python", "JavaScript", "Kotlin", "C", "C++", "Assembly", "Lua", "R", "Bash"],
+            "concepts": ["Mobile App Development", "REST APIs", "Push Notifications", "App Store Deployment", "OOP", "Agile", "CI/CD", "Machine Learning", "Game Physics", "Deep Learning", "Firmware Development", "Penetration Testing", "Data Analysis", "Data Warehousing"]
+        },
+        "expected": {
+            "technology": ["SwiftUI", "UIKit", "Xcode", "CocoaPods", "Firebase", "TestFlight"],
+            "programming": ["Swift", "Objective-C"],
+            "concepts": ["App Store Deployment", "Mobile App Development", "Push Notifications", "REST APIs", "CI/CD", "OOP"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "android developer",
+            "technology": ["Android Studio", "Firebase", "Retrofit", "Room Database", "Jetpack Compose", "Flutter", "Docker", "AWS", "TensorFlow", "Xcode", "Tableau", "Unity", "Selenium", "Bootstrap"],
+            "programming": ["Kotlin", "Java", "Python", "C++", "Dart", "Swift", "Assembly", "Lua", "R", "JavaScript", "TypeScript"],
+            "concepts": ["Material Design", "REST APIs", "MVVM Architecture", "OOP", "CI/CD", "Machine Learning", "Microservices", "Agile", "Game Physics", "Deep Learning", "Firmware Development", "3D Rendering", "Responsive Design", "Data Analysis"]
+        },
+        "expected": {
+            "technology": ["Android Studio", "Jetpack Compose", "Firebase", "Retrofit", "Room Database", "Flutter"],
+            "programming": ["Java", "Kotlin", "Dart"],
+            "concepts": ["Material Design", "MVVM Architecture", "REST APIs", "CI/CD", "OOP"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "QA / Test Engineer",
+            "technology": ["Selenium", "Cypress", "Jest", "Postman", "JIRA", "Jenkins", "Docker", "AWS", "React", "TensorFlow", "Unity", "Arduino", "Tableau", "Xcode", "MATLAB"],
+            "programming": ["Python", "JavaScript", "Java", "TypeScript", "Bash", "C#", "C", "C++", "Swift", "Kotlin", "Assembly", "Lua"],
+            "concepts": ["Test Automation", "Manual Testing", "CI/CD", "Performance Testing", "API Testing", "Agile", "BDD", "Machine Learning", "System Design", "Game Physics", "Deep Learning", "Firmware Development", "3D Rendering", "Data Analysis", "Mobile App Development"]
+        },
+        "expected": {
+            "technology": ["Cypress", "Jest", "Postman", "Selenium", "Jenkins", "JIRA"],
+            "programming": ["Java", "JavaScript", "Python", "TypeScript", "Bash"],
+            "concepts": ["API Testing", "Manual Testing", "Performance Testing", "Test Automation", "Agile", "BDD", "CI/CD"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Embedded Engineer",
+            "technology": ["Linux", "FreeRTOS", "STM32", "Arduino", "Raspberry Pi", "Docker", "AWS", "React", "Vue", "TensorFlow", "Unity", "Tableau", "Firebase"],
+            "programming": ["C", "C++", "Python", "Assembly", "Rust", "MATLAB", "Java", "JavaScript", "TypeScript", "Swift", "Kotlin", "Dart"],
+            "concepts": ["Real-Time Systems", "Firmware Development", "Memory Management", "Debugging", "OOP", "Networking", "Machine Learning", "Agile", "Component Architecture", "UI/UX Design", "Game Physics", "Deep Learning", "Responsive Design", "Mobile App Development"]
+        },
+        "expected": {
+            "technology": ["Arduino", "FreeRTOS", "Linux", "Raspberry Pi", "STM32"],
+            "programming": ["C", "C++", "Assembly", "Rust", "MATLAB", "Python"],
+            "concepts": ["Firmware Development", "Memory Management", "Real-Time Systems", "Debugging", "Networking", "OOP"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Data Engineer",
+            "technology": ["Apache Spark", "Hadoop", "Airflow", "Kafka", "Amazon Cloud", "Google Cloud Platform", "Snowflake", "dbt", "Docker", "React", "Unity", "Android Studio", "Xcode", "Selenium", "Tableau", "Bootstrap"],
+            "programming": ["Python", "SQL", "Scala", "Java", "Bash", "R", "Swift", "Kotlin", "Assembly", "Lua", "C", "JavaScript"],
+            "concepts": ["ETL Pipelines", "Data Warehousing", "Batch Processing", "Stream Processing", "Big Data", "Data Modeling", "Machine Learning", "Microservices", "CI/CD", "Game Physics", "Mobile App Development", "Firmware Development", "3D Rendering", "Penetration Testing", "Responsive Design"]
+        },
+        "expected": {
+            "technology": ["Airflow", "Apache Spark", "dbt", "Kafka", "Snowflake", "Amazon Cloud", "Google Cloud Platform", "Hadoop", "Docker"],
+            "programming": ["Python", "SQL", "Java", "Scala", "Bash"],
+            "concepts": ["Batch Processing", "Big Data", "Data Modeling", "Data Warehousing", "ETL Pipelines", "Stream Processing"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "site reliability engineer",
+            "technology": ["Kubernetes", "Prometheus", "Grafana", "AWS", "Terraform", "Docker", "Linux", "Elasticsearch", "PagerDuty", "TensorFlow", "Unity", "Android Studio", "Xcode", "Tableau", "MATLAB", "Arduino"],
+            "programming": ["Go", "Python", "Bash", "Java", "Rust", "Swift", "Kotlin", "Assembly", "Lua", "R", "JavaScript"],
+            "concepts": ["Monitoring", "Incident Response", "Infrastructure as Code", "Capacity Planning", "CI/CD", "Automation", "Machine Learning", "Security", "Networking", "Game Physics", "Mobile App Development", "Deep Learning", "3D Rendering", "Data Analysis", "Firmware Development"]
+        },
+        "expected": {
+            "technology": ["AWS", "Docker", "Kubernetes", "Linux", "Terraform", "Elasticsearch", "Grafana", "PagerDuty", "Prometheus"],
+            "programming": ["Bash", "Go", "Python"],
+            "concepts": ["Automation", "Capacity Planning", "Incident Response", "Infrastructure as Code", "Monitoring", "CI/CD", "Networking", "Security"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Blockchain Developer",
+            "technology": ["Ethereum", "Web3.js", "Hardhat", "IPFS", "Docker", "Node", "React", "AWS", "TensorFlow", "Android Studio", "Arduino", "Tableau", "Selenium", "MATLAB", "Xcode"],
+            "programming": ["Solidity", "JavaScript", "TypeScript", "Python", "Rust", "Go", "Swift", "Kotlin", "C", "Assembly", "Lua", "R", "Java"],
+            "concepts": ["Smart Contracts", "Cryptography", "REST APIs", "OOP", "Agile", "Microservices", "Machine Learning", "DeFi Protocols", "Game Physics", "Mobile App Development", "Firmware Development", "3D Rendering", "Deep Learning", "Data Analysis"]
+        },
+        "expected": {
+            "technology": ["Ethereum", "Hardhat", "IPFS", "Web3.js", "Node"],
+            "programming": ["Solidity", "JavaScript", "TypeScript", "Python", "Rust"],
+            "concepts": ["Cryptography", "DeFi Protocols", "Smart Contracts"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "game developer",
+            "technology": ["Unity", "Unreal Engine", "Blender", "Steam SDK", "AWS", "Docker", "GitHub", "TensorFlow", "Pandas", "Angular", "Bootstrap", "Selenium", "Tableau", "PostgreSQL"],
+            "programming": ["C#", "C++", "Python", "Lua", "Java", "JavaScript", "Swift", "Kotlin", "Bash", "R", "SQL", "TypeScript"],
+            "concepts": ["Game Physics", "3D Rendering", "Networking", "OOP", "Performance Optimization", "Machine Learning", "Agile", "REST APIs", "Deep Learning", "Mobile App Development", "Firmware Development", "Data Analysis", "Penetration Testing", "Statistical Modeling"]
+        },
+        "expected": {
+            "technology": ["Unity", "Unreal Engine", "Blender", "Steam SDK"],
+            "programming": ["C#", "C++", "Lua"],
+            "concepts": ["3D Rendering", "Game Physics", "Performance Optimization", "Networking", "OOP"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "AI Research Scientist",
+            "technology": ["PyTorch", "TensorFlow", "CUDA", "sklearn", "Pandas", "HuggingFace", "Docker", "Kubernetes", "AWS", "React", "Unity", "Android Studio", "Xcode", "Arduino", "Selenium", "Bootstrap", "Tableau"],
+            "programming": ["Python", "C++", "R", "MATLAB", "Julia", "Java", "Swift", "Kotlin", "Assembly", "Lua", "JavaScript"],
+            "concepts": ["Large Language Models", "Reinforcement Learning", "Computer Vision", "Natural Language Processing", "Statistical Modeling", "Research Methodology", "MLOps", "Agile", "REST APIs", "Game Physics", "Mobile App Development", "Firmware Development", "3D Rendering", "Penetration Testing", "Responsive Design"]
+        },
+        "expected": {
+            "technology": ["CUDA", "HuggingFace", "Pandas", "PyTorch", "sklearn", "TensorFlow", "AWS", "Docker"],
+            "programming": ["Python", "C++", "Julia", "MATLAB", "R"],
+            "concepts": ["Computer Vision", "Large Language Models", "Natural Language Processing", "Reinforcement Learning", "Research Methodology", "Statistical Modeling", "MLOps"]
+        }
+    },
+    {
+        "input": {
+            "job_role": "Junior Full-Stack Developer",
+            "technology": ["React.js", "NodeJS", "MongoDB", "Git", "Heroku", "Bootstrap", "Firebase", "JIRA", "TensorFlow", "Unity", "Android Studio", "Arduino", "Tableau", "MATLAB", "Selenium"],
+            "programming": ["JavaScript", "Python", "HTML", "CSS", "TypeScript", "Java", "C", "C++", "Swift", "Kotlin", "Assembly", "Lua", "R"],
+            "concepts": ["REST APIs", "Agile", "Version Control", "OOP", "Problem Solving", "Communication", "Teamwork", "Machine Learning", "Game Physics", "Deep Learning", "Firmware Development", "3D Rendering", "Penetration Testing", "Data Analysis", "Linear Algebra"]
+        },
+        "expected": {
+            "technology": ["Git", "MongoDB", "NodeJS", "React.js", "Bootstrap", "Firebase", "Heroku"],
+            "programming": ["CSS", "HTML", "JavaScript", "TypeScript", "Python"],
+            "concepts": ["REST APIs", "Version Control", "Agile", "OOP"]
+        }
+    }
+]

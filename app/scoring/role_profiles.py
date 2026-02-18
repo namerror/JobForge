@@ -3,7 +3,7 @@ ROLE_PROFILES = {
     "general": {
         "inherits": ["fullstack", "ml/ai"],
         "concepts": {
-            "keywords": ["software", "programming", "architecture","testing", "debugging","agile", "scrum"],
+            "keywords": ["software", "programming", "architecture","testing", "debugging","agile", "scrum", "oop"],
         },
         "technology": {
             "keywords": ["git", "rest", "docker", "kubernetes", "aws", "azure", "gcp", "linux"],

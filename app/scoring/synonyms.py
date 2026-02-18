@@ -20,6 +20,8 @@ NORMALIZATION_MAP = {
     "machine learning": ["ml"],
     "genai": ["generative ai", "generative artificial intelligence"],
     "random forest": ["randomforest", "random-forest", "random forest classifier", "random forests"],
+    "api": ["apis"],
+    "oop": ["object-oriented programming", "object oriented programming"],
 }
 
 # From generated json file
