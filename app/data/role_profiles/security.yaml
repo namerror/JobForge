@@ -1,0 +1,35 @@
+concepts:
+  keywords:
+    - networking
+    - cryptography
+    - system
+    - encryption
+    - cybersecurity
+    - vulnerability
+    - penetration testing
+    - compliance
+    - firewall
+    - intrusion detection
+    - incident response
+    - reverse engineering
+    - fuzzing
+    - malware analysis
+technology:
+  keywords:
+    - linux
+    - windows
+    - aws
+    - azure
+    - gcp
+    - metasploit
+    - nmap
+    - wireshark
+    - burp suite
+programming:
+  keywords:
+    - rust
+    - c
+    - assembly
+    - python
+    - c++
+    - bash

@@ -1,0 +1,10 @@
+inherits:
+  - backend
+  - frontend
+  - devops
+concepts:
+  keywords: []
+technology:
+  keywords: []
+programming:
+  keywords: []

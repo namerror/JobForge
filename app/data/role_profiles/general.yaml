@@ -1,0 +1,33 @@
+inherits:
+  - fullstack
+  - ml/ai
+concepts:
+  keywords:
+    - software
+    - programming
+    - architecture
+    - testing
+    - debugging
+    - agile
+    - scrum
+    - oop
+technology:
+  keywords:
+    - git
+    - rest
+    - docker
+    - kubernetes
+    - aws
+    - azure
+    - gcp
+    - linux
+programming:
+  keywords:
+    - python
+    - java
+    - javascript
+    - c#
+    - c++
+    - c
+    - sql
+    - rust

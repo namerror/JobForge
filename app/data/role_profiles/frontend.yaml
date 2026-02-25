@@ -1,0 +1,23 @@
+concepts:
+  keywords:
+    - ui
+    - ux
+    - accessibility
+    - responsive
+    - web
+    - design
+    - components
+    - state
+technology:
+  keywords:
+    - react
+    - vue
+    - angular
+    - bootstrap
+    - tailwind
+programming:
+  keywords:
+    - javascript
+    - typescript
+    - css
+    - html

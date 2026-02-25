@@ -1,0 +1,26 @@
+concepts:
+  keywords:
+    - machine learning
+    - deep learning
+    - neural networks
+    - data science
+    - artificial intelligence
+    - rnn
+    - cnn
+    - nlp
+    - computer vision
+    - reinforcement learning
+    - genai
+    - random forest
+    - decision tree
+technology:
+  keywords:
+    - tensorflow
+    - pytorch
+    - scikit-learn
+    - pandas
+    - numpy
+programming:
+  keywords:
+    - python
+    - c++

@@ -1,0 +1,28 @@
+concepts:
+  keywords:
+    - database
+    - server
+    - api
+    - microservices
+    - cloud
+    - authentication
+    - authorization
+technology:
+  keywords:
+    - node.js
+    - django
+    - spring
+    - fastapi
+    - postgresql
+    - mysql
+    - mongodb
+    - redis
+    - docker
+    - kubernetes
+    - kafka
+    - aws
+programming:
+  keywords:
+    - java
+    - python
+    - c#

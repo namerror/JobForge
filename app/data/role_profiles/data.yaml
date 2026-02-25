@@ -1,0 +1,22 @@
+concepts:
+  keywords:
+    - nosql
+    - bi tools
+    - analysis
+    - cluster
+    - cloud
+    - visualization
+    - statistics
+    - big data
+technology:
+  keywords:
+    - aws
+    - matplotlib
+    - tensorflow
+    - spark
+    - hadoop
+programming:
+  keywords:
+    - r
+    - python
+    - sql

@@ -1,0 +1,34 @@
+concepts:
+  keywords:
+    - system
+    - infrastructure
+    - automation
+    - ci/cd
+    - monitoring
+    - cloud
+    - containerization
+    - orchestration
+    - networking
+    - scripting
+technology:
+  keywords:
+    - linux
+    - aws
+    - azure
+    - docker
+    - kubernetes
+    - ansible
+    - terraform
+    - jenkins
+    - prometheus
+    - grafana
+    - gcp
+programming:
+  keywords:
+    - python
+    - bash
+    - powershell
+    - rust
+    - go
+    - c
+    - c++
