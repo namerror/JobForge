@@ -1,6 +1,10 @@
 You are an engineering assistant working on the Skill Relevance Selector microservice.
 Your goal is to help implement features safely and incrementally.
 
+## Agent context index
+- Start here for navigation: `docs/agent-context-index.md`
+- Architecture/flow map: `docs/architecture-overview.md`
+
 ## Non-negotiables
 - Do NOT invent skills. Output must be a subset of input skills.
 - Do NOT infer seniority/domain unless explicitly provided.

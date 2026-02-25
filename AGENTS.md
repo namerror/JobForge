@@ -2,6 +2,10 @@
 
 This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) safely.
 
+## Agent context index
+- Start here for navigation: `docs/agent-context-index.md`
+- Architecture/flow map: `docs/architecture-overview.md`
+
 ## Organization
 - Tests in `tests/`
 - Scoring logic in `app/scoring/`
