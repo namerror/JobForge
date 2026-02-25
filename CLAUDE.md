@@ -53,14 +53,14 @@ A feature is done when:
 - evaluation script runs and reports metrics
 - behavior is deterministic
 - API contract unchanged unless explicitly intended
-- work is logged in `docs/dev-log.md`
+- work is logged in `docs/devlog/`
 
 ## Development Logging (required)
 
 After completing any non-trivial task or making architectural decisions, you MUST document your work in the appropriate log file.
 
-### Session Log (`docs/dev-log.md`)
-After completing tasks, append an entry with:
+### Session Log (`docs/devlog/`)
+After completing tasks, add a new session file under `docs/devlog/` with:
 - **Date & Summary**: ISO date + brief task description (1 line)
 - **Changes**: Files modified/created with line references where relevant
 - **Rationale**: Why you made certain decisions or chose this approach

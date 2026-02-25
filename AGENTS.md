@@ -43,14 +43,14 @@ This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) s
 - Don't add new features without tests.
 - Don't modify existing role profiles without a clear reason and corresponding test updates.
 - Don't introduce non-determinism in the baseline method.
-- Don't make changes without logging them in `docs/dev-log.md` unless trivial (typo fixes, formatting).
+- Don't make changes without logging them in `docs/devlog/` unless trivial (typo fixes, formatting).
 
 ## Development Logging (required)
 
 After completing any non-trivial task or making architectural decisions, you MUST document your work in the appropriate log file.
 
-### Session Log (`docs/dev-log.md`)
-After completing tasks, append an entry with:
+### Session Log (`docs/devlog/`)
+After completing tasks, add a new session file under `docs/devlog/` with:
 - **Date & Summary**: ISO date + brief task description (1 line)
 - **Changes**: Files modified/created with line references where relevant
 - **Rationale**: Why you made certain decisions or chose this approach
