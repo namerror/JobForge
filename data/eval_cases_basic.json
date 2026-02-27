@@ -1,0 +1,132 @@
+[
+  {
+    "input": {
+      "job_role": "backend developer",
+      "technology": ["postgresql", "Node.js", "react", "docker", "kubernetes", "redis", "flutter"],
+      "programming": ["python", "java", "swift", "css", "c#"],
+      "concepts": ["api", "database", "ui", "microservices", "mobile"]
+    },
+    "expected": {
+      "technology": ["docker", "kubernetes", "Node.js", "postgresql", "redis"],
+      "programming": ["c#", "java", "python"],
+      "concepts": ["api", "database", "microservices"]
+    }
+  },
+  {
+    "input": {
+      "job_role": "Frontend Engineer",
+      "technology": ["React", "Vue", "django", "Angular", "tensorflow"],
+      "programming": ["JavaScript", "TypeScript", "python", "css", "Java"],
+      "concepts": ["ui", "ux", "state", "database", "machine learning"]
+    },
+    "expected": {
+      "technology": ["Angular", "React", "Vue"],
+      "programming": ["css", "JavaScript", "TypeScript"],
+      "concepts": ["state", "ui", "ux"]
+    }
+  },
+  {
+    "input": {
+      "job_role": "  DevOps  Engineer  ",
+      "technology": [" docker ", " kubernetes ", "ansible", " react ", "mongodb"],
+      "programming": ["bash", " python ", "go", "swift", "kotlin"],
+      "concepts": ["ci/cd", " automation ", "monitoring", "ui", "database"]
+    },
+    "expected": {
+      "technology": ["ansible", "docker", "kubernetes"],
+      "programming": ["bash", "go", "python"],
+      "concepts": ["automation", "ci/cd", "monitoring"]
+    }
+  },
+  {
+    "input": {
+      "job_role": "ML Engineer",
+      "technology": ["pytorch", "tensorflow", "pandas", "docker", "react", "numpy"],
+      "programming": ["python", "c++", "java", "javascript", "go"],
+      "concepts": ["machine learning", "deep learning", "nlp", "api", "database"]
+    },
+    "expected": {
+      "technology": ["numpy", "pandas", "pytorch", "tensorflow"],
+      "programming": ["c++", "python"],
+      "concepts": ["deep learning", "machine learning", "nlp"]
+    }
+  },
+  {
+    "input": {
+      "job_role": "data scientist",
+      "technology": ["spark", "hadoop", "matplotlib", "react", "kubernetes", "aws"],
+      "programming": ["python", "r", "sql", "javascript", "swift"],
+      "concepts": ["statistics", "visualization", "big data", "ui", "microservices"]
+    },
+    "expected": {
+      "technology": ["aws", "hadoop", "matplotlib", "spark"],
+      "programming": ["python", "r", "sql"],
+      "concepts": ["big data", "statistics", "visualization"]
+    }
+  },
+  {
+    "input": {
+      "job_role": "Security Engineer",
+      "technology": ["Nmap", "Wireshark", "Metasploit", "React", "Docker", "Linux"],
+      "programming": ["Python", "C", "Rust", "JavaScript", "Swift", "Bash"],
+      "concepts": ["cryptography", "vulnerability", "penetration testing", "ui", "database", "encryption"]
+    },
+    "expected": {
+      "technology": ["Linux", "Metasploit", "Nmap", "Wireshark"],
+      "programming": ["Bash", "C", "Python", "Rust"],
+      "concepts": ["cryptography", "encryption", "penetration testing", "vulnerability"]
+    }
+  },
+  {
+    "input": {
+      "job_role": "mobile developer",
+      "technology": ["flutter", "react native", "react", "docker", "kubernetes"],
+      "programming": ["kotlin", "swift", "java", "python", "c#"],
+      "concepts": ["mobile", "android", "ios", "database", "machine learning"]
+    },
+    "expected": {
+      "technology": ["flutter", "react native"],
+      "programming": ["java", "kotlin", "swift"],
+      "concepts": ["android", "ios", "mobile"]
+    }
+  },
+  {
+    "input": {
+      "job_role": "Full Stack Developer",
+      "technology": ["react", "node.js", "docker", "REACT", "tensorflow", "AWS"],
+      "programming": ["javascript", "python", "Java", "PYTHON", "swift", "typescript"],
+      "concepts": ["api", "ui", "ci/cd", "machine learning", "mobile", "cloud"]
+    },
+    "expected": {
+      "technology": ["AWS", "docker", "node.js", "react"],
+      "programming": ["Java", "javascript", "python", "typescript"],
+      "concepts": ["api", "ci/cd", "cloud", "ui"]
+    }
+  },
+  {
+    "input": {
+      "job_role": "backend-developer",
+      "technology": ["node.js", "postgresql,", "redis", "flutter!", "angular"],
+      "programming": ["python", "java;", "c#", "typescript", "kotlin"],
+      "concepts": ["api", "authentication", "ui", "mobile", "microservices"]
+    },
+    "expected": {
+      "technology": ["node.js", "postgresql", "redis"],
+      "programming": ["c#", "java", "python"],
+      "concepts": ["api", "authentication", "microservices"]
+    }
+  },
+  {
+    "input": {
+      "job_role": "software engineer",
+      "technology": ["docker", "git", "aws", "flutter", "spark"],
+      "programming": ["python", "java", "swift", "kotlin"],
+      "concepts": ["architecture", "testing", "agile", "mobile", "big data"]
+    },
+    "expected": {
+      "technology": ["aws", "docker", "git"],
+      "programming": ["java", "python"],
+      "concepts": ["agile", "architecture", "testing"]
+    }
+  }
+]

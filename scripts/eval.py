@@ -4,7 +4,8 @@ from app.scoring.baseline import baseline_select_skills
 from app.config import settings
 
 file_dir = os.path.dirname(__file__)
-eval_f = json.load(open(os.path.join(file_dir, "../data", "eval_cases_real.json"), "r"))
+eval_real = json.load(open(os.path.join(file_dir, "../data", "eval_cases_real.json"), "r"))
+eval_basic = json.load(open(os.path.join(file_dir, "../data", "eval_cases_basic.json"), "r"))
 
 CATEGORIES = ["technology", "programming", "concepts"]
 
@@ -45,7 +46,7 @@ def eval_case(selected_skills: dict, expected: dict) -> dict:
         "mistakes": mistakes,
     }
 
-def evaluate():
+def evaluate(eval_f):
     results = []
     score_sum = 0.0
     for case in eval_f:
@@ -84,5 +85,5 @@ def evaluate():
     }
 
 if __name__ == "__main__":
-    eval_results = evaluate()
+    eval_results = evaluate(eval_basic)
     print(json.dumps(eval_results, indent=2))
