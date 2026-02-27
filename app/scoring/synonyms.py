@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 # mapping synonyms so they can be normalized to a single term for better matching
 NORMALIZATION_MAP = {
     "nodejs": ["node.js", "node"],
@@ -24,61 +27,24 @@ NORMALIZATION_MAP = {
     "oop": ["object-oriented programming", "object oriented programming"],
 }
 
-# From generated json file
-SYNONYM_TO_NORMALIZED = {
-    "node.js": "nodejs",
-    "node": "nodejs",
-    "reactjs": "react",
-    "react.js": "react",
-    "vuejs": "vue",
-    "vue.js": "vue",
-    "angularjs": "angular",
-    "angular.js": "angular",
-    "bootstrapcss": "bootstrap",
-    "bootstrap css": "bootstrap",
-    "tailwindcss": "tailwind",
-    "tailwind css": "tailwind",
-    "amazon web services": "aws",
-    "amazon cloud": "aws",
-    "microsoft azure": "azure",
-    "azure cloud": "azure",
-    "google cloud platform": "gcp",
-    "google cloud": "gcp",
-    "continuous integration": "ci/cd",
-    "continuous delivery": "ci/cd",
-    "continuous deployment": "ci/cd",
-    "ci": "ci/cd",
-    "cd": "ci/cd",
-    "cicd": "ci/cd",
-    "cicd pipelines": "ci/cd",
-    "reactnative": "react native",
-    "react-native": "react native",
-    "postgres": "postgresql",
-    "js": "javascript",
-    "csharp": "c#",
-    "recurrent neural network": "rnn",
-    "convolutional neural network": "cnn",
-    "natural language processing": "nlp",
-    "generative ai": "genai",
-    "generative artificial intelligence": "genai",
-    "randomforest": "random forest",
-    "random-forest": "random forest",
-    "random forest classifier": "random forest",
-    "random forests": "random forest"
-}
+
+def _load_synonyms() -> dict:
+    data_path = Path(__file__).parent.parent / "data" / "synonym_to_normalized.json"
+    with open(data_path) as f:
+        return json.load(f)
+
+
+SYNONYM_TO_NORMALIZED = _load_synonyms()
+
 
 if __name__ == "__main__":
-    import os
-
-    file_dir = os.path.dirname(__file__)
-
     # reverse the normalization map to create a mapping from synonyms to their normalized form
-    SYNONYM_TO_NORMALIZED = {}
+    result = {}
     for normalized, synonyms in NORMALIZATION_MAP.items():
         for synonym in synonyms:
-            SYNONYM_TO_NORMALIZED[synonym] = normalized
-    
+            result[synonym] = normalized
+
     # store the reversed mapping
-    with open(os.path.join(file_dir, "synonym_to_normalized.json"), "w") as f:
-        import json
-        json.dump(SYNONYM_TO_NORMALIZED, f, indent=4)
+    out_path = Path(__file__).parent.parent / "data" / "synonym_to_normalized.json"
+    with open(out_path, "w") as f:
+        json.dump(result, f, indent=4)
