@@ -4,8 +4,8 @@ from app.scoring.baseline import baseline_select_skills
 from app.config import settings
 
 file_dir = os.path.dirname(__file__)
-eval_real = json.load(open(os.path.join(file_dir, "../data", "eval_cases_real.json"), "r"))
-eval_basic = json.load(open(os.path.join(file_dir, "../data", "eval_cases_basic.json"), "r"))
+eval_real = json.load(open(os.path.join(file_dir, "../data/eval_cases", "eval_cases_real.json"), "r"))
+eval_basic = json.load(open(os.path.join(file_dir, "../data/eval_cases", "eval_cases_basic.json"), "r"))
 
 CATEGORIES = ["technology", "programming", "concepts"]
 
