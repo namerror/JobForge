@@ -1,0 +1,8 @@
+[core]
+java, python, javascript, typescript, go, c#, c++, php, ruby, kotlin, scala
+
+[nice]
+rust, groovy, bash, powershell, elixir, clojure, f#, objective-c, haskell, erlang, dart, cobol, perl, zig
+
+[exclude]
+swift, gdscrip, gdscript, scratch, vhdl, verilog, matlab, r, solidity, apex, abap

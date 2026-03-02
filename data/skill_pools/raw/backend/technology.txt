@@ -1,0 +1,8 @@
+[core]
+node.js, express, nestjs, django, flask, spring boot, asp.net core, ruby on rails, laravel, fastapi, hibernate, prisma, sequelize, postgresql, mysql, mongodb, redis, sqlite, oracle database, microsoft sql server, docker, kubernetes, nginx, apache http server, git, github, gitlab, bitbucket, amazon web services, microsoft azure, google cloud platform, amazon rds, amazon dynamodb, amazon s3, firebase, supabase, graphql, apache kafka, rabbitmq, elasticsearch
+
+[nice]
+terraform, ansible, prometheus, grafana, datadog, new relic, apache cassandra, couchbase, neo4j, influxdb, memcached, hashicorp vault, keycloak, kong, traefik, envoy, circleci, github actions, gitlab ci, jenkins, argo cd, helm, cloudflare, vercel, digitalocean, heroku, amazon ec2, amazon ecs, amazon eks, google kubernetes engine, azure kubernetes service, openapi, swagger ui, apache zookeeper, redis streams
+
+[exclude]
+react, angular, vue.js, next.js, nuxt.js, tailwind css, figma, adobe xd, sketch, android sdk, swiftui, unity, unreal engine, tableau, power bi, selenium, cypress
