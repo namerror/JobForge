@@ -85,6 +85,7 @@ Instructions:
 - Avoid duplicates.
 - Use lowercase except where standard formatting requires otherwise (e.g., c#, node.js).
 - No explanations or commentary.
+- Generate as many as you can think of for the specified category and role profile, try to make the list comprehensive.
 
 Relevance buckets:
 - core: high-signal, commonly expected skills for this role.
