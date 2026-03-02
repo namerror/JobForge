@@ -38,7 +38,24 @@ Example sections:
 
 Each section value is a comma-separated list of skills.
 
-## Normalization rules
+## Skill pools format
+`skill_pools.json` is a nested JSON structure:
+
+```json
+{
+  "<role_profile>": {
+    "<category>": {
+      "core": ["skill1", "skill2", ...],
+      "nice": ["skill3", "skill4", ...],
+      "exclude": ["skill5", "skill6", ...]
+    },
+    ...
+  },
+  ...
+}
+```
+
+## Normalization rules [Ignore for now]
 [Not implemented]
 Normalization is applied by scripts/build_skill_pools.py using:
 - a normalization pipeline that includes:
@@ -56,7 +73,10 @@ No synonyms or variants should remain.
 ## How to regenerate skill_pools.json
 
 From repo root:
-[Placeholder]
+```
+python scripts/build_skill_pools.py [--raw-dir PATH] [--output PATH]
+```
+Use default paths unless you have a reason to change them.
 
 ## How to generate eval cases
 
