@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Embeddings scorer (`embedding_select_skills`) in `app/scoring/embeddings.py` with per-category cosine similarity ranking, stable tie-breaking, dev mode similarity scores, short role text warnings, and rate limit error handling
 - Role family detection and inheritance in baseline scorer
 - Baseline scoring algorithm with role-specific boosts
 - Skill selection service with latency tracking and structured logging
