@@ -10,4 +10,10 @@ class Settings(BaseSettings):
     DEV_MODE: bool = True
     LOG_LEVEL: str = "INFO"
 
+    # Embedding-related settings, only relevant if METHOD=embeddings
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_BATCH_SIZE: int = 100
+    # EMBEDDING_DIMENSIONS: int = 1024 # Optionally reduce dimensionality
+    
+
 settings = Settings()

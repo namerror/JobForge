@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Empty string handling in baseline scorer to prevent false partial matches
 - TOP_N environment variable type conversion (string to int)
 - Attribute name mismatch in `baseline_select_skills()` (job_role vs role)
+- Embedding truncation logging now uses standard logging extras
+- `embed_role` honors `EMBEDDING_DIMENSIONS` for consistent embedding sizes
+- `embed_skills` now validates against empty input batches
 
 ## [0.1.0] - Initial Setup
 
