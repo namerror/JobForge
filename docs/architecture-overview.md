@@ -129,3 +129,7 @@ flowchart TD
 3. `docs/architecture-overview.md` (this file; relationships + flow).
 4. `app/main.py` -> `app/services/skill_selector.py` -> `app/scoring/baseline.py`.
 5. `app/scoring/role_profiles.py` + `app/data/role_profiles/*.yaml`.
+
+For embedding-based method, also review:`
+- `docs/Embedding.md` (method overview).
+- `app/services/embedding_client.py` -> `app/scoring/embeddings.py` (once implemented).
