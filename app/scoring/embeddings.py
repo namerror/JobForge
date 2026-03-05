@@ -37,7 +37,7 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
 
 def embedding_rank_skills(
     skills: list[str],
-    role_text: str,
+    role_vec: list[float],
     top_n: int | None = None,
     dev_mode: bool = False,
 ) -> tuple[list[str], dict | None]:
@@ -50,7 +50,6 @@ def embedding_rank_skills(
 
     normalized_skills = [normalize_skill(s) for s in skills]
 
-    role_vec = embed_role(role_text)
     skill_vecs = embed_skills(normalized_skills)
 
     scored = []
@@ -107,12 +106,16 @@ def embedding_select_skills(
     }
 
     try:
+        
+        role_vec = embed_role(role_text)
+
         for category, category_skills in category_inputs.items():
             ranked, details = embedding_rank_skills(
                 skills=category_skills,
                 role_text=role_text,
                 top_n=top_n,
                 dev_mode=dev_mode,
+                role_vec=role_vec
             )
             selected_skills[category] = ranked
             if dev_mode and details is not None:
