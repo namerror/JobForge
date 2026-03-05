@@ -8,7 +8,7 @@ from app.services.embedding_client import embed_role, embed_skills
 
 logger = logging.getLogger("embeddings_scorer")
 
-MIN_ROLE_TEXT_CHARS = 10
+MIN_ROLE_TEXT_CHARS = 8
 
 
 def normalize_skill(skill: str) -> str:
@@ -53,6 +53,19 @@ def embedding_rank_skills(
     skill_vecs = embed_skills(normalized_skills)
 
     scored = []
+
+    # check lengths match
+    if len(normalized_skills) != len(skill_vecs):
+        logger.error(
+            "embedding_length_mismatch",
+            extra={
+                "event": "embedding_length_mismatch",
+                "num_skills": len(normalized_skills),
+                "num_skill_vecs": len(skill_vecs),
+            },
+        )
+        raise ValueError("Number of skill embeddings does not match number of skills")
+
     for skill, normalized, vec in zip(skills, normalized_skills, skill_vecs):
         sim = cosine_similarity(role_vec, vec)
         scored.append((skill, sim, normalized))
