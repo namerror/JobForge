@@ -50,7 +50,14 @@ This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) s
 After completing any non-trivial task or making architectural decisions, you MUST document your work in the appropriate log file.
 
 ### Session Log (`docs/devlog/`)
-After completing tasks, add a new session file under `docs/devlog/` with:
+Every agent edit session MUST end with a new session file under `docs/devlog/` (unless the only changes are trivial, e.g. typo fixes or minor formatting). The dev log should be detailed — include an overview of the implementation, what changed, and why.
+
+**File naming convention:** `MM-DD-YYYY-AgentName-short-description.md`
+- Use the agent/tool name that performed the work (e.g., `Claude`, `Copilot`, `Codex`, `GPT4o`)
+- Examples: `03-07-2026-Claude-optimize-logging-instructions.md`, `03-08-2026-Copilot-add-role-profile-tests.md`
+
+**Required fields in each session file:**
+- **Agent & Model**: The agent name and specific model version used (e.g., Claude Sonnet 4.5, GPT-4o, Copilot with claude-sonnet-4-5)
 - **Date & Summary**: ISO date + brief task description (1 line)
 - **Changes**: Files modified/created with line references where relevant
 - **Rationale**: Why you made certain decisions or chose this approach
@@ -60,6 +67,8 @@ After completing tasks, add a new session file under `docs/devlog/` with:
 **Format:**
 ```markdown
 ### YYYY-MM-DD - [Brief Summary]
+
+**Agent:** [Agent name] ([Model version, e.g. Claude Sonnet 4.5])
 
 **Changes:**
 - `path/to/file.py:10-25` - Description of change
@@ -77,11 +86,18 @@ What this enables or fixes...
 ```
 
 ### Changelog (`docs/CHANGELOG.md`)
-For user-facing changes, update using [Keep a Changelog](https://keepachangelog.com/) format:
+The CHANGELOG is reserved for **significant, user-facing changes only** — primarily new features and major breaking changes.
+
+**Do NOT add to CHANGELOG for:**
+- Bug fixes
+- Adding or updating tests
+- Internal refactors or implementation tweaks
+- Documentation updates
+
+These belong in a dev log session file instead.
+
+For user-facing additions, update using [Keep a Changelog](https://keepachangelog.com/) format:
 - **Added**: new features
-- **Changed**: changes to existing functionality
-- **Fixed**: bug fixes
-- **Removed**: removed features
 
 Keep entries in the `[Unreleased]` section until a version is tagged.
 
