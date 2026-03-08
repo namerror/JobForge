@@ -1,4 +1,5 @@
 """Unit tests for app/scoring/embeddings.py"""
+import json
 import math
 import pytest
 from unittest.mock import patch
@@ -107,6 +108,34 @@ def test_cache_lookup_invalid_type_raises():
     cache = _make_cache()
     with pytest.raises(ValueError, match="Invalid cache type"):
         cache.cache_lookup("anything", type="invalid")
+
+
+def test_load_embeddings_cache_loads_json(tmp_path):
+    role_data = {"backend engineer": [0.1, 0.2]}
+    skill_data = {"python": [0.5, 0.6]}
+
+    role_file = tmp_path / "role_cache.json"
+    skill_file = tmp_path / "skill_cache.json"
+    role_file.write_text(json.dumps(role_data))
+    skill_file.write_text(json.dumps(skill_data))
+
+    cache = EmbeddingCache.__new__(EmbeddingCache)
+    cache._ROLE_EMB_CACHE_DIR = role_file
+    cache._SKILL_EMB_CACHE_DIR = skill_file
+    cache.role_cache, cache.skill_cache = cache._load_embeddings_cache()
+
+    assert cache.role_cache == role_data
+    assert cache.skill_cache == skill_data
+
+
+def test_load_embeddings_cache_missing_files_defaults_to_empty(tmp_path):
+    cache = EmbeddingCache.__new__(EmbeddingCache)
+    cache._ROLE_EMB_CACHE_DIR = tmp_path / "nonexistent_role.json"
+    cache._SKILL_EMB_CACHE_DIR = tmp_path / "nonexistent_skill.json"
+    cache.role_cache, cache.skill_cache = cache._load_embeddings_cache()
+
+    assert cache.role_cache == {}
+    assert cache.skill_cache == {}
 
 
 # ---------------------------------------------------------------------------
