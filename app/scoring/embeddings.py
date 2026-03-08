@@ -1,55 +1,19 @@
 import logging
-from pathlib import Path
-import json
 
 import numpy as np
 import openai
 
 from app.scoring.synonyms import SYNONYM_TO_NORMALIZED
 from app.services.embedding_client import embed_role, embed_skills
+from app.services.embedding_cache import EmbeddingCache
+from app.config import settings
+
+cache = EmbeddingCache(settings.EMBEDDING_MODEL)
 
 logger = logging.getLogger("embeddings_scorer")
 
 MIN_ROLE_TEXT_CHARS = 8
-_ROLE_EMB_CACHE_DIR = Path(__file__).parent.parent / "data" / "embeddings" / "role_cache.json"
-_SKILL_EMB_CACHE_DIR = Path(__file__).parent.parent / "data" / "embeddings" / "skill_cache.json"
 
-def _load_embeddings_cache() -> tuple[dict, dict]:
-    # load role
-    try:
-        with open(_ROLE_EMB_CACHE_DIR) as f:
-            role_cache = json.load(f)
-    except FileNotFoundError:
-        logger.warning(
-            "role_embedding_cache_not_found",
-            extra={"event": "role_embedding_cache_not_found", "cache_path": str(_ROLE_EMB_CACHE_DIR)},
-        )
-        role_cache = {}
-        
-    # load skill
-    try:
-        with open(_SKILL_EMB_CACHE_DIR) as f:
-            skill_cache = json.load(f)
-    except FileNotFoundError:
-        logger.warning(
-            "skill_embedding_cache_not_found",
-            extra={"event": "skill_embedding_cache_not_found", "cache_path": str(_SKILL_EMB_CACHE_DIR)},
-        )
-        skill_cache = {}
-
-    return role_cache, skill_cache
-
-ROLE_EMB_CACHE, SKILL_EMB_CACHE = _load_embeddings_cache()
-
-def cache_lookup(text: str, type: str) -> list[float] | None:
-    if type == 'role':
-        role_cache = ROLE_EMB_CACHE
-        return role_cache.get(text)
-    elif type == 'skill':
-        skill_cache = SKILL_EMB_CACHE
-        return skill_cache.get(text)
-    else:
-        raise ValueError(f"Invalid cache type: {type}")
     
 def normalize_skill(skill: str) -> str:
     """Normalize skill names to a standard format."""
@@ -160,7 +124,7 @@ def embedding_select_skills(
 
     try:
         
-        role_vec = cache_lookup(role_text, type='role')
+        role_vec = cache.cache_lookup(role_text, type='role')
         if role_vec is None:
             role_vec = embed_role(role_text)
 

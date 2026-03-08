@@ -8,10 +8,10 @@ from app.scoring.embeddings import (
     normalize_skill,
     construct_role_text,
     cosine_similarity,
-    cache_lookup,
     embedding_rank_skills,
     embedding_select_skills,
 )
+from app.services.embedding_cache import EmbeddingCache
 
 
 # ---------------------------------------------------------------------------
@@ -72,36 +72,41 @@ def test_cosine_similarity_zero_vector_returns_zero():
 
 
 # ---------------------------------------------------------------------------
-# cache_lookup
+# EmbeddingCache.cache_lookup
 # ---------------------------------------------------------------------------
 
-def test_cache_lookup_role_hit(monkeypatch):
-    monkeypatch.setattr(embeddings, "ROLE_EMB_CACHE", {"backend engineer": [0.1, 0.2]})
-    result = cache_lookup("backend engineer", type="role")
-    assert result == [0.1, 0.2]
+def _make_cache(role_data: dict | None = None, skill_data: dict | None = None) -> EmbeddingCache:
+    """Build an EmbeddingCache with pre-populated in-memory dicts, bypassing disk I/O."""
+    cache = EmbeddingCache.__new__(EmbeddingCache)
+    cache.role_cache = role_data if role_data is not None else {}
+    cache.skill_cache = skill_data if skill_data is not None else {}
+    return cache
 
 
-def test_cache_lookup_role_miss(monkeypatch):
-    monkeypatch.setattr(embeddings, "ROLE_EMB_CACHE", {})
-    result = cache_lookup("unknown role", type="role")
-    assert result is None
+def test_cache_lookup_role_hit():
+    cache = _make_cache(role_data={"backend engineer": [0.1, 0.2]})
+    assert cache.cache_lookup("backend engineer", type="role") == [0.1, 0.2]
 
 
-def test_cache_lookup_skill_hit(monkeypatch):
-    monkeypatch.setattr(embeddings, "SKILL_EMB_CACHE", {"python": [0.5, 0.6]})
-    result = cache_lookup("python", type="skill")
-    assert result == [0.5, 0.6]
+def test_cache_lookup_role_miss():
+    cache = _make_cache(role_data={})
+    assert cache.cache_lookup("unknown role", type="role") is None
 
 
-def test_cache_lookup_skill_miss(monkeypatch):
-    monkeypatch.setattr(embeddings, "SKILL_EMB_CACHE", {})
-    result = cache_lookup("rust", type="skill")
-    assert result is None
+def test_cache_lookup_skill_hit():
+    cache = _make_cache(skill_data={"python": [0.5, 0.6]})
+    assert cache.cache_lookup("python", type="skill") == [0.5, 0.6]
+
+
+def test_cache_lookup_skill_miss():
+    cache = _make_cache(skill_data={})
+    assert cache.cache_lookup("rust", type="skill") is None
 
 
 def test_cache_lookup_invalid_type_raises():
+    cache = _make_cache()
     with pytest.raises(ValueError, match="Invalid cache type"):
-        cache_lookup("anything", type="invalid")
+        cache.cache_lookup("anything", type="invalid")
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +191,7 @@ ONE_VEC = [1.0, 0.0]
 def test_embedding_select_skills_uses_role_cache(monkeypatch):
     """When role text is in cache, embed_role should NOT be called."""
     role_text = "backend engineer"
-    monkeypatch.setattr(embeddings, "ROLE_EMB_CACHE", {role_text: ROLE_VEC_2D})
+    monkeypatch.setattr(embeddings.cache, "role_cache", {role_text: ROLE_VEC_2D})
     called = []
     monkeypatch.setattr(embeddings, "embed_role", lambda t: called.append(t) or ROLE_VEC_2D)
     monkeypatch.setattr(embeddings, "embed_skills", lambda skills: [[1.0, 0.0]] * len(skills))
@@ -201,7 +206,7 @@ def test_embedding_select_skills_uses_role_cache(monkeypatch):
 
 
 def test_embedding_select_skills_calls_embed_role_on_cache_miss(monkeypatch):
-    monkeypatch.setattr(embeddings, "ROLE_EMB_CACHE", {})
+    monkeypatch.setattr(embeddings.cache, "role_cache", {})
     called = []
 
     def fake_embed_role(text):
@@ -221,7 +226,7 @@ def test_embedding_select_skills_calls_embed_role_on_cache_miss(monkeypatch):
 
 
 def test_embedding_select_skills_returns_subset_of_input(monkeypatch):
-    monkeypatch.setattr(embeddings, "ROLE_EMB_CACHE", {})
+    monkeypatch.setattr(embeddings.cache, "role_cache", {})
     monkeypatch.setattr(embeddings, "embed_role", lambda _: ROLE_VEC_2D)
     monkeypatch.setattr(embeddings, "embed_skills", lambda skills: [[1.0, 0.0]] * len(skills))
 
@@ -242,7 +247,7 @@ def test_embedding_select_skills_returns_subset_of_input(monkeypatch):
 
 def test_embedding_select_skills_short_role_warns(monkeypatch, caplog):
     import logging
-    monkeypatch.setattr(embeddings, "ROLE_EMB_CACHE", {})
+    monkeypatch.setattr(embeddings.cache, "role_cache", {})
     monkeypatch.setattr(embeddings, "embed_role", lambda _: ROLE_VEC_2D)
     monkeypatch.setattr(embeddings, "embed_skills", lambda skills: [[1.0, 0.0]] * len(skills))
 
@@ -258,7 +263,7 @@ def test_embedding_select_skills_short_role_warns(monkeypatch, caplog):
 
 
 def test_embedding_select_skills_dev_mode_warnings_in_details(monkeypatch):
-    monkeypatch.setattr(embeddings, "ROLE_EMB_CACHE", {})
+    monkeypatch.setattr(embeddings.cache, "role_cache", {})
     monkeypatch.setattr(embeddings, "embed_role", lambda _: ROLE_VEC_2D)
     monkeypatch.setattr(embeddings, "embed_skills", lambda skills: [[1.0, 0.0]] * len(skills))
 
@@ -277,7 +282,7 @@ def test_embedding_select_skills_dev_mode_warnings_in_details(monkeypatch):
 def test_embedding_select_skills_rate_limit_raises(monkeypatch):
     import openai
     from unittest.mock import MagicMock
-    monkeypatch.setattr(embeddings, "ROLE_EMB_CACHE", {})
+    monkeypatch.setattr(embeddings.cache, "role_cache", {})
 
     fake_response = MagicMock()
     fake_response.request = MagicMock()
@@ -297,7 +302,7 @@ def test_embedding_select_skills_rate_limit_raises(monkeypatch):
 
 
 def test_embedding_select_skills_empty_categories(monkeypatch):
-    monkeypatch.setattr(embeddings, "ROLE_EMB_CACHE", {})
+    monkeypatch.setattr(embeddings.cache, "role_cache", {})
     monkeypatch.setattr(embeddings, "embed_role", lambda _: ROLE_VEC_2D)
     monkeypatch.setattr(embeddings, "embed_skills", lambda skills: [])
 
