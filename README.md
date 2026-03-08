@@ -81,3 +81,40 @@ pip install -r requirements.txt
 ```bash
 uvicorn app.main:app --reload
 ```
+
+---
+
+## Running Tests
+
+### Prerequisites
+Tests require the venv to be active and `PYTHONPATH` set to the project root so that `app` is importable.
+
+```bash
+# Activate the virtual environment
+source .venv/bin/activate
+```
+
+### Run All Tests
+```bash
+PYTHONPATH=. pytest
+```
+
+### Run a Specific File
+```bash
+PYTHONPATH=. pytest tests/test_baseline.py
+```
+
+### Run with Verbose Output
+```bash
+PYTHONPATH=. pytest -v
+```
+
+### Run a Single Test by Name
+```bash
+PYTHONPATH=. pytest -k "test_name_here"
+```
+
+### Notes
+- `DEV_MODE=true` and `TOP_N=10` are set automatically by `tests/conftest.py` — no `.env` needed for tests.
+- `tests/test_embeddings.py` may fail during active development of the embeddings scorer; skip it with `--ignore=tests/test_embeddings.py` if needed.
+- Integration tests in `tests/test_integration.py` and `tests/test_health.py` exercise the full API stack and require `METHOD` to be set to a supported value (`baseline` or `hybrid`).
