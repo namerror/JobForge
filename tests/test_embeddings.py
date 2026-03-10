@@ -81,7 +81,13 @@ def _make_cache(role_data: dict | None = None, skill_data: dict | None = None) -
     cache = EmbeddingCache.__new__(EmbeddingCache)
     cache.role_cache = role_data if role_data is not None else {}
     cache.skill_cache = skill_data if skill_data is not None else {}
+    cache.model = "test-model"
+    cache.dimensions = None
     return cache
+
+
+def _disable_cache_writes(monkeypatch):
+    monkeypatch.setattr(embeddings.cache, "cache_store", lambda *args, **kwargs: None)
 
 
 def test_cache_lookup_role_hit():
@@ -138,6 +144,56 @@ def test_load_embeddings_cache_missing_files_defaults_to_empty(tmp_path):
     assert cache.skill_cache == {}
 
 
+def test_cache_store_persists_role_write_through(tmp_path):
+    cache = EmbeddingCache.__new__(EmbeddingCache)
+    cache._ROLE_EMB_CACHE_DIR = tmp_path / "role_cache.json"
+    cache._SKILL_EMB_CACHE_DIR = tmp_path / "skill_cache.json"
+    cache.model = "test-model"
+    cache.dimensions = 3
+    cache.role_cache = {}
+    cache.skill_cache = {}
+
+    cache.cache_store("backend engineer", [0.1, 0.2, 0.3], type="role")
+
+    payload = json.loads(cache._ROLE_EMB_CACHE_DIR.read_text())
+    assert payload["model"] == "test-model"
+    assert payload["dimensions"] == 3
+    assert payload["data"]["backend engineer"] == [0.1, 0.2, 0.3]
+
+
+def test_cache_store_persists_skill_write_through(tmp_path):
+    cache = EmbeddingCache.__new__(EmbeddingCache)
+    cache._ROLE_EMB_CACHE_DIR = tmp_path / "role_cache.json"
+    cache._SKILL_EMB_CACHE_DIR = tmp_path / "skill_cache.json"
+    cache.model = "test-model"
+    cache.dimensions = None
+    cache.role_cache = {}
+    cache.skill_cache = {}
+
+    cache.cache_store("python", [0.5, 0.6], type="skill")
+
+    payload = json.loads(cache._SKILL_EMB_CACHE_DIR.read_text())
+    assert payload["model"] == "test-model"
+    assert payload["dimensions"] is None
+    assert payload["data"]["python"] == [0.5, 0.6]
+
+
+def test_load_embeddings_cache_rejects_model_mismatch(tmp_path, caplog):
+    payload = {"version": 1, "model": "other-model", "dimensions": 3, "data": {"x": [0.1]}}
+    role_file = tmp_path / "role_cache.json"
+    role_file.write_text(json.dumps(payload))
+
+    cache = EmbeddingCache.__new__(EmbeddingCache)
+    cache._ROLE_EMB_CACHE_DIR = role_file
+    cache._SKILL_EMB_CACHE_DIR = tmp_path / "skill_cache.json"
+    cache.model = "test-model"
+    cache.dimensions = 3
+
+    cache.role_cache, cache.skill_cache = cache._load_embeddings_cache()
+
+    assert cache.role_cache == {}
+
+
 # ---------------------------------------------------------------------------
 # embedding_rank_skills
 # ---------------------------------------------------------------------------
@@ -146,19 +202,23 @@ ROLE_VEC = [1.0, 0.0]
 FAKE_SKILL_VECS = [[1.0, 0.0], [0.0, 1.0], [0.7071, 0.7071]]
 
 
-def test_embedding_rank_skills_empty_returns_empty():
+def test_embedding_rank_skills_empty_returns_empty(monkeypatch):
+    _disable_cache_writes(monkeypatch)
     ranked, details = embedding_rank_skills(skills=[], role_vec=ROLE_VEC)
     assert ranked == []
     assert details is None
 
 
-def test_embedding_rank_skills_empty_dev_mode_returns_empty_dict():
+def test_embedding_rank_skills_empty_dev_mode_returns_empty_dict(monkeypatch):
+    _disable_cache_writes(monkeypatch)
     ranked, details = embedding_rank_skills(skills=[], role_vec=ROLE_VEC, dev_mode=True)
     assert ranked == []
     assert details == {}
 
 
 def test_embedding_rank_skills_orders_by_similarity(monkeypatch):
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     skills = ["low", "high", "mid"]
     # high → [1,0] sim=1.0, mid → [0.7,0.7] sim≈0.707, low → [0,1] sim=0.0
     monkeypatch.setattr(embeddings, "embed_skills", lambda _: [[0.0, 1.0], [1.0, 0.0], [0.7071, 0.7071]])
@@ -167,6 +227,8 @@ def test_embedding_rank_skills_orders_by_similarity(monkeypatch):
 
 
 def test_embedding_rank_skills_top_n(monkeypatch):
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     skills = ["a", "b", "c"]
     monkeypatch.setattr(embeddings, "embed_skills", lambda _: [[1.0, 0.0], [0.5, 0.5], [0.0, 1.0]])
     ranked, _ = embedding_rank_skills(skills=skills, role_vec=ROLE_VEC, top_n=2)
@@ -175,6 +237,8 @@ def test_embedding_rank_skills_top_n(monkeypatch):
 
 
 def test_embedding_rank_skills_dev_mode_includes_details(monkeypatch):
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     skills = ["python", "rust"]
     monkeypatch.setattr(embeddings, "embed_skills", lambda _: [[1.0, 0.0], [0.0, 1.0]])
     _, details = embedding_rank_skills(skills=skills, role_vec=ROLE_VEC, dev_mode=True)
@@ -184,12 +248,16 @@ def test_embedding_rank_skills_dev_mode_includes_details(monkeypatch):
 
 
 def test_embedding_rank_skills_length_mismatch_raises(monkeypatch):
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     monkeypatch.setattr(embeddings, "embed_skills", lambda _: [[1.0, 0.0]])  # only 1 vec for 2 skills
     with pytest.raises(ValueError, match="does not match"):
         embedding_rank_skills(skills=["a", "b"], role_vec=ROLE_VEC)
 
 
 def test_embedding_rank_skills_stable_tiebreak(monkeypatch):
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     # Two skills with identical similarity — should tie-break by normalized name asc
     skills = ["Zebra", "Alpha"]
     monkeypatch.setattr(embeddings, "embed_skills", lambda _: [[1.0, 0.0], [1.0, 0.0]])
@@ -219,6 +287,8 @@ ONE_VEC = [1.0, 0.0]
 
 def test_embedding_select_skills_uses_role_cache(monkeypatch):
     """When role text is in cache, embed_role should NOT be called."""
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     role_text = "backend engineer"
     monkeypatch.setattr(embeddings.cache, "role_cache", {role_text: ROLE_VEC_2D})
     called = []
@@ -235,6 +305,8 @@ def test_embedding_select_skills_uses_role_cache(monkeypatch):
 
 
 def test_embedding_select_skills_calls_embed_role_on_cache_miss(monkeypatch):
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     monkeypatch.setattr(embeddings.cache, "role_cache", {})
     called = []
 
@@ -255,6 +327,8 @@ def test_embedding_select_skills_calls_embed_role_on_cache_miss(monkeypatch):
 
 
 def test_embedding_select_skills_returns_subset_of_input(monkeypatch):
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     monkeypatch.setattr(embeddings.cache, "role_cache", {})
     monkeypatch.setattr(embeddings, "embed_role", lambda _: ROLE_VEC_2D)
     monkeypatch.setattr(embeddings, "embed_skills", lambda skills: [[1.0, 0.0]] * len(skills))
@@ -276,6 +350,8 @@ def test_embedding_select_skills_returns_subset_of_input(monkeypatch):
 
 def test_embedding_select_skills_short_role_warns(monkeypatch, caplog):
     import logging
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     monkeypatch.setattr(embeddings.cache, "role_cache", {})
     monkeypatch.setattr(embeddings, "embed_role", lambda _: ROLE_VEC_2D)
     monkeypatch.setattr(embeddings, "embed_skills", lambda skills: [[1.0, 0.0]] * len(skills))
@@ -292,6 +368,8 @@ def test_embedding_select_skills_short_role_warns(monkeypatch, caplog):
 
 
 def test_embedding_select_skills_dev_mode_warnings_in_details(monkeypatch):
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     monkeypatch.setattr(embeddings.cache, "role_cache", {})
     monkeypatch.setattr(embeddings, "embed_role", lambda _: ROLE_VEC_2D)
     monkeypatch.setattr(embeddings, "embed_skills", lambda skills: [[1.0, 0.0]] * len(skills))
@@ -311,6 +389,8 @@ def test_embedding_select_skills_dev_mode_warnings_in_details(monkeypatch):
 def test_embedding_select_skills_rate_limit_raises(monkeypatch):
     import openai
     from unittest.mock import MagicMock
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     monkeypatch.setattr(embeddings.cache, "role_cache", {})
 
     fake_response = MagicMock()
@@ -331,6 +411,8 @@ def test_embedding_select_skills_rate_limit_raises(monkeypatch):
 
 
 def test_embedding_select_skills_empty_categories(monkeypatch):
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
     monkeypatch.setattr(embeddings.cache, "role_cache", {})
     monkeypatch.setattr(embeddings, "embed_role", lambda _: ROLE_VEC_2D)
     monkeypatch.setattr(embeddings, "embed_skills", lambda skills: [])
@@ -342,3 +424,38 @@ def test_embedding_select_skills_empty_categories(monkeypatch):
         concepts=[],
     )
     assert result == {"technology": [], "programming": [], "concepts": []}
+
+
+def test_embedding_select_skills_stores_role_on_cache_miss(monkeypatch):
+    calls = []
+    monkeypatch.setattr(embeddings.cache, "role_cache", {})
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
+    monkeypatch.setattr(embeddings.cache, "cache_store", lambda *args, **kwargs: calls.append((args, kwargs)))
+    monkeypatch.setattr(embeddings, "embed_role", lambda _: ROLE_VEC_2D)
+
+    embedding_select_skills(
+        job_role="Backend Engineer",
+        technology=[],
+        programming=[],
+        concepts=[],
+    )
+
+    assert any(args[0] == "backend engineer" and kwargs.get("type") == "role" for args, kwargs in calls)
+
+
+def test_embedding_rank_skills_uses_cache_and_stores_missing(monkeypatch):
+    calls = []
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {"python": [1.0, 0.0]})
+    monkeypatch.setattr(embeddings.cache, "cache_store", lambda *args, **kwargs: calls.append((args, kwargs)))
+
+    requested = []
+    def fake_embed_skills(texts):
+        requested.append(list(texts))
+        return [[0.0, 1.0] for _ in texts]
+
+    monkeypatch.setattr(embeddings, "embed_skills", fake_embed_skills)
+
+    ranked, _ = embedding_rank_skills(skills=["Python", "Rust"], role_vec=ROLE_VEC)
+    assert ranked
+    assert requested == [["rust"]]
+    assert any(args[0] == "rust" and kwargs.get("type") == "skill" for args, kwargs in calls)

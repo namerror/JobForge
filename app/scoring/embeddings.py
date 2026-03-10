@@ -54,12 +54,39 @@ def embedding_rank_skills(
 
     normalized_skills = [normalize_skill(s) for s in skills]
 
-    skill_vecs = embed_skills(normalized_skills)
+    skill_vecs: list[list[float] | None] = [None] * len(normalized_skills)
+    missing_texts: list[str] = []
+    missing_indices: list[int] = []
+
+    for idx, normalized in enumerate(normalized_skills):
+        cached = cache.cache_lookup(normalized, type="skill")
+        if cached is None:
+            missing_texts.append(normalized)
+            missing_indices.append(idx)
+        else:
+            skill_vecs[idx] = cached
+
+    if missing_texts:
+        missing_vecs = embed_skills(missing_texts)
+        if len(missing_texts) != len(missing_vecs):
+            logger.error(
+                "embedding_length_mismatch",
+                extra={
+                    "event": "embedding_length_mismatch",
+                    "num_skills": len(missing_texts),
+                    "num_skill_vecs": len(missing_vecs),
+                },
+            )
+            raise ValueError("Number of skill embeddings does not match number of skills")
+
+        for normalized, idx, vec in zip(missing_texts, missing_indices, missing_vecs):
+            skill_vecs[idx] = vec
+            cache.cache_store(normalized, vec, type="skill")
 
     scored = []
 
     # check lengths match
-    if len(normalized_skills) != len(skill_vecs):
+    if len(normalized_skills) != len(skill_vecs) or any(vec is None for vec in skill_vecs):
         logger.error(
             "embedding_length_mismatch",
             extra={
@@ -127,6 +154,7 @@ def embedding_select_skills(
         role_vec = cache.cache_lookup(role_text, type='role')
         if role_vec is None:
             role_vec = embed_role(role_text)
+            cache.cache_store(role_text, role_vec, type='role')
 
         for category, category_skills in category_inputs.items():
             ranked, details = embedding_rank_skills(
