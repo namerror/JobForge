@@ -1,13 +1,43 @@
+"""Evaluate scoring methods against eval case datasets.
+
+Usage:
+    python scripts/eval.py                          # Run against eval_cases_basic.json (default)
+    python scripts/eval.py -f eval_cases_real.json   # Run against a specific file
+    python scripts/eval.py -f /absolute/path.json    # Absolute path also works
+    python scripts/eval.py --run-generated            # Run against all generated eval case files
+"""
+
+import argparse
 import json
-import os
+import glob
+from pathlib import Path
 from app.scoring.baseline import baseline_select_skills
 from app.config import settings
 
-file_dir = os.path.dirname(__file__)
-eval_real = json.load(open(os.path.join(file_dir, "../data/eval_cases", "eval_cases_real.json"), "r"))
-eval_basic = json.load(open(os.path.join(file_dir, "../data/eval_cases", "eval_cases_basic.json"), "r"))
+REPO_ROOT = Path(__file__).parent.parent
+EVAL_CASES_DIR = REPO_ROOT / "data" / "eval_cases"
+GENERATED_DIR = EVAL_CASES_DIR / "generated"
 
 CATEGORIES = ["technology", "programming", "concepts"]
+
+
+def load_cases(path: Path) -> list[dict]:
+    """Load eval cases from a JSON file.
+
+    Handles both formats:
+    - Bare array: [{input, expected}, ...]
+    - Wrapped: {"metadata": {...}, "cases": [{input, expected}, ...]}
+    """
+    with open(path) as f:
+        data = json.load(f)
+
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict) and "cases" in data:
+        return data["cases"]
+
+    raise ValueError(f"Unrecognized eval case format in {path}")
+
 
 def eval_case(selected_skills: dict, expected: dict) -> dict:
     """
@@ -46,15 +76,15 @@ def eval_case(selected_skills: dict, expected: dict) -> dict:
         "mistakes": mistakes,
     }
 
-def evaluate(eval_f):
+def evaluate(cases: list[dict]) -> dict:
     results = []
     score_sum = 0.0
-    for case in eval_f:
+    for case in cases:
         job_role = case["input"]["job_role"]
         technology = case["input"]["technology"]
         programming = case["input"]["programming"]
         concepts = case["input"]["concepts"]
-        
+
         expected = case["expected"]
 
         selected_skills, details = baseline_select_skills(
@@ -76,7 +106,7 @@ def evaluate(eval_f):
         })
 
         score_sum += evaluation["average_score"]
-    
+
     average_score = round(score_sum / len(results), 4)
     return {
         "results": results,
@@ -84,6 +114,76 @@ def evaluate(eval_f):
         "top_n": settings.TOP_N
     }
 
+
+def resolve_file(file_arg: str) -> Path:
+    """Resolve a file argument to an absolute path.
+
+    If it's already absolute or exists relative to cwd, use it directly.
+    Otherwise, look in the eval_cases directory.
+    """
+    p = Path(file_arg)
+    if p.is_absolute():
+        return p
+    if p.exists():
+        return p.resolve()
+    # Try relative to eval_cases dir
+    candidate = EVAL_CASES_DIR / file_arg
+    if candidate.exists():
+        return candidate
+    raise FileNotFoundError(f"Eval case file not found: {file_arg} (also checked {candidate})")
+
+
+def collect_generated_files() -> list[Path]:
+    """Collect all generated eval case files, sorted by name."""
+    if not GENERATED_DIR.exists():
+        return []
+    files = sorted(GENERATED_DIR.glob("*.json"))
+    return files
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Evaluate scoring methods against eval case datasets.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "-f", "--file", type=str, default=None,
+        help="Eval case file to run. Can be a filename in data/eval_cases/, a relative path, or an absolute path.",
+    )
+    group.add_argument(
+        "--run-generated", action="store_true",
+        help="Run against all generated eval case files in data/eval_cases/generated/.",
+    )
+
+    args = parser.parse_args()
+
+    if args.run_generated:
+        files = collect_generated_files()
+        if not files:
+            print(f"No generated eval case files found in {GENERATED_DIR}")
+            return
+
+        for filepath in files:
+            cases = load_cases(filepath)
+            print(f"\n{'='*60}")
+            print(f"File: {filepath.name} ({len(cases)} cases)")
+            print(f"{'='*60}")
+            eval_results = evaluate(cases)
+            print(json.dumps(eval_results, indent=2))
+
+    else:
+        if args.file:
+            filepath = resolve_file(args.file)
+        else:
+            filepath = EVAL_CASES_DIR / "eval_cases_basic.json"
+
+        cases = load_cases(filepath)
+        print(f"File: {filepath.name} ({len(cases)} cases)")
+        eval_results = evaluate(cases)
+        print(json.dumps(eval_results, indent=2))
+
+
 if __name__ == "__main__":
-    eval_results = evaluate(eval_basic)
-    print(json.dumps(eval_results, indent=2))
+    main()
