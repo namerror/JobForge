@@ -1,0 +1,298 @@
+{
+  "metadata": {
+    "generated_at": "2026-03-10T15:08:09.997062+00:00",
+    "seed": 42,
+    "cases_per_role": 5,
+    "min_relevant": 3,
+    "max_relevant": 7,
+    "min_noise": 1,
+    "max_noise": 3,
+    "ranking": true,
+    "roles": [
+      "backend"
+    ],
+    "total_cases": 5
+  },
+  "cases": [
+    {
+      "input": {
+        "job_role": "backend developer",
+        "technology": [
+          "amazon rds",
+          "nuxt.js",
+          "amazon web services",
+          "supabase"
+        ],
+        "programming": [
+          "solidity",
+          "clojure",
+          "python",
+          "javascript",
+          "php",
+          "c++",
+          "java",
+          "perl",
+          "scratch"
+        ],
+        "concepts": [
+          "data consistency patterns",
+          "responsive design",
+          "horizontal scaling",
+          "synchronization",
+          "api versioning",
+          "user experience design",
+          "rate limiting",
+          "caching strategies"
+        ]
+      },
+      "expected": {
+        "technology": [
+          "amazon rds",
+          "amazon web services",
+          "supabase"
+        ],
+        "programming": [
+          "c++",
+          "java",
+          "javascript",
+          "php",
+          "python",
+          "clojure",
+          "perl"
+        ],
+        "concepts": [
+          "api versioning",
+          "caching strategies",
+          "horizontal scaling",
+          "rate limiting",
+          "synchronization",
+          "data consistency patterns"
+        ]
+      }
+    },
+    {
+      "input": {
+        "job_role": "Backend Engineer",
+        "technology": [
+          "git",
+          "angular",
+          "apache cassandra",
+          "hibernate",
+          "neo4j",
+          "azure kubernetes service",
+          "laravel",
+          "apache kafka"
+        ],
+        "programming": [
+          "c#",
+          "c++",
+          "erlang",
+          "gdscrip",
+          "rust",
+          "vhdl",
+          "dart"
+        ],
+        "concepts": [
+          "zero-downtime deployment",
+          "strong consistency",
+          "usability testing for interfaces",
+          "input validation",
+          "service discovery concepts",
+          "graphic design",
+          "graceful shutdown",
+          "pessimistic locking"
+        ]
+      },
+      "expected": {
+        "technology": [
+          "apache kafka",
+          "git",
+          "hibernate",
+          "laravel",
+          "apache cassandra",
+          "azure kubernetes service",
+          "neo4j"
+        ],
+        "programming": [
+          "c#",
+          "c++",
+          "dart",
+          "erlang",
+          "rust"
+        ],
+        "concepts": [
+          "input validation",
+          "strong consistency",
+          "graceful shutdown",
+          "pessimistic locking",
+          "service discovery concepts",
+          "zero-downtime deployment"
+        ]
+      }
+    },
+    {
+      "input": {
+        "job_role": "back-end developer",
+        "technology": [
+          "terraform",
+          "nuxt.js",
+          "memcached",
+          "vercel",
+          "power bi",
+          "selenium",
+          "bitbucket"
+        ],
+        "programming": [
+          "javascript",
+          "php",
+          "gdscript",
+          "gdscrip",
+          "clojure",
+          "rust",
+          "elixir",
+          "python",
+          "go"
+        ],
+        "concepts": [
+          "throttling strategies",
+          "transaction management",
+          "api gateway pattern",
+          "graphic design",
+          "color theory",
+          "data partitioning",
+          "zero-downtime deployment",
+          "http protocol",
+          "retry pattern"
+        ]
+      },
+      "expected": {
+        "technology": [
+          "bitbucket",
+          "memcached",
+          "terraform",
+          "vercel"
+        ],
+        "programming": [
+          "go",
+          "javascript",
+          "php",
+          "python",
+          "clojure",
+          "elixir",
+          "rust"
+        ],
+        "concepts": [
+          "http protocol",
+          "transaction management",
+          "api gateway pattern",
+          "data partitioning",
+          "retry pattern",
+          "throttling strategies",
+          "zero-downtime deployment"
+        ]
+      }
+    },
+    {
+      "input": {
+        "job_role": "  Backend  Developer  ",
+        "technology": [
+          "microsoft sql server",
+          "postgresql",
+          "couchbase",
+          "tailwind css",
+          "redis streams",
+          "rabbitmq",
+          "github",
+          "digitalocean"
+        ],
+        "programming": [
+          "objective-c",
+          "javascript",
+          "r",
+          "php",
+          "perl",
+          "python"
+        ],
+        "concepts": [
+          "high availability",
+          "rate limiting",
+          "bulkhead pattern",
+          "throttling strategies",
+          "animation principles",
+          "database replication concepts",
+          "backpressure",
+          "unit of work pattern"
+        ]
+      },
+      "expected": {
+        "technology": [
+          "github",
+          "microsoft sql server",
+          "postgresql",
+          "rabbitmq",
+          "couchbase",
+          "digitalocean",
+          "redis streams"
+        ],
+        "programming": [
+          "javascript",
+          "php",
+          "python",
+          "objective-c",
+          "perl"
+        ],
+        "concepts": [
+          "high availability",
+          "rate limiting",
+          "unit of work pattern",
+          "backpressure",
+          "bulkhead pattern",
+          "database replication concepts",
+          "throttling strategies"
+        ]
+      }
+    },
+    {
+      "input": {
+        "job_role": "backend developer",
+        "technology": [
+          "react",
+          "amazon web services",
+          "grafana",
+          "laravel"
+        ],
+        "programming": [
+          "python",
+          "erlang",
+          "scratch",
+          "cobol"
+        ],
+        "concepts": [
+          "contract testing",
+          "seo principles",
+          "logging best practices",
+          "accessibility design standards",
+          "typography",
+          "horizontal scaling"
+        ]
+      },
+      "expected": {
+        "technology": [
+          "amazon web services",
+          "laravel",
+          "grafana"
+        ],
+        "programming": [
+          "python",
+          "cobol",
+          "erlang"
+        ],
+        "concepts": [
+          "horizontal scaling",
+          "logging best practices",
+          "contract testing"
+        ]
+      }
+    }
+  ]
+}
