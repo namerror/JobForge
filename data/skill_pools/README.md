@@ -80,7 +80,19 @@ Use default paths unless you have a reason to change them.
 
 ## How to generate eval cases
 
-[Placeholder]
+From repo root:
+```
+python scripts/eval_cases_generator.py [OPTIONS]
+```
+
+Key flags:
+- `--cases-per-role N` — number of cases per role (default: 5)
+- `--seed N` — random seed for reproducibility
+- `--min-relevant N` / `--max-relevant N` — range of core+nice skills per category (default: 3–7)
+- `--min-noise N` / `--max-noise N` — range of exclude skills per category (default: 1–3)
+- `--ranking` / `--no-ranking` — whether expected output ranks core before nice (default: true)
+
+Output is written to `data/eval_cases/generated/` with a unique timestamp+UUID filename.
 
 ## Generation Prompt Template
 
