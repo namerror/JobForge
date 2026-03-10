@@ -459,3 +459,176 @@ def test_embedding_rank_skills_uses_cache_and_stores_missing(monkeypatch):
     assert ranked
     assert requested == [["rust"]]
     assert any(args[0] == "rust" and kwargs.get("type") == "skill" for args, kwargs in calls)
+
+
+# ---------------------------------------------------------------------------
+# Category independence
+# ---------------------------------------------------------------------------
+
+def test_embedding_select_skills_categories_are_independent(monkeypatch):
+    """Changing one category's input must NOT affect another category's output."""
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
+    monkeypatch.setattr(embeddings.cache, "role_cache", {})
+    monkeypatch.setattr(embeddings, "embed_role", lambda _: ROLE_VEC_2D)
+
+    # Give each skill a deterministic but distinct embedding via its index
+    def fake_embed(skills):
+        vecs = []
+        for s in skills:
+            # Unique angle per skill name hash for reproducibility
+            angle = hash(s) % 360
+            rad = angle * 3.14159 / 180
+            vecs.append([math.cos(rad), math.sin(rad)])
+        return vecs
+
+    monkeypatch.setattr(embeddings, "embed_skills", fake_embed)
+
+    tech = ["docker", "kubernetes", "terraform"]
+    prog = ["python", "go"]
+    concepts = ["microservices", "ci/cd"]
+
+    result_a, _ = embedding_select_skills(
+        job_role="Backend Engineer", technology=tech, programming=prog, concepts=concepts,
+    )
+    # Now change technology, keep programming/concepts identical
+    result_b, _ = embedding_select_skills(
+        job_role="Backend Engineer",
+        technology=["react", "vue", "angular"],  # totally different
+        programming=prog,
+        concepts=concepts,
+    )
+    assert result_a["programming"] == result_b["programming"]
+    assert result_a["concepts"] == result_b["concepts"]
+
+
+# ---------------------------------------------------------------------------
+# Deterministic ordering across repeated runs
+# ---------------------------------------------------------------------------
+
+def test_embedding_rank_skills_deterministic_across_runs(monkeypatch):
+    """Same inputs must produce identical output every time."""
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
+
+    skills = ["alpha", "bravo", "charlie", "delta", "echo"]
+    vecs = [[0.9, 0.1], [0.1, 0.9], [0.5, 0.5], [0.7, 0.3], [0.3, 0.7]]
+    monkeypatch.setattr(embeddings, "embed_skills", lambda _: vecs)
+
+    first_run, _ = embedding_rank_skills(skills=skills, role_vec=ROLE_VEC)
+    for _ in range(5):
+        again, _ = embedding_rank_skills(skills=skills, role_vec=ROLE_VEC)
+        assert again == first_run
+
+
+# ---------------------------------------------------------------------------
+# Batching: embed_skills called once per category, not per-skill
+# ---------------------------------------------------------------------------
+
+def test_embedding_rank_skills_batches_missing_skills(monkeypatch):
+    """All cache-miss skills should be embedded in a single embed_skills call."""
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
+
+    embed_calls = []
+
+    def tracking_embed(texts):
+        embed_calls.append(list(texts))
+        return [[1.0, 0.0] for _ in texts]
+
+    monkeypatch.setattr(embeddings, "embed_skills", tracking_embed)
+    embedding_rank_skills(skills=["a", "b", "c", "d"], role_vec=ROLE_VEC)
+
+    # All 4 missing skills should be embedded in exactly one batch call
+    assert len(embed_calls) == 1
+    assert len(embed_calls[0]) == 4
+
+
+def test_embedding_rank_skills_skips_embed_when_all_cached(monkeypatch):
+    """When every skill is in cache, embed_skills should never be called."""
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(
+        embeddings.cache, "skill_cache",
+        {"a": [1.0, 0.0], "b": [0.0, 1.0], "c": [0.5, 0.5]},
+    )
+
+    called = []
+    monkeypatch.setattr(embeddings, "embed_skills", lambda t: called.append(t) or [])
+
+    embedding_rank_skills(skills=["a", "b", "c"], role_vec=ROLE_VEC)
+    assert called == [], "embed_skills should not be called when all skills are cached"
+
+
+def test_embedding_rank_skills_partial_cache_only_embeds_missing(monkeypatch):
+    """Only cache-miss skills are sent to embed_skills."""
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(
+        embeddings.cache, "skill_cache",
+        {"python": [1.0, 0.0], "docker": [0.5, 0.5]},
+    )
+
+    requested = []
+
+    def tracking_embed(texts):
+        requested.extend(texts)
+        return [[0.0, 1.0] for _ in texts]
+
+    monkeypatch.setattr(embeddings, "embed_skills", tracking_embed)
+    embedding_rank_skills(skills=["Python", "Docker", "Rust", "Go"], role_vec=ROLE_VEC)
+
+    assert sorted(requested) == ["go", "rust"]
+
+
+# ---------------------------------------------------------------------------
+# embed_skills client: validation edge cases
+# ---------------------------------------------------------------------------
+
+def test_embed_skills_rejects_non_string_items():
+    from app.services.embedding_client import embed_skills
+    with pytest.raises(ValueError, match="empty strings or non-strings"):
+        embed_skills(["valid", 123])
+
+
+def test_embed_skills_rejects_empty_string_items():
+    from app.services.embedding_client import embed_skills
+    with pytest.raises(ValueError, match="empty strings or non-strings"):
+        embed_skills(["valid", ""])
+
+
+def test_embed_role_rejects_empty_string():
+    from app.services.embedding_client import embed_role
+    with pytest.raises(ValueError, match="empty string"):
+        embed_role("")
+
+
+# ---------------------------------------------------------------------------
+# Output is always a subset of input (end-to-end through select)
+# ---------------------------------------------------------------------------
+
+def test_embedding_select_skills_never_invents_skills(monkeypatch):
+    """Output skills must be an exact subset of the input skills (non-negotiable)."""
+    _disable_cache_writes(monkeypatch)
+    monkeypatch.setattr(embeddings.cache, "skill_cache", {})
+    monkeypatch.setattr(embeddings.cache, "role_cache", {})
+    monkeypatch.setattr(embeddings, "embed_role", lambda _: [1.0, 0.0, 0.0])
+    monkeypatch.setattr(
+        embeddings, "embed_skills",
+        lambda skills: [[1.0, 0.0, 0.0]] * len(skills),
+    )
+
+    tech_in = ["Docker", "Kubernetes", "Terraform", "AWS", "GCP"]
+    prog_in = ["Python", "Go", "Rust", "Java", "TypeScript"]
+    concepts_in = ["CI/CD", "Microservices", "REST", "gRPC"]
+
+    result, _ = embedding_select_skills(
+        job_role="Platform Engineer",
+        technology=tech_in,
+        programming=prog_in,
+        concepts=concepts_in,
+        top_n=3,
+    )
+
+    for cat, cat_input in [("technology", tech_in), ("programming", prog_in), ("concepts", concepts_in)]:
+        for skill in result[cat]:
+            assert skill in cat_input, f"skill '{skill}' in output but not in input for {cat}"
+        assert len(result[cat]) <= 3
