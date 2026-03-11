@@ -5,6 +5,10 @@ Usage:
     python scripts/eval.py -f eval_cases_real.json   # Run against a specific file
     python scripts/eval.py -f /absolute/path.json    # Absolute path also works
     python scripts/eval.py --run-generated            # Run against all generated eval case files
+
+The scoring method is controlled by the METHOD setting (env var or .env file):
+    METHOD=baseline  python scripts/eval.py         # Use baseline scorer (default)
+    METHOD=embedding python scripts/eval.py         # Use embedding scorer
 """
 
 import argparse
@@ -12,6 +16,7 @@ import json
 import glob
 from pathlib import Path
 from app.scoring.baseline import baseline_select_skills
+from app.scoring.embeddings import embedding_select_skills
 from app.config import settings
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -76,6 +81,38 @@ def eval_case(selected_skills: dict, expected: dict) -> dict:
         "mistakes": mistakes,
     }
 
+def select_skills(
+    job_role: str,
+    technology: list[str],
+    programming: list[str],
+    concepts: list[str],
+    job_text: str | None = None,
+) -> tuple[dict, dict | None]:
+    """Dispatch to the scoring method specified by settings.METHOD."""
+    method = settings.METHOD
+    if method == "baseline":
+        return baseline_select_skills(
+            job_role=job_role,
+            technology=technology,
+            programming=programming,
+            concepts=concepts,
+            job_text=job_text,
+            dev_mode=True,
+            include_zero=False,
+        )
+    elif method == "embeddings":
+        return embedding_select_skills(
+            job_role=job_role,
+            technology=technology,
+            programming=programming,
+            concepts=concepts,
+            job_text=job_text,
+            dev_mode=True,
+        )
+    else:
+        raise ValueError(f"Unknown scoring method: {method!r} (expected 'baseline' or 'embeddings')")
+
+
 def evaluate(cases: list[dict]) -> dict:
     results = []
     score_sum = 0.0
@@ -84,18 +121,16 @@ def evaluate(cases: list[dict]) -> dict:
         technology = case["input"]["technology"]
         programming = case["input"]["programming"]
         concepts = case["input"]["concepts"]
+        job_text = case["input"].get("job_text")
 
         expected = case["expected"]
 
-        selected_skills, details = baseline_select_skills(
+        selected_skills, details = select_skills(
             job_role=job_role,
             technology=technology,
             programming=programming,
             concepts=concepts,
-            # job_text=,
-            # top_n=,
-            dev_mode=True,
-            include_zero=False
+            job_text=job_text,
         )
 
         evaluation = eval_case(selected_skills, expected)
@@ -109,6 +144,7 @@ def evaluate(cases: list[dict]) -> dict:
 
     average_score = round(score_sum / len(results), 4)
     return {
+        "method": settings.METHOD,
         "results": results,
         "overall_score": average_score,
         "top_n": settings.TOP_N
@@ -165,6 +201,7 @@ def main():
             print(f"No generated eval case files found in {GENERATED_DIR}")
             return
 
+        print(f"Method: {settings.METHOD}")
         for filepath in files:
             cases = load_cases(filepath)
             print(f"\n{'='*60}")
@@ -180,6 +217,7 @@ def main():
             filepath = EVAL_CASES_DIR / "eval_cases_basic.json"
 
         cases = load_cases(filepath)
+        print(f"Method: {settings.METHOD}")
         print(f"File: {filepath.name} ({len(cases)} cases)")
         eval_results = evaluate(cases)
         print(json.dumps(eval_results, indent=2))
