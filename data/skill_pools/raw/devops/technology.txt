@@ -1,0 +1,8 @@
+[core]
+docker, kubernetes, helm, terraform, ansible, jenkins, gitlab ci, github actions, circleci, argo cd, prometheus, grafana, elasticsearch, logstash, kibana, aws, microsoft azure, google cloud platform, amazon ec2, amazon s3, amazon rds, amazon eks, amazon ecs, aws lambda, aws cloudformation, google kubernetes engine, azure kubernetes service, nginx, apache http server, linux, ubuntu, red hat enterprise linux, debian, alpine linux, git, hashicorp vault, consul, packer, containerd, cri-o, podman, traefik, haproxy, cloudflare, aws cloudwatch, aws iam, aws vpc, aws route 53, aws elastic load balancing, aws autoscaling, aws cloudtrail, aws systems manager, aws codepipeline, aws codebuild
+
+[nice]
+pulumi, crossplane, openstack, digitalocean, linode, vmware vsphere, vsphere, nomad, rancher, k3s, k9s, istio, linkerd, envoy, open telemetry, jaeger, zipkin, loki, fluentd, filebeat, metricbeat, telegraf, influxdb, datadog, new relic, dynatrace, sentry, graylog, sonarqube, jfrog artifactory, nexus repository, harbor, quay, minio, openebs, rook, ceph, longhorn, velero, cert-manager, external-dns, sealed secrets, spinnaker, tekton, drone ci, buildkite, teamcity, bamboo, saltstack, chef, puppet, cloud-init, vagrant, terragrunt, sops, aws fargate, aws ecr, aws eksctl, aws app mesh, aws elastic beanstalk, google cloud run, google artifact registry, google cloud build, azure container registry, azure devops, azure pipelines
+
+[exclude]
+react, angular, vue.js, next.js, node.js, django, flask, spring boot, laravel, ruby on rails, tensorflow, pandas, numpy, tableau, power bi, qlik, unity, unreal engine, android sdk, ios sdk, wordpress, shopify, salesforce, hubspot, sap, matlab, hadoop, apache spark, airflow

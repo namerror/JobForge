@@ -1,0 +1,7 @@
+[core]
+python, go, bash, powershell, groovy, zsh
+
+[nice]
+ruby, perl, javascript, typescript, rust, java, c#, lua, c, c++
+
+[exclude]
