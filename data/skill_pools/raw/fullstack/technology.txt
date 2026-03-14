@@ -1,0 +1,8 @@
+[core]
+react, angular, vue.js, next.js, node.js, express.js, spring boot, django, laravel, asp.net core, postgresql, mysql, mongodb, redis, sqlite, prisma, sequelize, typeorm, docker, docker compose, nginx, git, github, gitlab, bitbucket, npm, yarn, pnpm, webpack, vite, babel, jest, cypress, playwright, github actions, gitlab ci, aws, google cloud platform, microsoft azure
+
+[nice]
+kubernetes, terraform, ansible, serverless framework, firebase, supabase, vercel, netlify, cloudflare, deno, bun, elasticsearch, rabbitmq, apache kafka, dynamodb, cockroachdb, neo4j, apache http server, traefik, consul, vault, grafana, prometheus, datadog, sentry, storybook, chromatic, turborepo, nx, lerna
+
+[exclude]
+hadoop, apache spark, tensorflow, pytorch, tableau, power bi, qlik sense, matlab, sas, unity, unreal engine, blender, autocad, solidworks, qgis, arcgis, salesforce, hubspot, wordpress, shopify, magento

@@ -1,0 +1,7 @@
+[core]
+javascript, typescript, python, java, c#, go, php, ruby
+
+[nice]
+rust, kotlin, swift, scala, elixir, dart, groovy, objective-c, bash, powershell, perl, lua, r, julia, zig, haskell, ocaml, nim
+
+[exclude]
