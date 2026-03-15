@@ -31,7 +31,7 @@ def score_skill(skill: str, role_family: str, category: str, job_text: str | Non
     elif normalized_skill and any(normalized_skill in keyword for keyword in keywords):
         score = 1.0
 
-    return score, {"normalized_skill": normalized_skill, "matched_keywords": list(keywords)}
+    return score, {"normalized_skill": normalized_skill}
 
 def rank_skills(skills: list[str], role_family: str, category: str, job_text: str | None=None, top_n: int | None=None, include_zero: bool=False) -> tuple[list[str], dict | None]:
     """Rank skills based on their scores."""
