@@ -63,7 +63,7 @@ def embed_role(role_text: str) -> list[float]:
     )[0]
 
     # Call OpenAI API to get embedding
-    client = OpenAI()
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
     embed_kwargs = {
         "input": truncated_role,
         "model": settings.EMBEDDING_MODEL,
@@ -95,7 +95,7 @@ def embed_skills(texts: list[str]) -> list[list[float]]:
     )
 
     # Call OpenAI API to get embeddings in batch
-    client = OpenAI()
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
     
     embed_kwargs = {
         "input": truncated_texts,
@@ -107,6 +107,11 @@ def embed_skills(texts: list[str]) -> list[list[float]]:
     response = client.embeddings.create(**embed_kwargs)
 
     embeddings = [item.embedding for item in response.data]
+
+    if settings.DEV_MODE:
+        logger.debug(f"Embedding batch request: {embed_kwargs}")
+        logger.debug(f"Embedding batch response: {response}")
+
     return embeddings
 
     

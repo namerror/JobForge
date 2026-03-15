@@ -44,7 +44,7 @@ def test_embed_role_passes_dimensions(monkeypatch):
             return SimpleNamespace(data=[SimpleNamespace(embedding=[0.1, 0.2])])
 
     class DummyOpenAI:
-        def __init__(self):
+        def __init__(self, **_kwargs):
             self.embeddings = DummyEmbeddings()
 
     monkeypatch.setattr(embedding_client, "OpenAI", DummyOpenAI)

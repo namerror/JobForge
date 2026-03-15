@@ -15,5 +15,6 @@ class Settings(BaseSettings):
     EMBEDDING_BATCH_SIZE: int = 100
     # EMBEDDING_DIMENSIONS: int = 1024 # Optionally reduce dimensionality
     
+    OPENAI_API_KEY: str = "" # This should be set in the .env file or environment variable
 
 settings = Settings()
