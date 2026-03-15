@@ -110,7 +110,8 @@ def embed_skills(texts: list[str]) -> list[list[float]]:
 
     if settings.DEV_MODE:
         logger.debug(f"Embedding batch request: {embed_kwargs}")
-        logger.debug(f"Embedding batch response: {response}")
+        logger.debug(f"Embedding batch response size: {len(response.data)}")
+        logger.debug(f"Embedding usage: {response.usage}")
 
     return embeddings
 
