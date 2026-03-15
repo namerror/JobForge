@@ -7,18 +7,22 @@ It is designed for resume generation pipelines and prioritizes determinism, test
 
 ### ✅ Does
 - Accepts:
-  - `job_role` (required)
-  - `job_description` (optional)
+  - `job_role` (required): whatever title the job poster provides (e.g. "AI/ML Engineer", "Frontend Developer", "Data Scientist")
+  - `job_text` (optional): job description or other context to help with selection
   - categorized user skills in 3 buckets:
-    - `Technology`
-    - `Programming`
-    - `Concepts`
+    - `technology`: specific tools, frameworks, platforms (e.g. "Docker", "AWS", "TensorFlow")
+    - `programming`: programming languages (e.g. "Python", "Java", "SQL")
+    - `concepts`: broader technical concepts, methodologies, or domains (e.g. "Machine Learning", "CI/CD", "Distributed Systems")
+  - `top_n` (optional): number of top skills to return per category (default: 5)
+  - `method` (optional): selection method
 - Returns:
   - the most relevant skills per category (ranked, stable ordering, ties allowed)
+  - debug details (similarity scores, normalized skill names) when `DEV_MODE=true`
 - Supports multiple methods (config-driven):
   - `baseline` (deterministic keyword/role-profile scoring)
-  - `embeddings` (optional upgrade)
-  - `hybrid` (baseline shortlist → embedding rerank)
+  - `embeddings` (cosine similarity ranking using OpenAI embeddings)
+  - `hybrid` (currently in development, combines both approaches for improved accuracy)
+  - `LLM` (future planned method using LLM for selection and ranking)
 
 ### ❌ Does not
 - Invent skills not present in the input
@@ -34,32 +38,53 @@ It is designed for resume generation pipelines and prioritizes determinism, test
 
 Response:
 ```json
-{ "status": "ok" }
+{ 
+  "status": "ok",
+  "version": "version_info_here",
+  "method": "your_method_here",
+  "top_n": top_n_skills_returned,
+  "dev_mode": true_or_false
+}
 ```
 
 ### Select Skills
+`POST /select_skills`
+
 Request:
 ```json
 {
   "job_role": "AI/ML Engineer",
   "job_description": "Optional text...",
-  "skills": {
-    "Technology": ["Docker", "Kubernetes", "AWS", "PostgreSQL", "TensorFlow"],
-    "Programming": ["Python", "TypeScript", "SQL"],
-    "Concepts": ["Machine Learning", "CI/CD", "Distributed Systems"]
-  }
-}
-```
-Response (example):
-```json
-{
-  "Technology": ["TensorFlow", "AWS", "Docker"],
-  "Programming": ["Python"],
-  "Concepts": ["Machine Learning", "Distributed Systems"]
+  "technology": ["Docker", "Kubernetes", "AWS", "PostgreSQL", "TensorFlow"],
+  "programming": ["Python", "TypeScript", "SQL"],
+  "concepts": ["Machine Learning", "CI/CD", "Distributed Systems"]
 }
 ```
 
----
+Response (example):
+```json
+{
+  "technology": ["TensorFlow", "AWS", "Docker"],
+  "programming": ["Python"],
+  "concepts": ["Machine Learning", "Distributed Systems"],
+  "details": {
+    ...
+  }
+}
+```
+
+### Logging Metrics
+`POST /metrics-lite`
+Response:
+```json
+{
+  "requests_total": total_requests,
+  "errors_total": total_errors,
+  "avg_latency_ms": average_latency_in_ms,
+  "method_usage": method_usage,
+}
+```
+
 ## Configuration
 
 The service can be configured via environment variables or a config file to specify:
@@ -67,6 +92,13 @@ The service can be configured via environment variables or a config file to spec
 METHOD=your_method_here # e.g., baseline, embeddings, hybrid
 DEV_MODE="true" # Enable verbose logging and mock data for development
 TOP_N=your_number_here # Number of top skills to return per category
+LOG_LEVEL=your_log_level_here # e.g., DEBUG, INFO, WARNING
+
+OPENAI_API_KEY=your_openai_api_key_here # Required for embeddings method
+
+EMBEDDING_MODEL=your_embedding_model_here # e.g., text-embedding-3-small
+EMBEDDING_BATCH_SIZE=your_batch_size_here # e.g., 100
+EMBEDDING_DIMENSIONS=your_embedding_dimensions_here # optional, remove if not needed
 ```
 
 ## Running Locally
