@@ -8,6 +8,7 @@ from app.config import settings
 from app.metrics import metrics
 from app.models import SkillSelectRequest, SkillSelectResponse
 from app.scoring.baseline import baseline_select_skills
+from app.scoring.embeddings import embedding_select_skills
 
 logger = logging.getLogger("skill_selector")
 
@@ -20,19 +21,28 @@ def select_skills_service(req: SkillSelectRequest) -> SkillSelectResponse:
     metrics.inc_request(method=method)
 
     try:
-        if method != "baseline":
-            # We’ll add embeddings/hybrid later, but fail clearly for now
+        if method == "baseline":
+            selected, meta = baseline_select_skills(
+                job_role=req.job_role,
+                job_text=req.job_text,
+                technology=req.technology,
+                programming=req.programming,
+                concepts=req.concepts,
+                top_n=top_n,
+                dev_mode=dev_mode,
+            )
+        elif method == "embeddings":
+            selected, meta = embedding_select_skills(
+                job_role=req.job_role,
+                job_text=req.job_text,
+                technology=req.technology,
+                programming=req.programming,
+                concepts=req.concepts,
+                top_n=top_n,
+                dev_mode=dev_mode,
+            )
+        else:
             raise ValueError(f"Unsupported METHOD: {method}")
-
-        selected, meta = baseline_select_skills(
-            job_role=req.job_role,
-            job_text=req.job_text,
-            technology=req.technology,
-            programming=req.programming,
-            concepts=req.concepts,
-            top_n=top_n,
-            dev_mode=dev_mode,
-        )
 
         latency_ms = (time.perf_counter() - start) * 1000.0
         metrics.observe_latency_ms(latency_ms)
