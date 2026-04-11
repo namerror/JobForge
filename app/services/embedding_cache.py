@@ -16,8 +16,8 @@ class EmbeddingCache:
         self.role_cache, self.skill_cache = self._load_embeddings_cache()
 
     def _load_embeddings_cache(self) -> tuple[dict, dict]:
-        model = self.model
-        dimensions = self.dimensions
+        model = getattr(self, "model", None)
+        dimensions = getattr(self, "dimensions", None)
 
         # load role
         try:
