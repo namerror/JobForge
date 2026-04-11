@@ -13,6 +13,7 @@ from app.config import settings
 logger = logging.getLogger("llm_client")
 
 CATEGORIES = ("technology", "programming", "concepts")
+TEMPERATURE_UNSUPPORTED_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
 
 
 class LLMClientError(RuntimeError):
@@ -89,6 +90,40 @@ def _usage_metadata(response: Any) -> dict[str, int]:
     }
 
 
+def supports_temperature(model: str) -> bool:
+    """Return whether this model accepts the Responses API temperature parameter."""
+    return model not in TEMPERATURE_UNSUPPORTED_MODELS
+
+
+def build_response_create_kwargs(
+    *,
+    model: str,
+    instructions: str,
+    prompt_payload: str,
+    schema: dict[str, Any],
+    max_output_tokens: int,
+) -> dict[str, Any]:
+    """Build Responses API kwargs with model-specific parameter compatibility."""
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "instructions": instructions,
+        "input": prompt_payload,
+        "max_output_tokens": max_output_tokens,
+        "tools": [],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "skill_scores",
+                "schema": schema,
+                "strict": True,
+            }
+        },
+    }
+    if supports_temperature(model):
+        kwargs["temperature"] = 0
+    return kwargs
+
+
 def score_skills_with_llm(
     *,
     job_role: str,
@@ -126,22 +161,14 @@ def score_skills_with_llm(
     start = time.perf_counter()
     try:
         client = OpenAI(api_key=api_key)
-        response = client.responses.create(
+        create_kwargs = build_response_create_kwargs(
             model=settings.LLM_MODEL,
             instructions=instructions,
-            input=prompt_payload,
-            temperature=0,
+            prompt_payload=prompt_payload,
+            schema=schema,
             max_output_tokens=settings.LLM_MAX_OUTPUT_TOKENS,
-            tools=[],
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "skill_scores",
-                    "schema": schema,
-                    "strict": True,
-                }
-            },
         )
+        response = client.responses.create(**create_kwargs)
     except Exception as exc:
         logger.exception(
             "llm_request_failed",
