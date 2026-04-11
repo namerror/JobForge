@@ -43,6 +43,9 @@ Each session file must include:
 
 ## Session Index
 
+- `04-11-2026-Codex-metrics-effective-method-and-tokens.md` - 2026-04-11 - Track total tokens and fallback method usage
+- `04-11-2026-Codex-llm-model-parameter-compatibility.md` - 2026-04-11 - Fix LLM model parameter compatibility
+- `04-10-2026-Codex-llm-skill-selection.md` - 2026-04-10 - Implement LLM skill selection
 - `04-08-2026-Codex-add-parallel-branch-plans.md` - 2026-04-08 - Add parallel branch planning docs for hybrid, LLM, and grounded resume work
 - `03-07-2026-Copilot-optimize-logging-instructions.md` - 2026-03-07 - Optimize agent logging instructions
 - `2026-03-06-embeddings-caching-bug-fix-and-tests.md` - 2026-03-06 - Fix embeddings stale kwarg bug and add unit tests
