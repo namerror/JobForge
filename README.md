@@ -22,7 +22,7 @@ It is designed for resume generation pipelines and prioritizes determinism, test
   - `baseline` (deterministic keyword/role-profile scoring)
   - `embeddings` (cosine similarity ranking using OpenAI embeddings)
   - `hybrid` (currently in development, combines both approaches for improved accuracy)
-  - `LLM` (future planned method using LLM for selection and ranking)
+  - `llm` (OpenAI Responses API scoring with local validation, ranking, and baseline fallback)
 
 ### ❌ Does not
 - Invent skills not present in the input
@@ -80,25 +80,31 @@ Response:
 {
   "requests_total": total_requests,
   "errors_total": total_errors,
+  "total_tokens": total_model_tokens,
   "avg_latency_ms": average_latency_in_ms,
   "method_usage": method_usage,
 }
 ```
 
+`method_usage` counts the method that actually produced the response. If a model-backed method falls back to the baseline scorer, the request is counted under `baseline`.
+
 ## Configuration
 
 The service can be configured via environment variables or a config file to specify:
 ```
-METHOD=your_method_here # e.g., baseline, embeddings, hybrid
+METHOD=your_method_here # e.g., baseline, embeddings, llm
 DEV_MODE="true" # Enable verbose logging and mock data for development
 TOP_N=your_number_here # Number of top skills to return per category
 LOG_LEVEL=your_log_level_here # e.g., DEBUG, INFO, WARNING
 
-OPENAI_API_KEY=your_openai_api_key_here # Required for embeddings method
+OPENAI_API_KEY=your_openai_api_key_here # Required for embeddings and llm methods
 
 EMBEDDING_MODEL=your_embedding_model_here # e.g., text-embedding-3-small
 EMBEDDING_BATCH_SIZE=your_batch_size_here # e.g., 100
 EMBEDDING_DIMENSIONS=your_embedding_dimensions_here # optional, remove if not needed
+
+LLM_MODEL=your_llm_model_here # e.g., gpt-5-mini
+LLM_MAX_OUTPUT_TOKENS=1200
 ```
 
 ## Running Locally
@@ -149,4 +155,4 @@ PYTHONPATH=. pytest -k "test_name_here"
 ### Notes
 - `DEV_MODE=true` and `TOP_N=10` are set automatically by `tests/conftest.py` — no `.env` needed for tests.
 - `tests/test_embeddings.py` may fail during active development of the embeddings scorer; skip it with `--ignore=tests/test_embeddings.py` if needed.
-- Integration tests in `tests/test_integration.py` and `tests/test_health.py` exercise the full API stack and require `METHOD` to be set to a supported value (`baseline` or `hybrid`).
+- Integration tests in `tests/test_integration.py` and `tests/test_health.py` exercise the full API stack and require `METHOD` to be set to a supported value (`baseline`, `embeddings`, or `llm`).

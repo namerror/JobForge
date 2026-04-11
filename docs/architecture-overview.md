@@ -8,7 +8,9 @@ This document maps `app/` relationships and runtime logic flow so agents can nav
 - `app/models.py`: Request/response contracts (`SkillSelectRequest`, `SkillSelectResponse`).
 - `app/config.py`: Runtime settings (`METHOD`, `TOP_N`, `DEV_MODE`, `LOG_LEVEL`) from env.
 - `app/services/skill_selector.py`: Service orchestration for method selection, metrics, logging.
+- `app/services/llm_client.py`: OpenAI Responses API wrapper for LLM scoring.
 - `app/scoring/baseline.py`: Deterministic baseline ranking pipeline.
+- `app/scoring/llm.py`: LLM scoring validation, deterministic ranking, and baseline fallback.
 - `app/scoring/role_profiles.py`: Role profile loading and role-family detection.
 - `app/scoring/synonyms.py`: Skill normalization alias map.
 - `app/metrics.py`: In-memory thread-safe counters/latency aggregation.
@@ -30,10 +32,19 @@ app.services.skill_selector
   -> app.metrics
   -> app.models
   -> app.scoring.baseline
+  -> app.scoring.embeddings
+  -> app.scoring.llm
 
 app.scoring.baseline
   -> app.scoring.synonyms
   -> app.scoring.role_profiles (detect_role_family + ROLE_PROFILES)
+
+app.scoring.llm
+  -> app.scoring.baseline (fallback + normalization)
+  -> app.services.llm_client
+
+app.services.llm_client
+  -> OpenAI Responses API
 
 app.scoring.role_profiles
   -> app/data/role_profiles/*.yaml
@@ -47,18 +58,15 @@ flowchart TD
     B --> C[main.select_skills]
     C --> D[services.select_skills_service]
     D --> E[Resolve method/top_n/dev_mode from request override or settings]
-    E --> F[metrics.inc_request - method]
-    F --> G{method == baseline?}
+    E --> G{method supported?}
     G -- no --> H[raise ValueError Unsupported METHOD]
-    G -- yes --> I[baseline_select_skills]
-    I --> J[detect_role_family - job_role]
-    J --> K[rank category: technology/programming/concepts]
-    K --> L[score_skill - normalize_skill - synonym lookup]
-    L --> M[ROLE_PROFILES keyword match scoring]
-    M --> N[sort by score desc then skill asc]
-    N --> O[top_n slice per category]
-    O --> P[build meta details if dev_mode]
-    P --> Q[metrics.observe_latency_ms]
+    G -- baseline --> I[baseline_select_skills]
+    G -- embeddings --> U[embedding_select_skills]
+    G -- llm --> V[llm_select_skills]
+    I --> J[method scorer returns selected skills + optional metadata]
+    U --> J
+    V --> J
+    J --> Q[metrics.inc_request - effective method + observe latency/tokens]
     Q --> R[structured log event]
     R --> S[SkillSelectResponse]
     H --> T[metrics.inc_error + exception log]
@@ -102,7 +110,11 @@ flowchart TD
   - Synonym map loaded from static dict in `synonyms.py`.
 
 - Runtime mutable state:
-  - `metrics` singleton in `app/metrics.py` (protected by lock).
+  - `metrics` singleton in `app/metrics.py` (protected by lock), including request counts, effective method usage, latency, errors, and total model tokens.
+
+- External model state:
+  - Embeddings use `app/services/embedding_client.py` and disk cache files under `app/data/embeddings/{model}/`.
+  - LLM scoring uses `app/services/llm_client.py`; final validation and ranking happen locally in `app/scoring/llm.py`.
 
 ## 6) Route Responsibilities
 
@@ -130,6 +142,10 @@ flowchart TD
 4. `app/main.py` -> `app/services/skill_selector.py` -> `app/scoring/baseline.py`.
 5. `app/scoring/role_profiles.py` + `app/data/role_profiles/*.yaml`.
 
-For embedding-based method, also review:`
+For embedding-based method, also review:
 - `docs/Embedding.md` (method overview).
 - `app/services/embedding_client.py` -> `app/scoring/embeddings.py` (once implemented).
+
+For LLM-based method, also review:
+- `docs/branch-02-llm-skill-selection.md`.
+- `app/services/llm_client.py` -> `app/scoring/llm.py`.

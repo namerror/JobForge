@@ -1,21 +1,31 @@
-from fastapi.testclient import TestClient
+import asyncio
+
+import httpx
+
 from app.main import app
 
-client = TestClient(app)
+
+def api_request(method: str, path: str, **kwargs):
+    async def _request():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.request(method, path, **kwargs)
+
+    return asyncio.run(_request())
 
 
 # === Health endpoint tests ===
 
 def test_health():
     """Test health endpoint returns OK."""
-    res = client.get("/health")
+    res = api_request("GET", "/health")
     assert res.status_code == 200
     assert res.json()["status"] == "ok"
 
 
 def test_health_method_not_allowed():
     """Test health endpoint only accepts GET."""
-    res = client.post("/health")
+    res = api_request("POST", "/health")
     assert res.status_code == 405
 
 
@@ -30,7 +40,7 @@ def test_select_skills_basic():
         "concepts": ["API", "Microservices"],
     }
 
-    res = client.post("/select-skills", json=payload)
+    res = api_request("POST", "/select-skills", json=payload)
     assert res.status_code == 200
 
     data = res.json()
@@ -51,7 +61,7 @@ def test_select_skills_empty_lists():
         "concepts": [],
     }
 
-    res = client.post("/select-skills", json=payload)
+    res = api_request("POST", "/select-skills", json=payload)
     assert res.status_code == 200
 
     data = res.json()
@@ -68,7 +78,7 @@ def test_select_skills_missing_field():
         # Missing programming and concepts
     }
 
-    res = client.post("/select-skills", json=payload)
+    res = api_request("POST", "/select-skills", json=payload)
     assert res.status_code == 422  # Unprocessable Entity
 
 
@@ -81,13 +91,13 @@ def test_select_skills_invalid_types():
         "concepts": ["API"],
     }
 
-    res = client.post("/select-skills", json=payload)
+    res = api_request("POST", "/select-skills", json=payload)
     assert res.status_code == 422
 
 
 def test_select_skills_method_not_allowed():
     """Test select-skills endpoint only accepts POST."""
-    res = client.get("/select-skills")
+    res = api_request("GET", "/select-skills")
     assert res.status_code == 405
 
 
@@ -102,7 +112,7 @@ def test_select_skills_response_structure():
         "concepts": ["UI", "UX"],
     }
 
-    res = client.post("/select-skills", json=payload)
+    res = api_request("POST", "/select-skills", json=payload)
     assert res.status_code == 200
 
     data = res.json()
@@ -120,7 +130,7 @@ def test_select_skills_maintains_subset():
         "concepts": ["API", "Database", "Cloud"],
     }
 
-    res = client.post("/select-skills", json=payload)
+    res = api_request("POST", "/select-skills", json=payload)
     assert res.status_code == 200
 
     data = res.json()
@@ -134,7 +144,7 @@ def test_select_skills_maintains_subset():
 # === Different role tests ===
 
 
-    res = client.post("/select-skills", json=payload)
+    res = api_request("POST", "/select-skills", json=payload)
     assert res.status_code == 200
 
 
@@ -147,7 +157,7 @@ def test_select_skills_fullstack_role():
         "concepts": ["API", "UI"],
     }
 
-    res = client.post("/select-skills", json=payload)
+    res = api_request("POST", "/select-skills", json=payload)
     assert res.status_code == 200
 
 
@@ -160,7 +170,7 @@ def test_select_skills_devops_role():
         "concepts": ["CI/CD", "Infrastructure", "Automation"],
     }
 
-    res = client.post("/select-skills", json=payload)
+    res = api_request("POST", "/select-skills", json=payload)
     assert res.status_code == 200
 
 
@@ -173,5 +183,5 @@ def test_select_skills_mlai_role():
         "concepts": ["Machine Learning", "Deep Learning", "NLP"],
     }
 
-    res = client.post("/select-skills", json=payload)
+    res = api_request("POST", "/select-skills", json=payload)
     assert res.status_code == 200

@@ -7,6 +7,7 @@ import pytest
 # Set environment variables BEFORE any app imports
 os.environ["DEV_MODE"] = "true"
 os.environ.setdefault("TOP_N", "10")
+os.environ.setdefault("METHOD", "baseline")
 
 
 def pytest_addoption(parser):

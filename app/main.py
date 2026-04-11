@@ -15,27 +15,31 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Skill Relevance Selector", lifespan=lifespan)
 
+
 @app.get("/health")
-def health():
+async def health():
     return {
         "status": "ok",
         "version": "0.2.0",
         "method": settings.METHOD,
         "top_n": settings.TOP_N,
         "dev_mode": settings.DEV_MODE,
-        }
+    }
+
 
 @app.get("/metrics-lite")
-def get_metrics():
+async def get_metrics():
     return {
         "requests_total": metrics.requests_total,
         "errors_total": metrics.errors_total,
+        "total_tokens": metrics.total_tokens,
         "avg_latency_ms": round(metrics.avg_latency_ms(), 3),
         "method_usage": metrics.method_usage,
     }
 
+
 @app.post("/select-skills", response_model=SkillSelectResponse)
-def select_skills(payload: SkillSelectRequest) -> SkillSelectResponse:
+async def select_skills(payload: SkillSelectRequest) -> SkillSelectResponse:
     try:
         return select_skills_service(payload)
     except ValueError as ve:

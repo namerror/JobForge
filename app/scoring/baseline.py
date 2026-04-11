@@ -25,13 +25,17 @@ def score_skill(skill: str, role_family: str, category: str, job_text: str | Non
 
     # Exact match = 3 points, partial match = 1 point
     score = 0.0
+    matched_keywords: list[str] = []
     # Handle empty strings - they shouldn't match anything
     if normalized_skill and normalized_skill in keywords:
         score = 3.0
-    elif normalized_skill and any(normalized_skill in keyword for keyword in keywords):
-        score = 1.0
+        matched_keywords.append(normalized_skill)
+    elif normalized_skill:
+        matched_keywords = sorted(keyword for keyword in keywords if normalized_skill in keyword)
+        if matched_keywords:
+            score = 1.0
 
-    return score, {"normalized_skill": normalized_skill}
+    return score, {"normalized_skill": normalized_skill, "matched_keywords": matched_keywords}
 
 def rank_skills(skills: list[str], role_family: str, category: str, job_text: str | None=None, top_n: int | None=None, include_zero: bool=False) -> tuple[list[str], dict | None]:
     """Rank skills based on their scores."""
