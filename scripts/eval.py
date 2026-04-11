@@ -8,7 +8,8 @@ Usage:
 
 The scoring method is controlled by the METHOD setting (env var or .env file):
     METHOD=baseline  python scripts/eval.py         # Use baseline scorer (default)
-    METHOD=embedding python scripts/eval.py         # Use embedding scorer
+    METHOD=embeddings python scripts/eval.py        # Use embedding scorer
+    METHOD=llm       python scripts/eval.py         # Use LLM scorer
 """
 
 import argparse
@@ -17,6 +18,7 @@ import glob
 from pathlib import Path
 from app.scoring.baseline import baseline_select_skills
 from app.scoring.embeddings import embedding_select_skills
+from app.scoring.llm import llm_select_skills
 from app.config import settings
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -24,6 +26,7 @@ EVAL_CASES_DIR = REPO_ROOT / "data" / "eval_cases"
 GENERATED_DIR = EVAL_CASES_DIR / "generated"
 
 CATEGORIES = ["technology", "programming", "concepts"]
+EFFICIENCY_KEYS = ["api_calls", "prompt_tokens", "completion_tokens", "total_tokens"]
 
 
 def load_cases(path: Path) -> list[dict]:
@@ -109,13 +112,43 @@ def select_skills(
             job_text=job_text,
             dev_mode=True,
         )
+    elif method == "llm":
+        return llm_select_skills(
+            job_role=job_role,
+            technology=technology,
+            programming=programming,
+            concepts=concepts,
+            job_text=job_text,
+            dev_mode=True,
+        )
     else:
-        raise ValueError(f"Unknown scoring method: {method!r} (expected 'baseline' or 'embeddings')")
+        raise ValueError(
+            f"Unknown scoring method: {method!r} (expected 'baseline', 'embeddings', or 'llm')"
+        )
+
+
+def extract_efficiency(details: dict | None) -> dict:
+    """Extract comparable model-cost metadata from scorer details when present."""
+    llm_meta = details.get("_llm", {}) if isinstance(details, dict) else {}
+    return {
+        "api_calls": int(llm_meta.get("api_calls", 0) or 0),
+        "prompt_tokens": int(llm_meta.get("prompt_tokens", 0) or 0),
+        "completion_tokens": int(llm_meta.get("completion_tokens", 0) or 0),
+        "total_tokens": int(llm_meta.get("total_tokens", 0) or 0),
+        "latency_ms": float(llm_meta.get("latency_ms", 0.0) or 0.0),
+    }
 
 
 def evaluate(cases: list[dict]) -> dict:
     results = []
     score_sum = 0.0
+    efficiency_totals = {
+        "api_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "latency_ms": 0.0,
+    }
     for case in cases:
         job_role = case["input"]["job_role"]
         technology = case["input"]["technology"]
@@ -134,10 +167,15 @@ def evaluate(cases: list[dict]) -> dict:
         )
 
         evaluation = eval_case(selected_skills, expected)
+        efficiency = extract_efficiency(details)
+        for key in EFFICIENCY_KEYS:
+            efficiency_totals[key] += efficiency[key]
+        efficiency_totals["latency_ms"] += efficiency["latency_ms"]
 
         results.append({
             "job_role": job_role,
-            "evaluation": evaluation
+            "evaluation": evaluation,
+            "efficiency": efficiency,
         })
 
         score_sum += evaluation["average_score"]
@@ -147,7 +185,11 @@ def evaluate(cases: list[dict]) -> dict:
         "method": settings.METHOD,
         "results": results,
         "overall_score": average_score,
-        "top_n": settings.TOP_N
+        "efficiency_totals": {
+            **{key: efficiency_totals[key] for key in EFFICIENCY_KEYS},
+            "latency_ms": round(efficiency_totals["latency_ms"], 3),
+        },
+        "top_n": settings.TOP_N,
     }
 
 
