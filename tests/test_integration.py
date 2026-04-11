@@ -60,6 +60,12 @@ def test_metrics_lite_increments():
     assert after == before + 1
 
 
+def test_metrics_lite_includes_total_tokens():
+    data = api_request("GET", "/metrics-lite").json()
+    assert "total_tokens" in data
+    assert isinstance(data["total_tokens"], int)
+
+
 def test_select_skills_llm_method_returns_subset(monkeypatch):
     """The LLM method must preserve the API shape and subset invariant."""
     monkeypatch.setattr(
@@ -88,6 +94,36 @@ def test_select_skills_llm_method_returns_subset(monkeypatch):
     assert data["details"]["_llm"]["model"] == "test-model"
 
 
+def test_select_skills_llm_success_increments_total_tokens(monkeypatch):
+    """Token usage should be counted even when details are not returned."""
+    monkeypatch.setattr(
+        llm_scorer,
+        "score_skills_with_llm",
+        lambda **_kwargs: LLMScoreResult(
+            scores={
+                "technology": {"Docker": 3},
+                "programming": {"Python": 3},
+                "concepts": {"API": 3},
+            },
+            metadata={
+                "model": "test-model",
+                "api_calls": 1,
+                "prompt_tokens": 20,
+                "completion_tokens": 17,
+                "total_tokens": 37,
+            },
+        ),
+    )
+    before = api_request("GET", "/metrics-lite").json()
+
+    res = api_request("POST", "/select-skills", json={**PAYLOAD, "method": "llm", "dev_mode": False})
+
+    assert res.status_code == 200
+    after = api_request("GET", "/metrics-lite").json()
+    assert after["total_tokens"] == before["total_tokens"] + 37
+    assert after["method_usage"].get("llm", 0) == before["method_usage"].get("llm", 0) + 1
+
+
 def test_select_skills_llm_failure_falls_back_to_baseline(monkeypatch):
     """LLM scorer failures should return baseline output with a dev warning."""
     def raise_client_error(**_kwargs):
@@ -105,6 +141,23 @@ def test_select_skills_llm_failure_falls_back_to_baseline(monkeypatch):
     data = res.json()
     assert data["details"]["_llm"]["fallback"] == "baseline"
     assert any("fell back to baseline" in warning for warning in data["details"]["_warnings"])
+
+
+def test_select_skills_llm_fallback_counts_baseline_usage(monkeypatch):
+    """Fallback responses should increment baseline usage, not the failed method."""
+    def raise_client_error(**_kwargs):
+        raise LLMClientError("simulated outage")
+
+    monkeypatch.setattr(llm_scorer, "score_skills_with_llm", raise_client_error)
+    before = api_request("GET", "/metrics-lite").json()
+
+    res = api_request("POST", "/select-skills", json={**PAYLOAD, "method": "llm", "dev_mode": False})
+
+    assert res.status_code == 200
+    after = api_request("GET", "/metrics-lite").json()
+    assert after["requests_total"] == before["requests_total"] + 1
+    assert after["method_usage"].get("baseline", 0) == before["method_usage"].get("baseline", 0) + 1
+    assert after["method_usage"].get("llm", 0) == before["method_usage"].get("llm", 0)
 
 
 def test_select_skills_unsupported_method_returns_400():

@@ -58,8 +58,7 @@ flowchart TD
     B --> C[main.select_skills]
     C --> D[services.select_skills_service]
     D --> E[Resolve method/top_n/dev_mode from request override or settings]
-    E --> F[metrics.inc_request - method]
-    F --> G{method supported?}
+    E --> G{method supported?}
     G -- no --> H[raise ValueError Unsupported METHOD]
     G -- baseline --> I[baseline_select_skills]
     G -- embeddings --> U[embedding_select_skills]
@@ -67,7 +66,7 @@ flowchart TD
     I --> J[method scorer returns selected skills + optional metadata]
     U --> J
     V --> J
-    J --> Q[metrics.observe_latency_ms]
+    J --> Q[metrics.inc_request - effective method + observe latency/tokens]
     Q --> R[structured log event]
     R --> S[SkillSelectResponse]
     H --> T[metrics.inc_error + exception log]
@@ -111,7 +110,7 @@ flowchart TD
   - Synonym map loaded from static dict in `synonyms.py`.
 
 - Runtime mutable state:
-  - `metrics` singleton in `app/metrics.py` (protected by lock).
+  - `metrics` singleton in `app/metrics.py` (protected by lock), including request counts, effective method usage, latency, errors, and total model tokens.
 
 - External model state:
   - Embeddings use `app/services/embedding_client.py` and disk cache files under `app/data/embeddings/{model}/`.

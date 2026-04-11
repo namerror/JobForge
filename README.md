@@ -80,10 +80,13 @@ Response:
 {
   "requests_total": total_requests,
   "errors_total": total_errors,
+  "total_tokens": total_model_tokens,
   "avg_latency_ms": average_latency_in_ms,
   "method_usage": method_usage,
 }
 ```
+
+`method_usage` counts the method that actually produced the response. If a model-backed method falls back to the baseline scorer, the request is counted under `baseline`.
 
 ## Configuration
 

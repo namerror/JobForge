@@ -32,6 +32,7 @@ async def get_metrics():
     return {
         "requests_total": metrics.requests_total,
         "errors_total": metrics.errors_total,
+        "total_tokens": metrics.total_tokens,
         "avg_latency_ms": round(metrics.avg_latency_ms(), 3),
         "method_usage": metrics.method_usage,
     }

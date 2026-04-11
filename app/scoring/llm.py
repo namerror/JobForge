@@ -39,6 +39,7 @@ def _fallback_to_baseline(
         details = details or {}
         warnings = details.setdefault("_warnings", [])
         warnings.append(warning)
+        details["_fallback_method"] = "baseline"
         details["_llm"] = {"fallback": "baseline", "reason": warning}
     return selected, details if dev_mode else None
 

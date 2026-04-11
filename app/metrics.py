@@ -8,6 +8,7 @@ from typing import Dict
 class Metrics:
     requests_total: int = 0
     errors_total: int = 0
+    total_tokens: int = 0
     latency_ms_sum: float = 0.0
     latency_ms_count: int = 0
     method_usage: Dict[str, int] = field(default_factory=dict)
@@ -21,6 +22,12 @@ class Metrics:
     def inc_error(self) -> None:
         with self._lock:
             self.errors_total += 1
+
+    def observe_tokens(self, tokens: int) -> None:
+        if tokens <= 0:
+            return
+        with self._lock:
+            self.total_tokens += tokens
 
     def observe_latency_ms(self, ms: float) -> None:
         with self._lock:
