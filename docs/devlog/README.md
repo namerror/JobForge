@@ -43,6 +43,7 @@ Each session file must include:
 
 ## Session Index
 
+- `04-13-2026-Codex-revise-baseline-filter-plan.md` - 2026-04-13 - Revise Branch 01 baseline filter plan
 - `04-11-2026-Codex-metrics-effective-method-and-tokens.md` - 2026-04-11 - Track total tokens and fallback method usage
 - `04-11-2026-Codex-llm-model-parameter-compatibility.md` - 2026-04-11 - Fix LLM model parameter compatibility
 - `04-10-2026-Codex-llm-skill-selection.md` - 2026-04-10 - Implement LLM skill selection
