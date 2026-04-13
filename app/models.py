@@ -10,6 +10,7 @@ class SkillSelectRequest(BaseModel):
     job_text: str | None = None  # Optional full job description text for context
     top_n: int | None = None  # Optional override for how many skills to select per category
     method: str | None = None  # Optional override for selection method (e.g., "baseline", "embeddings", "llm")
+    baseline_filter: bool | None = None  # Optional override for baseline pre-filtering before model-backed scoring
     dev_mode: bool | None = None  # Optional override for whether to include dev-only
 
 
