@@ -10,16 +10,19 @@ The scoring method is controlled by the METHOD setting (env var or .env file):
     METHOD=baseline  python scripts/eval.py         # Use baseline scorer (default)
     METHOD=embeddings python scripts/eval.py        # Use embedding scorer
     METHOD=llm       python scripts/eval.py         # Use LLM scorer
+
+Baseline pre-filtering can be enabled with BASELINE_FILTER=true or CLI flags:
+    BASELINE_FILTER=true METHOD=embeddings python scripts/eval.py
+    METHOD=embeddings python scripts/eval.py --baseline-filter
 """
 
 import argparse
 import json
 import glob
 from pathlib import Path
-from app.scoring.baseline import baseline_select_skills
-from app.scoring.embeddings import embedding_select_skills
-from app.scoring.llm import llm_select_skills
 from app.config import settings
+from app.models import SkillSelectRequest
+from app.services.skill_selector import select_skills_service
 
 REPO_ROOT = Path(__file__).parent.parent
 EVAL_CASES_DIR = REPO_ROOT / "data" / "eval_cases"
@@ -90,41 +93,30 @@ def select_skills(
     programming: list[str],
     concepts: list[str],
     job_text: str | None = None,
+    baseline_filter: bool | None = None,
 ) -> tuple[dict, dict | None]:
-    """Dispatch to the scoring method specified by settings.METHOD."""
-    method = settings.METHOD
-    if method == "baseline":
-        return baseline_select_skills(
+    """Dispatch through the production service using settings plus eval overrides."""
+    response = select_skills_service(
+        SkillSelectRequest(
             job_role=job_role,
             technology=technology,
             programming=programming,
             concepts=concepts,
             job_text=job_text,
-            dev_mode=True,
-            include_zero=False,
-        )
-    elif method == "embeddings":
-        return embedding_select_skills(
-            job_role=job_role,
-            technology=technology,
-            programming=programming,
-            concepts=concepts,
-            job_text=job_text,
+            method=settings.METHOD,
+            top_n=settings.TOP_N,
+            baseline_filter=baseline_filter,
             dev_mode=True,
         )
-    elif method == "llm":
-        return llm_select_skills(
-            job_role=job_role,
-            technology=technology,
-            programming=programming,
-            concepts=concepts,
-            job_text=job_text,
-            dev_mode=True,
-        )
-    else:
-        raise ValueError(
-            f"Unknown scoring method: {method!r} (expected 'baseline', 'embeddings', or 'llm')"
-        )
+    )
+    return (
+        {
+            "technology": response.technology,
+            "programming": response.programming,
+            "concepts": response.concepts,
+        },
+        response.details,
+    )
 
 
 def extract_efficiency(details: dict | None) -> dict:
@@ -139,7 +131,7 @@ def extract_efficiency(details: dict | None) -> dict:
     }
 
 
-def evaluate(cases: list[dict]) -> dict:
+def evaluate(cases: list[dict], baseline_filter: bool | None = None) -> dict:
     results = []
     score_sum = 0.0
     efficiency_totals = {
@@ -164,6 +156,7 @@ def evaluate(cases: list[dict]) -> dict:
             programming=programming,
             concepts=concepts,
             job_text=job_text,
+            baseline_filter=baseline_filter,
         )
 
         evaluation = eval_case(selected_skills, expected)
@@ -183,6 +176,7 @@ def evaluate(cases: list[dict]) -> dict:
     average_score = round(score_sum / len(results), 4)
     return {
         "method": settings.METHOD,
+        "baseline_filter": baseline_filter if baseline_filter is not None else settings.BASELINE_FILTER,
         "results": results,
         "overall_score": average_score,
         "efficiency_totals": {
@@ -234,8 +228,22 @@ def main():
         "--run-generated", action="store_true",
         help="Run against all generated eval case files in data/eval_cases/generated/.",
     )
+    parser.add_argument(
+        "--baseline-filter",
+        dest="baseline_filter",
+        action="store_true",
+        default=None,
+        help="Enable baseline pre-filtering for this eval run.",
+    )
+    parser.add_argument(
+        "--no-baseline-filter",
+        dest="baseline_filter",
+        action="store_false",
+        help="Disable baseline pre-filtering for this eval run.",
+    )
 
     args = parser.parse_args()
+    baseline_filter = args.baseline_filter
 
     if args.run_generated:
         files = collect_generated_files()
@@ -244,12 +252,13 @@ def main():
             return
 
         print(f"Method: {settings.METHOD}")
+        print(f"Baseline filter: {baseline_filter if baseline_filter is not None else settings.BASELINE_FILTER}")
         for filepath in files:
             cases = load_cases(filepath)
             print(f"\n{'='*60}")
             print(f"File: {filepath.name} ({len(cases)} cases)")
             print(f"{'='*60}")
-            eval_results = evaluate(cases)
+            eval_results = evaluate(cases, baseline_filter=baseline_filter)
             print(json.dumps(eval_results, indent=2))
 
     else:
@@ -260,8 +269,9 @@ def main():
 
         cases = load_cases(filepath)
         print(f"Method: {settings.METHOD}")
+        print(f"Baseline filter: {baseline_filter if baseline_filter is not None else settings.BASELINE_FILTER}")
         print(f"File: {filepath.name} ({len(cases)} cases)")
-        eval_results = evaluate(cases)
+        eval_results = evaluate(cases, baseline_filter=baseline_filter)
         print(json.dumps(eval_results, indent=2))
 
 

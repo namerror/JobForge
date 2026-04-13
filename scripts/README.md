@@ -50,11 +50,15 @@ PYTHONPATH=. python scripts/eval.py                              # default: eval
 PYTHONPATH=. python scripts/eval.py -f eval_cases_real.json      # specific file (looked up in data/eval_cases/)
 PYTHONPATH=. python scripts/eval.py -f path/to/custom.json       # relative or absolute path
 PYTHONPATH=. python scripts/eval.py --run-generated              # all files in data/eval_cases/generated/
+BASELINE_FILTER=true METHOD=embeddings PYTHONPATH=. python scripts/eval.py
+METHOD=embeddings PYTHONPATH=. python scripts/eval.py --baseline-filter
 ```
 
 | Flag | Description |
 |------|-------------|
 | `-f` / `--file` | Eval case file (filename, relative path, or absolute path) |
 | `--run-generated` | Run all generated eval case files |
+| `--baseline-filter` | Enable baseline pre-filtering for this eval run |
+| `--no-baseline-filter` | Disable baseline pre-filtering for this eval run |
 
 `-f` and `--run-generated` are mutually exclusive. With no flags, runs `eval_cases_basic.json`.
