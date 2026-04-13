@@ -7,6 +7,7 @@ class Settings(BaseSettings):
 
     TOP_N: int = 10
     METHOD: str = "baseline"
+    BASELINE_FILTER: bool = False
     DEV_MODE: bool = True
     LOG_LEVEL: str = "INFO"
 

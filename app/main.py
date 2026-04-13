@@ -23,6 +23,7 @@ async def health():
         "version": "0.2.0",
         "method": settings.METHOD,
         "top_n": settings.TOP_N,
+        "baseline_filter": settings.BASELINE_FILTER,
         "dev_mode": settings.DEV_MODE,
     }
 
