@@ -6,8 +6,9 @@ This document maps `app/` relationships and runtime logic flow so agents can nav
 
 - `app/main.py`: FastAPI app composition, lifespan setup, HTTP routes.
 - `app/models.py`: Request/response contracts (`SkillSelectRequest`, `SkillSelectResponse`).
-- `app/config.py`: Runtime settings (`METHOD`, `TOP_N`, `DEV_MODE`, `LOG_LEVEL`) from env.
+- `app/config.py`: Runtime settings (`METHOD`, `TOP_N`, `BASELINE_FILTER`, `DEV_MODE`, `LOG_LEVEL`) from env.
 - `app/services/skill_selector.py`: Service orchestration for method selection, metrics, logging.
+- `app/services/baseline_filter.py`: Optional baseline-filter orchestration for model-backed scorers.
 - `app/services/llm_client.py`: OpenAI Responses API wrapper for LLM scoring.
 - `app/scoring/baseline.py`: Deterministic baseline ranking pipeline.
 - `app/scoring/llm.py`: LLM scoring validation, deterministic ranking, and baseline fallback.
@@ -30,6 +31,13 @@ app.main
 app.services.skill_selector
   -> app.config
   -> app.metrics
+  -> app.models
+  -> app.services.baseline_filter
+  -> app.scoring.baseline
+  -> app.scoring.embeddings
+  -> app.scoring.llm
+
+app.services.baseline_filter
   -> app.models
   -> app.scoring.baseline
   -> app.scoring.embeddings
@@ -57,8 +65,13 @@ flowchart TD
     A[POST /select-skills] --> B[FastAPI validates payload into SkillSelectRequest]
     B --> C[main.select_skills]
     C --> D[services.select_skills_service]
-    D --> E[Resolve method/top_n/dev_mode from request override or settings]
-    E --> G{method supported?}
+    D --> E[Resolve method/top_n/baseline_filter/dev_mode from request override or settings]
+    E --> F{baseline_filter enabled<br>and method is model-backed?}
+    F -- yes --> K[services.baseline_filter<br>Run baseline with include_zero=True<br>split recognized and unrecognized skills]
+    K --> L[Score unrecognized skills with requested method]
+    L --> M[Merge normalized scores<br>rank deterministically]
+    F -- no --> G{method supported?}
+    M --> J
     G -- no --> H[raise ValueError Unsupported METHOD]
     G -- baseline --> I[baseline_select_skills]
     G -- embeddings --> U[embedding_select_skills]
@@ -103,7 +116,7 @@ flowchart TD
 
 - Configuration state:
   - Source: `.env` + defaults in `app/config.py`.
-  - Read at runtime for fallback behavior.
+  - Read at runtime for fallback behavior and the optional baseline pre-filter.
 
 - Knowledge state:
   - Role profiles loaded from YAML at module import time in `role_profiles.py`.

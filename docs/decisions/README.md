@@ -49,4 +49,5 @@ Files are named: `NNN-short-kebab-case-title.md`
 
 ## Current ADRs
 
-- None yet (template only)
+- `001-embedding-cache-persistence.md`
+- `002-baseline-filter-selection.md`

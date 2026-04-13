@@ -15,13 +15,13 @@ It is designed for resume generation pipelines and prioritizes determinism, test
     - `concepts`: broader technical concepts, methodologies, or domains (e.g. "Machine Learning", "CI/CD", "Distributed Systems")
   - `top_n` (optional): number of top skills to return per category (default: 5)
   - `method` (optional): selection method
+  - `baseline_filter` (optional): pre-score deterministic role-profile matches before model-backed selection
 - Returns:
   - the most relevant skills per category (ranked, stable ordering, ties allowed)
   - debug details (similarity scores, normalized skill names) when `DEV_MODE=true`
 - Supports multiple methods (config-driven):
   - `baseline` (deterministic keyword/role-profile scoring)
   - `embeddings` (cosine similarity ranking using OpenAI embeddings)
-  - `hybrid` (currently in development, combines both approaches for improved accuracy)
   - `llm` (OpenAI Responses API scoring with local validation, ranking, and baseline fallback)
 
 ### ❌ Does not
@@ -48,16 +48,20 @@ Response:
 ```
 
 ### Select Skills
-`POST /select_skills`
+`POST /select-skills`
 
 Request:
 ```json
 {
   "job_role": "AI/ML Engineer",
-  "job_description": "Optional text...",
+  "job_text": "Optional text...",
   "technology": ["Docker", "Kubernetes", "AWS", "PostgreSQL", "TensorFlow"],
   "programming": ["Python", "TypeScript", "SQL"],
-  "concepts": ["Machine Learning", "CI/CD", "Distributed Systems"]
+  "concepts": ["Machine Learning", "CI/CD", "Distributed Systems"],
+  "top_n": 5,
+  "method": "embeddings",
+  "baseline_filter": true,
+  "dev_mode": true
 }
 ```
 
@@ -74,7 +78,7 @@ Response (example):
 ```
 
 ### Logging Metrics
-`POST /metrics-lite`
+`GET /metrics-lite`
 Response:
 ```json
 {
@@ -93,6 +97,7 @@ Response:
 The service can be configured via environment variables or a config file to specify:
 ```
 METHOD=your_method_here # e.g., baseline, embeddings, llm
+BASELINE_FILTER=false # Optional baseline pre-filter before embeddings or llm
 DEV_MODE="true" # Enable verbose logging and mock data for development
 TOP_N=your_number_here # Number of top skills to return per category
 LOG_LEVEL=your_log_level_here # e.g., DEBUG, INFO, WARNING
