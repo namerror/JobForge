@@ -85,6 +85,8 @@ Explain why these changes were made and key decisions...
 What this enables or fixes...
 ```
 
+**Note: After adding a session file, update `docs/devlog/Index.md` to add an entry for it.** 
+
 ### Changelog (`docs/CHANGELOG.md`)
 The CHANGELOG is reserved for **significant, user-facing changes only** — primarily new features and major breaking changes.
 
