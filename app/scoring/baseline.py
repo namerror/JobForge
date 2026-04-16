@@ -10,18 +10,24 @@ def normalize_skill(skill: str) -> str:
     return SYNONYM_TO_NORMALIZED.get(s, s)
 
 
+def _normalized_profile_keywords(role_family: str, category: str) -> set[str]:
+    """Load role profile keywords for a category and canonicalize aliases."""
+    from app.scoring.role_profiles import ROLE_PROFILES
+
+    role_profile = ROLE_PROFILES.get(role_family, ROLE_PROFILES["general"])
+    keywords = set(role_profile.get(category, {}).get("keywords", []))
+
+    for parent_role in role_profile.get("inherits", []):
+        parent_keywords = set(ROLE_PROFILES.get(parent_role, {}).get(category, {}).get("keywords", []))
+        keywords.update(parent_keywords)
+
+    return {normalize_skill(keyword) for keyword in keywords}
+
+
 def score_skill(skill: str, role_family: str, category: str, job_text: str | None=None) -> tuple[float, dict | None]:
     """Score a skill based on its presence in the job text and its relevance to the role profile."""
     normalized_skill = normalize_skill(skill)
-
-    from app.scoring.role_profiles import ROLE_PROFILES
-    role_profile = ROLE_PROFILES.get(role_family, ROLE_PROFILES["general"])
-
-    keywords = set(role_profile.get(category, {}).get("keywords", []))
-    if "inherits" in role_profile:
-        for parent_role in role_profile["inherits"]:
-            parent_keywords = set(ROLE_PROFILES.get(parent_role, {}).get(category, {}).get("keywords", []))
-            keywords.update(parent_keywords)
+    keywords = _normalized_profile_keywords(role_family, category)
 
     # Exact match = 3 points, partial match = 1 point
     score = 0.0

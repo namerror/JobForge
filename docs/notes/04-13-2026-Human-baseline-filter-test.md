@@ -324,7 +324,7 @@ The response body:
 ```
 The returned skills seem reasonable. It seems that with baseline filtering enabled, we also manage to lower the token usage. 
 
-However, I'm trying to figure out why a lot of the skills that should be recognized by baseline filter are still passed on to LLM method. For example, "AWS", "Kubernetes" these are all already defined in the baseline filter, so they should not be passed to LLM method at all. We need to investigate this further.
+However, I'm trying to figure out why a lot of the skills that should be recognized by baseline filter are still passed on to LLM method. For example, "AWS", "Node.JS" these are all already defined in the baseline filter, so they should not be passed to LLM method at all. We need to investigate this further.
 
 For reference, the baseline filter should look through the role profiles for certain roles, in this case, "Backend Engineer", and pick out the relevant skills that are defined in the baseline filter for that role. 
 
@@ -355,3 +355,6 @@ There are three causes:
    `Kubernetes` is correctly marked `source: baseline` in the note. But `Google Cloud` is not in backend `technology`; backend only has concept keyword `cloud`, not technology `gcp` or `google cloud`. `Rust` is in `general`, `devops`, and `security`, but not backend programming. `TypeScript` is frontend programming. Several concepts like `Caching`, `Distributed Computing`, `rate limiting`, and `session management` are not currently backend profile keywords.
 
 I did not make code changes yet. The likely fix is to normalize role profile keywords before comparison, then add a focused test for `AWS`/`Node.JS` under backend baseline filtering. A second, slightly broader fix would make partial matching bidirectional so `Database Management` can match backend keyword `database`, but that changes scoring behavior more broadly and should get a test around category boundaries.
+
+## Fix Progress
+- Added role profile keyword normalization to fix problem 1. [details](/docs/devlog/04-16-2026-Codex-normalize-profile-keywords.md)

@@ -61,6 +61,52 @@ def test_score_skill_exact_match_backend():
     assert "fastapi" in details["matched_keywords"]
 
 
+def test_score_skill_exact_match_normalizes_backend_profile_keywords():
+    """Test exact matches when profile keywords are stored as aliases."""
+    aws_score, aws_details = score_skill(
+        skill="AWS",
+        role_family="backend",
+        category="technology",
+        job_text=None,
+    )
+    node_score, node_details = score_skill(
+        skill="Node.JS",
+        role_family="backend",
+        category="technology",
+        job_text=None,
+    )
+
+    assert aws_score == 3.0
+    assert aws_details["normalized_skill"] == "amazon web services"
+    assert "amazon web services" in aws_details["matched_keywords"]
+    assert node_score == 3.0
+    assert node_details["normalized_skill"] == "nodejs"
+    assert "nodejs" in node_details["matched_keywords"]
+
+
+def test_score_skill_exact_match_normalizes_general_profile_keywords():
+    """Test profile keyword normalization outside the backend profile."""
+    gcp_score, gcp_details = score_skill(
+        skill="GCP",
+        role_family="general",
+        category="technology",
+        job_text=None,
+    )
+    oop_score, oop_details = score_skill(
+        skill="OOP",
+        role_family="general",
+        category="concepts",
+        job_text=None,
+    )
+
+    assert gcp_score == 3.0
+    assert gcp_details["normalized_skill"] == "google cloud platform"
+    assert "google cloud platform" in gcp_details["matched_keywords"]
+    assert oop_score == 3.0
+    assert oop_details["normalized_skill"] == "object-oriented programming"
+    assert "object-oriented programming" in oop_details["matched_keywords"]
+
+
 def test_score_skill_exact_match_programming():
     """Test exact match for programming category."""
     score, details = score_skill(
@@ -117,6 +163,20 @@ def test_score_skill_partial_match_ci():
     # "ci" should normalize to "ci/cd" and match exactly
     assert score == 3.0
     assert details["normalized_skill"] == "ci/cd"
+
+
+def test_score_skill_does_not_bidirectionally_partial_match_profile_keyword():
+    """Test profile keyword normalization does not expand partial matching."""
+    score, details = score_skill(
+        skill="Database Management",
+        role_family="backend",
+        category="concepts",
+        job_text=None,
+    )
+
+    assert score == 0.0
+    assert details["normalized_skill"] == "database management"
+    assert details["matched_keywords"] == []
 
 
 # === Inheritance tests ===
@@ -845,5 +905,4 @@ def test_baseline_select_skills_consistency_across_categories():
     assert "Python" in result["programming"]
     # API and Database are backend concepts
     assert "API" in result["concepts"] or "Database" in result["concepts"]
-
 

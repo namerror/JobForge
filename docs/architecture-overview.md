@@ -98,6 +98,7 @@ flowchart TD
 3. Keyword matching:
 - Loads category keywords from `ROLE_PROFILES[role_family]` (fallback to `general`).
 - If profile declares `inherits`, inherited keywords are merged for that category.
+- Role profile keywords are normalized with the same canonicalization before comparison.
 
 4. Score assignment:
 - Exact canonical keyword match => `3.0`

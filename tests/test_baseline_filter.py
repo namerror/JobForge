@@ -114,6 +114,45 @@ def test_baseline_filter_sends_only_unrecognized_skills_to_second_pass(monkeypat
     assert response.details["technology"]["AlphaDB"]["source"] == "embeddings"
 
 
+def test_baseline_filter_keeps_normalized_profile_aliases_in_baseline(monkeypatch):
+    calls = []
+
+    def fake_embedding_select_skills(**kwargs):
+        calls.append(kwargs)
+        return (
+            {"technology": ["AlphaDB"], "programming": [], "concepts": []},
+            {
+                "technology": {"AlphaDB": {"similarity": 0.8, "normalized_skill": "alphadb"}},
+                "programming": {},
+                "concepts": {},
+            },
+        )
+
+    monkeypatch.setattr(baseline_filter, "embedding_select_skills", fake_embedding_select_skills)
+    req = _request(
+        technology=["AWS", "Node.JS", "AlphaDB"],
+        programming=[],
+        concepts=[],
+        top_n=3,
+    )
+
+    response = skill_selector.select_skills_service(req)
+
+    assert calls[0]["technology"] == ["AlphaDB"]
+    assert calls[0]["programming"] == []
+    assert calls[0]["concepts"] == []
+    assert response.details["_baseline_filter"]["categories"]["technology"] == {
+        "recognized": 2,
+        "unrecognized": 1,
+        "second_pass_scored": 1,
+    }
+    assert response.details["technology"]["AWS"]["source"] == "baseline"
+    assert response.details["technology"]["AWS"]["normalized_skill"] == "amazon web services"
+    assert response.details["technology"]["Node.JS"]["source"] == "baseline"
+    assert response.details["technology"]["Node.JS"]["normalized_skill"] == "nodejs"
+    assert response.details["technology"]["AlphaDB"]["source"] == "embeddings"
+
+
 def test_baseline_filter_final_ranking_is_deterministic_after_merge(monkeypatch):
     def fake_embedding_select_skills(**_kwargs):
         return (
