@@ -153,6 +153,43 @@ def test_baseline_filter_keeps_normalized_profile_aliases_in_baseline(monkeypatc
     assert response.details["technology"]["AlphaDB"]["source"] == "embeddings"
 
 
+def test_baseline_filter_keeps_token_containment_matches_in_baseline(monkeypatch):
+    calls = []
+
+    def fake_embedding_select_skills(**kwargs):
+        calls.append(kwargs)
+        return (
+            {"technology": [], "programming": [], "concepts": ["Odd Concept"]},
+            {
+                "technology": {},
+                "programming": {},
+                "concepts": {"Odd Concept": {"similarity": 0.7, "normalized_skill": "odd concept"}},
+            },
+        )
+
+    monkeypatch.setattr(baseline_filter, "embedding_select_skills", fake_embedding_select_skills)
+    req = _request(
+        technology=[],
+        programming=[],
+        concepts=["Database Management", "Odd Concept"],
+        top_n=2,
+    )
+
+    response = skill_selector.select_skills_service(req)
+
+    assert calls[0]["technology"] == []
+    assert calls[0]["programming"] == []
+    assert calls[0]["concepts"] == ["Odd Concept"]
+    assert response.details["_baseline_filter"]["categories"]["concepts"] == {
+        "recognized": 1,
+        "unrecognized": 1,
+        "second_pass_scored": 1,
+    }
+    assert response.details["concepts"]["Database Management"]["source"] == "baseline"
+    assert response.details["concepts"]["Database Management"]["baseline_score"] == 3.0
+    assert response.details["concepts"]["Odd Concept"]["source"] == "embeddings"
+
+
 def test_baseline_filter_final_ranking_is_deterministic_after_merge(monkeypatch):
     def fake_embedding_select_skills(**_kwargs):
         return (

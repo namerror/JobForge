@@ -1,13 +1,47 @@
 import dotenv
 import os
+import re
 from app.scoring.synonyms import SYNONYM_TO_NORMALIZED
 from app.scoring.role_profiles import detect_role_family
+
+TOKEN_PATTERN = re.compile(r"[a-z0-9]+(?:#|\+\+)?")
+
 
 def normalize_skill(skill: str) -> str:
     """Normalize skill names to a standard format."""
     s = skill.strip().lower()
     
     return SYNONYM_TO_NORMALIZED.get(s, s)
+
+
+def _phrase_tokens(text: str) -> tuple[str, ...]:
+    """Tokenize a normalized phrase while expanding known token aliases."""
+    tokens: list[str] = []
+    for token in TOKEN_PATTERN.findall(text):
+        normalized_token = SYNONYM_TO_NORMALIZED.get(token, token)
+        tokens.extend(TOKEN_PATTERN.findall(normalized_token) or [normalized_token])
+
+    return tuple(tokens)
+
+
+def _contains_token_phrase(container: str, phrase: str) -> bool:
+    """Return True when phrase appears in container as contiguous full tokens."""
+    container_tokens = _phrase_tokens(container)
+    phrase_tokens = _phrase_tokens(phrase)
+
+    if not container_tokens or not phrase_tokens or len(phrase_tokens) > len(container_tokens):
+        return False
+
+    phrase_length = len(phrase_tokens)
+    return any(
+        container_tokens[index:index + phrase_length] == phrase_tokens
+        for index in range(len(container_tokens) - phrase_length + 1)
+    )
+
+
+def _has_token_boundary_containment(left: str, right: str) -> bool:
+    """Check whether either phrase fully contains the other on token boundaries."""
+    return _contains_token_phrase(left, right) or _contains_token_phrase(right, left)
 
 
 def _normalized_profile_keywords(role_family: str, category: str) -> set[str]:
@@ -29,13 +63,18 @@ def score_skill(skill: str, role_family: str, category: str, job_text: str | Non
     normalized_skill = normalize_skill(skill)
     keywords = _normalized_profile_keywords(role_family, category)
 
-    # Exact match = 3 points, partial match = 1 point
+    # Exact or token-boundary containment = 3 points, weaker partial match = 1 point
     score = 0.0
     matched_keywords: list[str] = []
     # Handle empty strings - they shouldn't match anything
-    if normalized_skill and normalized_skill in keywords:
+    if normalized_skill:
+        matched_keywords = sorted(
+            keyword for keyword in keywords
+            if keyword == normalized_skill or _has_token_boundary_containment(normalized_skill, keyword)
+        )
+
+    if matched_keywords:
         score = 3.0
-        matched_keywords.append(normalized_skill)
     elif normalized_skill:
         matched_keywords = sorted(keyword for keyword in keywords if normalized_skill in keyword)
         if matched_keywords:

@@ -165,8 +165,8 @@ def test_score_skill_partial_match_ci():
     assert details["normalized_skill"] == "ci/cd"
 
 
-def test_score_skill_does_not_bidirectionally_partial_match_profile_keyword():
-    """Test profile keyword normalization does not expand partial matching."""
+def test_score_skill_token_boundary_containment_profile_keyword_inside_skill():
+    """Test profile keywords score exact relevance inside longer skill phrases."""
     score, details = score_skill(
         skill="Database Management",
         role_family="backend",
@@ -174,9 +174,103 @@ def test_score_skill_does_not_bidirectionally_partial_match_profile_keyword():
         job_text=None,
     )
 
-    assert score == 0.0
+    assert score == 3.0
     assert details["normalized_skill"] == "database management"
-    assert details["matched_keywords"] == []
+    assert "database" in details["matched_keywords"]
+
+
+def test_score_skill_token_boundary_containment_skill_inside_profile_keyword():
+    """Test shorter skill phrases score exact relevance inside profile keywords."""
+    score, details = score_skill(
+        skill="Object-Oriented",
+        role_family="general",
+        category="concepts",
+        job_text=None,
+    )
+
+    assert score == 3.0
+    assert details["normalized_skill"] == "object-oriented"
+    assert "object-oriented programming" in details["matched_keywords"]
+
+
+def test_score_skill_token_boundary_containment_normalizes_issue_three_phrase_variants():
+    """Test issue #3 phrase variants match through normalized token containment."""
+    score, details = score_skill(
+        skill="RESTful APIs Design",
+        role_family="general",
+        category="technology",
+        job_text=None,
+    )
+
+    assert score == 3.0
+    assert details["normalized_skill"] == "restful apis design"
+    assert "restful api" in details["matched_keywords"]
+
+
+def test_score_skill_token_boundary_containment_avoids_raw_substring_false_positives():
+    """Test containment uses full tokens instead of unsafe raw substrings."""
+    javascript_score, javascript_details = score_skill(
+        skill="JavaScript",
+        role_family="backend",
+        category="programming",
+        job_text=None,
+    )
+    cloudformation_score, cloudformation_details = score_skill(
+        skill="cloudformation",
+        role_family="backend",
+        category="concepts",
+        job_text=None,
+    )
+    build_score, build_details = score_skill(
+        skill="build",
+        role_family="frontend",
+        category="concepts",
+        job_text=None,
+    )
+    application_score, application_details = score_skill(
+        skill="application",
+        role_family="mobile",
+        category="concepts",
+        job_text=None,
+    )
+    random_score, random_details = score_skill(
+        skill="random",
+        role_family="data",
+        category="programming",
+        job_text=None,
+    )
+
+    assert javascript_score == 0.0
+    assert javascript_details["matched_keywords"] == []
+    assert cloudformation_score == 0.0
+    assert cloudformation_details["matched_keywords"] == []
+    assert build_score == 0.0
+    assert build_details["matched_keywords"] == []
+    assert application_score == 0.0
+    assert application_details["matched_keywords"] == []
+    assert random_score == 0.0
+    assert random_details["matched_keywords"] == []
+
+
+def test_score_skill_token_boundary_containment_allows_short_keywords_as_standalone_tokens():
+    """Test short keywords still match when they appear as standalone tokens."""
+    c_score, c_details = score_skill(
+        skill="C programming",
+        role_family="general",
+        category="programming",
+        job_text=None,
+    )
+    ui_score, ui_details = score_skill(
+        skill="UI design",
+        role_family="frontend",
+        category="concepts",
+        job_text=None,
+    )
+
+    assert c_score == 3.0
+    assert "c" in c_details["matched_keywords"]
+    assert ui_score == 3.0
+    assert "ui" in ui_details["matched_keywords"]
 
 
 # === Inheritance tests ===
@@ -905,4 +999,3 @@ def test_baseline_select_skills_consistency_across_categories():
     assert "Python" in result["programming"]
     # API and Database are backend concepts
     assert "API" in result["concepts"] or "Database" in result["concepts"]
-
