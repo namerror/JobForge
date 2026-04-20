@@ -358,3 +358,4 @@ I did not make code changes yet. The likely fix is to normalize role profile key
 
 ## Fix Progress
 - Added role profile keyword normalization to fix problem 1. [details](/docs/devlog/04-16-2026-Codex-normalize-profile-keywords.md)
+- Added bidirectional partial matching, and updated token scoring logic to fix problem 2. [details](/docs/devlog/04-17-2026-Codex-token-boundary-containment-scoring.md)
