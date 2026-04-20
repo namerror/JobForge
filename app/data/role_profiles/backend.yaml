@@ -21,6 +21,7 @@ technology:
     - kubernetes
     - kafka
     - aws
+    - gcp
 programming:
   keywords:
     - java
