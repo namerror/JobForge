@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `04-17-2026-Codex-token-boundary-containment-scoring.md` - Implement token-boundary containment scoring for baseline matching
 - `04-16-2026-Codex-normalize-profile-keywords.md` - Implement role profile keyword normalization for improved matching
 - `04-13-2026-Codex-baseline-filtered-skill-selection.md` - Implement baseline-filtered skill selection
 - `04-13-2026-Codex-revise-baseline-filter-plan.md` - 2026-04-13 - Revise Branch 01 baseline filter plan

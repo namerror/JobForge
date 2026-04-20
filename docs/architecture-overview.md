@@ -102,7 +102,8 @@ flowchart TD
 
 4. Score assignment:
 - Exact canonical keyword match => `3.0`
-- Partial containment match => `1.0`
+- Token-boundary phrase containment in either direction => `3.0`
+- Weaker one-way substring partial match => `1.0`
 - Otherwise => `0.0` (excluded unless `include_zero=True`)
 
 5. Deterministic ranking:
