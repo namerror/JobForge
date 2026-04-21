@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `04-20-2026-Codex-document-branch-03-resume-architecture.md` - 2026-04-20 - Document Branch 03 grounded resume architecture
 - `04-20-2026-Codex-revise-branch-03-file-based-evidence-guide.md` - 2026-04-20 - Revise Branch 03 as a file-based evidence pipeline guide
 - `04-17-2026-Codex-token-boundary-containment-scoring.md` - Implement token-boundary containment scoring for baseline matching
 - `04-16-2026-Codex-normalize-profile-keywords.md` - Implement role profile keyword normalization for improved matching

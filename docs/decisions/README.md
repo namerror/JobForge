@@ -51,3 +51,4 @@ Files are named: `NNN-short-kebab-case-title.md`
 
 - `001-embedding-cache-persistence.md`
 - `002-baseline-filter-selection.md`
+- `003-grounded-resume-evidence-pipeline.md`

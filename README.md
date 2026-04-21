@@ -27,7 +27,15 @@ It is designed for resume generation pipelines and prioritizes determinism, test
 ### ❌ Does not
 - Invent skills not present in the input
 - Infer seniority, domain, or user background
-- Generate resume bullets (this service is only selection + ranking)
+- In its current production scope, generate resume bullets or full resumes (this service is still only selection + ranking today)
+
+## Planned Grounded Resume Generation
+
+Branch 03 expands the project design beyond skill selection into a grounded, file-based resume generation engine. This is a planned architecture, not a shipped public API.
+
+The planned pipeline treats user-authored YAML evidence files under `data/resume_evidence/` as the canonical source of truth. A deterministic load/validate/index step builds a rebuildable runtime evidence index, synthesis/extraction turns that evidence into structured fill data for a target job and format, and deterministic assembly renders the final resume artifact without inventing or rewriting unsupported claims.
+
+The first concrete schema anchor is `projects.yaml`, while `profile.yaml`, `experience.yaml`, and `skills.yaml` stay intentionally high-level for now. Existing skill selection remains part of the broader resume engine direction: it is an already-implemented sub-capability that can later help prioritize and fill the Skills section, but it is not the sole source of truth for resume generation.
 
 ---
 

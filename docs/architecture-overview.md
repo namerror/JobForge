@@ -164,3 +164,77 @@ For embedding-based method, also review:
 For LLM-based method, also review:
 - `docs/branch-02-llm-skill-selection.md`.
 - `app/services/llm_client.py` -> `app/scoring/llm.py`.
+
+## 9) Planned Branch 03 Resume Engine
+
+Everything above describes the implemented skill-selection service that exists today. The sections below describe the planned Branch 03 resume-generation architecture only; they do not introduce a new production API yet.
+
+### Planned pipeline
+
+```text
+data/resume_evidence/*.yaml
+  -> deterministic loaders + validators
+  -> runtime evidence index
+  -> synthesis/extraction
+  -> deterministic assembly
+  -> generated resume artifact
+```
+
+- `data/resume_evidence/*.yaml` is the planned canonical, user-authored source of truth for resume facts.
+- The runtime evidence index is derived from those files at runtime, rebuildable, and created without LLM or NLP behavior.
+- Synthesis/extraction is the first concrete engine boundary. It consumes the job target, evidence index, selected skills, and resume format requirements, then returns structured fill data with evidence traceability.
+- Deterministic assembly consumes only the selected format definition and structured fill data. It must not select, infer, rewrite, or invent claims.
+- Generated resumes are artifacts. They must never silently mutate the source evidence YAML files.
+
+### Shared schema primitives
+
+- Each evidence file is YAML and user-authored.
+- Each logical record uses a stable string `id`.
+- Categorized skill tags reuse the existing `technology`, `programming`, and `concepts` taxonomy.
+- Structured fill data carries record-level provenance refs shaped around `source_file` and `record_id`.
+- Record-level provenance is the first planned granularity; field-path and text-span tracing are deferred.
+
+### Planned evidence files
+
+- `data/resume_evidence/profile.yaml`
+  - Purpose: profile-level facts and resume-level identity or targeting context.
+  - This pass does not lock a field-level schema.
+- `data/resume_evidence/experience.yaml`
+  - Purpose: employment-history evidence records.
+  - This pass does not lock a field-level schema.
+- `data/resume_evidence/skills.yaml`
+  - Purpose: user-authored skill inventory and source data for the future resume Skills section.
+  - Existing skill selection remains a reusable engine sub-capability that can prioritize and fill this section later; it is not the whole resume engine.
+- `data/resume_evidence/projects.yaml`
+  - Purpose: the first concrete evidence schema anchor for grounded synthesis.
+  - Root shape:
+
+```yaml
+schema_version: 1
+projects:
+  - ...
+```
+
+  - Each project record includes only:
+    - `id`
+    - `name`
+    - `summary`
+    - `highlights`
+    - `active`
+    - `skills`
+    - optional `links`
+  - `highlights` are grounded evidence text the synthesizer can reuse directly before any future rephrasing layer exists.
+  - `skills` use the existing categorized taxonomy so project evidence can connect cleanly to the current skill-selection subsystem.
+
+### Planned format layer
+
+- Resume format definitions live under `app/data/resume_formats/`.
+- Treat this as a registry abstraction, not a one-off template directory.
+- The first documented format is a default chronological resume, but the registry should support reusable outline policy such as section order, section budgets, required slots, optional slots, and deterministic assembly rules.
+
+### Planned structured fill data responsibilities
+
+- Return section-ready, structured content for deterministic assembly rather than polished prose.
+- Preserve evidence traceability for each synthesized item using `source_file` and `record_id`.
+- Allow initial synthesis to reuse supported evidence text as-is when rephrasing is not implemented.
+- Accept selected skills as one prioritization signal for the future Skills section without making skill selection the sole source of truth for the full resume.
