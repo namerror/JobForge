@@ -172,7 +172,7 @@ Everything above describes the implemented skill-selection service that exists t
 ### Planned pipeline
 
 ```text
-data/resume_evidence/*.yaml
+user/resume_evidence/*.yaml
   -> deterministic loaders + validators
   -> runtime evidence index
   -> synthesis/extraction
@@ -180,7 +180,7 @@ data/resume_evidence/*.yaml
   -> generated resume artifact
 ```
 
-- `data/resume_evidence/*.yaml` is the planned canonical, user-authored source of truth for resume facts.
+- `user/resume_evidence/*.yaml` is the planned canonical, user-authored source of truth for resume facts.
 - The runtime evidence index is derived from those files at runtime, rebuildable, and created without LLM or NLP behavior.
 - Synthesis/extraction is the first concrete engine boundary. It consumes the job target, evidence index, selected skills, and resume format requirements, then returns structured fill data with evidence traceability.
 - Deterministic assembly consumes only the selected format definition and structured fill data. It must not select, infer, rewrite, or invent claims.
@@ -196,16 +196,16 @@ data/resume_evidence/*.yaml
 
 ### Planned evidence files
 
-- `data/resume_evidence/profile.yaml`
+- `user/resume_evidence/profile.yaml`
   - Purpose: profile-level facts and resume-level identity or targeting context.
   - This pass does not lock a field-level schema.
-- `data/resume_evidence/experience.yaml`
+- `user/resume_evidence/experience.yaml`
   - Purpose: employment-history evidence records.
   - This pass does not lock a field-level schema.
-- `data/resume_evidence/skills.yaml`
+- `user/resume_evidence/skills.yaml`
   - Purpose: user-authored skill inventory and source data for the future resume Skills section.
   - Existing skill selection remains a reusable engine sub-capability that can prioritize and fill this section later; it is not the whole resume engine.
-- `data/resume_evidence/projects.yaml`
+- `user/resume_evidence/projects.yaml`
   - Purpose: the first concrete evidence schema anchor for grounded synthesis.
   - Root shape:
 

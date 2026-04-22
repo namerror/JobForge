@@ -30,11 +30,11 @@ Treat this document as a guide for future implementation work. Exact YAML schema
 
 ## Branch-Specific Plan
 - Define a future-facing resume pipeline around user-authored YAML evidence files, deterministic validation, grounded synthesis, and deterministic assembly.
-- Use planned `data/resume_evidence/` YAML files as the canonical source of truth for resume facts:
-  - `data/resume_evidence/skills.yaml`
-  - `data/resume_evidence/profile.yaml`
-  - `data/resume_evidence/experience.yaml`
-  - `data/resume_evidence/projects.yaml`
+- Use planned `user/resume_evidence/` YAML files as the canonical source of truth for resume facts:
+  - `user/resume_evidence/skills.yaml`
+  - `user/resume_evidence/profile.yaml`
+  - `user/resume_evidence/experience.yaml`
+  - `user/resume_evidence/projects.yaml`
 - Build a runtime evidence index from those files at run time. The index is derived, rebuildable, and created without LLM or NLP behavior.
 - Use planned `app/data/resume_formats/` files for reusable resume outline/style definitions.
 - Keep data synthesis/extraction as the core feature: it reads the job target, evidence index, selected skills, and resume format needs, then returns structured fill data with evidence traceability.
@@ -57,7 +57,7 @@ Treat this document as a guide for future implementation work. Exact YAML schema
 
 ## Interfaces And Resources
 - This branch introduces a future-facing pipeline. It does not change the current production `/select-skills` contract until separate implementation work is approved.
-- Planned source-of-truth evidence files live under `data/resume_evidence/`. These paths are future conventions, not existing implemented schemas:
+- Planned source-of-truth evidence files live under `user/resume_evidence/`. These paths are future conventions, not existing implemented schemas:
   - `skills.yaml` stores skill evidence authored by the user.
   - `profile.yaml` stores profile-level evidence authored by the user.
   - `experience.yaml` stores work-history evidence authored by the user.
