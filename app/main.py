@@ -5,11 +5,13 @@ from app.config import settings
 from app.services.skill_selector import select_skills_service
 from app.metrics import metrics
 from app.logging_config import setup_logging
+from app.resume_evidence import load_registered_evidence
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging(settings.LOG_LEVEL)
+    app.state.resume_evidence = load_registered_evidence()
     yield
 
 
