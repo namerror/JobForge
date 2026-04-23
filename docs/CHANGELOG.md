@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Interactive projects evidence CLI with staged in-memory CRUD, hidden auto-generated IDs, and explicit `apply` confirmation before writing `user/resume_evidence/projects.yaml`
 - Optional `baseline_filter` request/config flag that pre-filters deterministic baseline matches before embeddings or LLM scoring, with full-baseline fallback behavior
 - `/metrics-lite` now reports cumulative model token usage and counts fallback responses under the effective baseline method
 - LLM skill-selection method (`method="llm"`) with OpenAI Responses API scoring, strict local validation, deterministic ranking, dev metadata, and baseline fallback
