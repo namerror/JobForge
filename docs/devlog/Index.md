@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `04-23-2026-Codex-refresh-jobforge-docs-for-grounded-resume-engine.md` - 2026-04-23 - Refresh JobForge docs around the grounded resume engine
 - `04-22-2026-Codex-add-projects-evidence-cli.md` - 2026-04-22 - Add staged projects evidence CLI
 - `04-21-2026-Codex-add-projects-evidence-parser.md` - 2026-04-21 - Add reusable projects evidence parser
 - `04-20-2026-Codex-document-branch-03-resume-architecture.md` - 2026-04-20 - Document Branch 03 grounded resume architecture

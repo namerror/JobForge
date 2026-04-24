@@ -1,6 +1,6 @@
 # AGENTS.md — Agent Playbook
 
-This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) safely.
+This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) safely. JobForge now spans both the legacy skill-selection API and a newer grounded resume-evidence foundation.
 
 ## Agent context index
 - Start here for navigation: `docs/agent-context-index.md`
@@ -9,6 +9,8 @@ This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) s
 ## Organization
 - Tests in `tests/`
 - Scoring logic in `app/scoring/`
+- Resume evidence logic in `app/resume_evidence/`
+- User-authored evidence files in `user/resume_evidence/`
 
 ## Repository invariants
 - Never add skills that weren't provided in the request.
@@ -20,10 +22,10 @@ This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) s
 ### Make small, runnable changes
 - Prefer small PR-style diffs.
 - Each change includes tests.
-- Update `docs/decisions.md` when making architectural choices.
+- Add a new ADR under `docs/decisions/` when making architectural choices.
 
 ### Avoid accidental scope creep
-- This service does not generate resumes, bullet points, or job analysis.
+- This repo is moving toward grounded resume generation, but it does not yet ship full resume synthesis or polished bullet generation.
 - Do not add database dependencies early.
 - Do not add LLM dependencies without:
   1) baseline success
@@ -32,8 +34,8 @@ This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) s
 
 ## Common tasks
 ### Add a new role profile
-1. Create a new profile in `app/scoring/role_profiles.py` with relevant keywords
-2. Ensure baseline scorer uses profile data deterministically
+1. Create a new profile file in `app/data/role_profiles/` with relevant keywords
+2. Ensure `app/scoring/role_profiles.py` loads it and the baseline scorer uses it deterministically
 
 ### Add tests
 1. Add test cases in `tests/test_role_profiles.py` for new profiles or edge cases

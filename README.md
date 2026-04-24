@@ -1,68 +1,151 @@
-# Skill Relevance Selector (FastAPI Microservice)
+# Resume Engine
 
-A small FastAPI microservice that selects and ranks the most relevant skills for a given job role.
-It is designed for resume generation pipelines and prioritizes determinism, testability, and extensibility.
+This project is evolving from a skill-selection microservice into a grounded resume-generation service. Today the repo ships two capability tracks:
 
-## What this service does (and does not do)
+- a production FastAPI API for skill selection with deterministic baseline, embeddings, and LLM methods
+- an implemented first milestone of the evidence-based resume pipeline centered on `user/resume_evidence/projects.yaml`
 
-### ✅ Does
-- Accepts:
-  - `job_role` (required): whatever title the job poster provides (e.g. "AI/ML Engineer", "Frontend Developer", "Data Scientist")
-  - `job_text` (optional): job description or other context to help with selection
-  - categorized user skills in 3 buckets:
-    - `technology`: specific tools, frameworks, platforms (e.g. "Docker", "AWS", "TensorFlow")
-    - `programming`: programming languages (e.g. "Python", "Java", "SQL")
-    - `concepts`: broader technical concepts, methodologies, or domains (e.g. "Machine Learning", "CI/CD", "Distributed Systems")
-  - `top_n` (optional): number of top skills to return per category (default: 5)
-  - `method` (optional): selection method
-  - `baseline_filter` (optional): pre-score deterministic role-profile matches before model-backed selection
-- Returns:
-  - the most relevant skills per category (ranked, stable ordering, ties allowed)
-  - debug details (similarity scores, normalized skill names) when `DEV_MODE=true`
-- Supports multiple methods (config-driven):
-  - `baseline` (deterministic keyword/role-profile scoring)
-  - `embeddings` (cosine similarity ranking using OpenAI embeddings)
-  - `llm` (OpenAI Responses API scoring with local validation, ranking, and baseline fallback)
+The existing `/select-skills` API and the FastAPI app title still use the legacy skill-selector framing. The broader project direction is now a grounded resume engine where skill selection is one reusable subsystem.
 
-### ❌ Does not
-- Invent skills not present in the input
-- Infer seniority, domain, or user background
-- In its current production scope, generate resume bullets or full resumes (this service is still only selection + ranking today)
+## Vision
 
-## Planned Grounded Resume Generation
+The long-term goal is a resume service that assembles targeted (job-specific) resumes from user-authored evidence without inventing claims. The intended pipeline is:
 
-Branch 03 expands the project design beyond skill selection into a grounded, file-based resume generation engine. This is a planned architecture, not a shipped public API.
+```text
+user-authored evidence files
+  -> deterministic load/validate/index
+  -> grounded synthesis/extraction
+  -> deterministic assembly
+  -> generated resume artifact
+```
 
-The planned pipeline treats user-authored YAML evidence files under `user/resume_evidence/` as the canonical source of truth. A deterministic load/validate/index step builds a rebuildable runtime evidence index, synthesis/extraction turns that evidence into structured fill data for a target job and format, and deterministic assembly renders the final resume artifact without inventing or rewriting unsupported claims.
+Job descriptions can influence prioritization, but they are not evidence. Supported claims must trace back to user-authored source files.
 
-The first concrete schema anchor is `projects.yaml`, while `profile.yaml`, `experience.yaml`, and `skills.yaml` stay intentionally high-level for now. Existing skill selection remains part of the broader resume engine direction: it is an already-implemented sub-capability that can later help prioritize and fill the Skills section, but it is not the sole source of truth for resume generation.
+## Implemented Today
 
----
+### Skill selection API
+
+The current public API is a FastAPI service for ranking user-provided skills by category for a target role.
+
+- `POST /select-skills`
+  - deterministic `baseline` method
+  - `embeddings` method with cached OpenAI embeddings
+  - `llm` method with local validation and deterministic ranking
+  - optional `baseline_filter` that lets deterministic matches bypass model-backed scoring
+  - required fallback to baseline behavior when model-backed methods fail
+- `GET /health`
+  - reports service liveness and effective config
+- `GET /metrics-lite`
+  - reports request totals, error totals, average latency, total model tokens, and effective method usage
+
+Skill selection remains constrained by the repo invariants:
+
+- outputs must stay within the user-provided skill set
+- category boundaries remain `technology`, `programming`, and `concepts`
+- deterministic ordering is required
+- baseline must remain functional even if embeddings or LLM methods fail
+
+### Grounded resume evidence foundation
+
+The first implemented milestone is the `app.resume_evidence` package.
+
+- `app/resume_evidence/models.py`
+  - strict Pydantic models for `projects.yaml`
+- `app/resume_evidence/loader.py`
+  - schema registry and deterministic YAML loading
+- `app/resume_evidence/session.py`
+  - staged in-memory CRUD with validation-before-mutation and atomic apply-to-disk writes
+- `app/resume_evidence/cli.py`
+  - interactive project-evidence CLI
+- `app/main.py`
+  - loads registered evidence on startup into `app.state.resume_evidence`
+
+The currently implemented evidence schema is:
+
+- `user/resume_evidence/projects.yaml`
+  - `schema_version: 1`
+  - strict project records with `id`, `name`, `summary`, `highlights`, `active`, `skills`, and optional `links`
+
+### Evidence CLI workflow
+
+Use the CLI to manage staged edits to `projects.yaml` without hand-editing YAML:
+
+```bash
+PYTHONPATH=. python -m app.resume_evidence.cli
+```
+
+If your shell does not expose `python`, run:
+
+```bash
+PYTHONPATH=. python3 -m app.resume_evidence.cli
+```
+
+Available commands:
+
+- `list`
+- `show <index>`
+- `create`
+- `edit <index>`
+- `delete <index>`
+- `apply`
+- `reload`
+- `quit`
+
+The CLI keeps edits staged in memory until `apply` is confirmed, preserves stable hidden IDs, and writes atomically to disk.
+
+### Evaluation and support scripts
+
+The repo also includes utilities for skill-selection evaluation and data preparation:
+
+- `scripts/build_skill_pools.py`
+  - builds normalized skill pools
+- `scripts/eval_cases_generator.py`
+  - generates evaluation datasets
+- `scripts/eval.py`
+  - runs skill-selection evaluation against case files
+
+See [scripts/README.md](/home/leon/Documents/proj/JobForge/scripts/README.md) for command details.
+
+## How The Pieces Fit Together
+
+JobForge now has a broader resume-engine shape:
+
+- the skills API helps prioritize and rank skills for the future Skills section
+- the resume-evidence package establishes grounded source-of-truth data under `user/resume_evidence/`
+- future synthesis will combine target job context, evidence, and selected skills into structured fill data
+- future deterministic assembly will turn that structured fill data into resume output without inventing claims
+
+Skill selection is no longer the whole project. It is one subsystem inside the larger grounded resume pipeline.
 
 ## API
 
 ### Health
+
 `GET /health`
 
-Response:
+Example response:
+
 ```json
-{ 
+{
   "status": "ok",
-  "version": "version_info_here",
-  "method": "your_method_here",
-  "top_n": top_n_skills_returned,
-  "dev_mode": true_or_false
+  "version": "0.2.0",
+  "method": "baseline",
+  "top_n": 10,
+  "baseline_filter": false,
+  "dev_mode": true
 }
 ```
 
 ### Select Skills
+
 `POST /select-skills`
 
-Request:
+Example request:
+
 ```json
 {
   "job_role": "AI/ML Engineer",
-  "job_text": "Optional text...",
+  "job_text": "Optional job description text",
   "technology": ["Docker", "Kubernetes", "AWS", "PostgreSQL", "TensorFlow"],
   "programming": ["Python", "TypeScript", "SQL"],
   "concepts": ["Machine Learning", "CI/CD", "Distributed Systems"],
@@ -73,99 +156,121 @@ Request:
 }
 ```
 
-Response (example):
+Example response:
+
 ```json
 {
   "technology": ["TensorFlow", "AWS", "Docker"],
   "programming": ["Python"],
   "concepts": ["Machine Learning", "Distributed Systems"],
-  "details": {
-    ...
+  "details": {}
+}
+```
+
+### Metrics
+
+`GET /metrics-lite`
+
+Example response:
+
+```json
+{
+  "requests_total": 42,
+  "errors_total": 1,
+  "total_tokens": 12000,
+  "avg_latency_ms": 25.3,
+  "method_usage": {
+    "baseline": 30,
+    "embeddings": 8,
+    "llm": 4
   }
 }
 ```
 
-### Logging Metrics
-`GET /metrics-lite`
-Response:
-```json
-{
-  "requests_total": total_requests,
-  "errors_total": total_errors,
-  "total_tokens": total_model_tokens,
-  "avg_latency_ms": average_latency_in_ms,
-  "method_usage": method_usage,
-}
-```
-
-`method_usage` counts the method that actually produced the response. If a model-backed method falls back to the baseline scorer, the request is counted under `baseline`.
+`method_usage` reflects the method that actually produced the response. If a model-backed method falls back to baseline, the request is counted under `baseline`.
 
 ## Configuration
 
-The service can be configured via environment variables or a config file to specify:
-```
-METHOD=your_method_here # e.g., baseline, embeddings, llm
-BASELINE_FILTER=false # Optional baseline pre-filter before embeddings or llm
-DEV_MODE="true" # Enable verbose logging and mock data for development
-TOP_N=your_number_here # Number of top skills to return per category
-LOG_LEVEL=your_log_level_here # e.g., DEBUG, INFO, WARNING
+JobForge reads settings from environment variables via `app/config.py`.
 
-OPENAI_API_KEY=your_openai_api_key_here # Required for embeddings and llm methods
+```bash
+METHOD=baseline # available options: baseline, embeddings, llm
+TOP_N=10 # how many top-ranked skills to return per category
+BASELINE_FILTER=false # if true, deterministic matches bypass model-backed scoring and are guaranteed in the output
+DEV_MODE=true # return debugging info
+LOG_LEVEL=INFO
 
-EMBEDDING_MODEL=your_embedding_model_here # e.g., text-embedding-3-small
-EMBEDDING_BATCH_SIZE=your_batch_size_here # e.g., 100
-EMBEDDING_DIMENSIONS=your_embedding_dimensions_here # optional, remove if not needed
+OPENAI_API_KEY=your_key_here
 
-LLM_MODEL=your_llm_model_here # e.g., gpt-5-mini
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_BATCH_SIZE=100
+
+LLM_MODEL=gpt-5-mini
 LLM_MAX_OUTPUT_TOKENS=1200
 ```
 
+`OPENAI_API_KEY` is only required for the `embeddings` and `llm` methods.
+
 ## Running Locally
 
-### Install Requirements
-Ensure you have Python 3.10+ and pip installed, then run:
+Install dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### Start the Service
+Start the FastAPI app:
+
 ```bash
 uvicorn app.main:app --reload
 ```
 
----
-
-## Running Tests
-
-### Prerequisites
-Tests require the venv to be active and `PYTHONPATH` set to the project root so that `app` is importable.
+Run the evidence CLI:
 
 ```bash
-# Activate the virtual environment
-source .venv/bin/activate
+PYTHONPATH=. python -m app.resume_evidence.cli
 ```
 
-### Run All Tests
+## Tests
+
+Tests assume the repo root is on `PYTHONPATH`:
+
 ```bash
-PYTHONPATH=. pytest
+export PYTHONPATH=.
+pytest
 ```
 
-### Run a Specific File
+Useful targeted runs:
+
 ```bash
-PYTHONPATH=. pytest tests/test_baseline.py
+PYTHONPATH=. pytest tests/test_resume_evidence.py
+PYTHONPATH=. pytest tests/test_resume_evidence_cli.py
+PYTHONPATH=. pytest tests/test_integration.py
 ```
 
-### Run with Verbose Output
-```bash
-PYTHONPATH=. pytest -v
-```
+## Planned Next
 
-### Run a Single Test by Name
-```bash
-PYTHONPATH=. pytest -k "test_name_here"
-```
+The following pieces are planned but not yet implemented as a public resume-generation flow:
 
-### Notes
-- `DEV_MODE=true` and `TOP_N=10` are set automatically by `tests/conftest.py` — no `.env` needed for tests.
-- `tests/test_embeddings.py` may fail during active development of the embeddings scorer; skip it with `--ignore=tests/test_embeddings.py` if needed.
-- Integration tests in `tests/test_integration.py` and `tests/test_health.py` exercise the full API stack and require `METHOD` to be set to a supported value (`baseline`, `embeddings`, or `llm`).
+- additional evidence files under `user/resume_evidence/`
+  - `profile.yaml`
+  - `experience.yaml`
+  - `skills.yaml`
+- a rebuildable runtime evidence index spanning more than `projects.yaml`
+- grounded synthesis/extraction that returns structured resume fill data with provenance
+- resume format definitions under `app/data/resume_formats/`
+- deterministic assembly that renders full resume artifacts from structured fill data
+
+See:
+
+- [docs/branch-03-grounded-resume-generation.md](/home/leon/Documents/proj/JobForge/docs/branch-03-grounded-resume-generation.md)
+- [docs/architecture-overview.md](/home/leon/Documents/proj/JobForge/docs/architecture-overview.md)
+- [docs/decisions/003-grounded-resume-evidence-pipeline.md](/home/leon/Documents/proj/JobForge/docs/decisions/003-grounded-resume-evidence-pipeline.md)
+- [docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md](/home/leon/Documents/proj/JobForge/docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md)
+
+## Current Limitations
+
+- JobForge does not yet ship a public full-resume generation API.
+- `projects.yaml` is the only implemented evidence schema today.
+- Resume synthesis, assembly, and additional evidence files are still future work.
+- The FastAPI app title still reads `Skill Relevance Selector`; that is legacy runtime naming, not the full project vision.
