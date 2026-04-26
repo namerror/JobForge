@@ -22,6 +22,8 @@ This document maps the current `app/` structure so agents can move quickly betwe
   - OpenAI embeddings client and cache integration
 - `app/services/llm_client.py`
   - OpenAI Responses API wrapper for LLM scoring
+- `app/services/project_llm_client.py`
+  - OpenAI Responses API wrapper for internal project relevance scoring
 - `app/scoring/baseline.py`
   - deterministic baseline ranking pipeline
 - `app/scoring/embeddings.py`
@@ -40,6 +42,8 @@ This document maps the current `app/` structure so agents can move quickly betwe
   - staged project CRUD session with validation and atomic save
 - `app/resume_evidence/cli.py`
   - interactive CLI for managing `projects.yaml`
+- `app/project_selection/`
+  - internal project ranking package for job-targeted resume evidence selection
 - `app/data/role_profiles/*.yaml`
   - role profile knowledge base
 - `user/resume_evidence/projects.yaml`
@@ -94,6 +98,11 @@ app.resume_evidence.loader
 app.resume_evidence.session
   -> app.resume_evidence.loader
   -> app.resume_evidence.models
+
+app.project_selection
+  -> app.resume_evidence.models
+  -> app.scoring.baseline
+  -> app.services.project_llm_client
 ```
 
 ## 3) Startup And Runtime Flow
@@ -159,7 +168,18 @@ flowchart TD
 - `baseline_filter`
   - lets deterministic matches bypass the second pass so model-backed methods only score the remainder
 
-## 5) Currently Implemented Evidence Layer
+## 5) Internal Project Selection
+
+The repo now includes an internal project selector for Branch 03. It is not exposed as a FastAPI route and does not generate resume content.
+
+Implemented now:
+
+- `select_projects(...)` accepts explicit project candidates plus job title/description context.
+- `method="baseline"` combines existing baseline skill selection over each project’s skills with deterministic summary/job text overlap.
+- `method="llm"` uses a dedicated project LLM client, validates project-id scores locally, ranks locally, and falls back to baseline when the LLM path fails.
+- Results contain project IDs and numeric scores, not project summaries, highlights, links, or synthesized claims.
+
+## 6) Currently Implemented Evidence Layer
 
 This repo is no longer only a skill-selection codebase. It now contains an implemented first evidence milestone for grounded resume generation.
 
@@ -210,9 +230,9 @@ Validation guarantees:
 - `reload()` discards staged changes and reloads from disk
 - project IDs are generated from project names for new records and remain stable across renames
 
-## 6) Future Resume Pipeline
+## 7) Future Resume Pipeline
 
-The evidence layer above is implemented. The broader resume-generation pipeline below is still planned:
+The evidence layer and internal project selector above are implemented. The broader resume-generation pipeline below is still planned:
 
 ```text
 user/resume_evidence/*.yaml
@@ -232,10 +252,11 @@ Planned but not yet implemented:
 - resume format definitions under `app/data/resume_formats/`
 - synthesis/extraction logic
 - deterministic full-resume assembly
+- adapters that rank projects directly from loaded `app.state.resume_evidence`
 
 Skill selection is expected to remain one prioritization signal for the future Skills section, not the whole source of truth for resume generation.
 
-## 7) Data And State
+## 8) Data And State
 
 - Configuration state
   - loaded from `.env` and environment variables through `app/config.py`
@@ -250,7 +271,7 @@ Skill selection is expected to remain one prioritization signal for the future S
 - User-authored source-of-truth state
   - `user/resume_evidence/projects.yaml`
 
-## 8) Routes And Interfaces
+## 9) Routes And Interfaces
 
 - `GET /health`
   - returns liveness plus effective config values
@@ -258,6 +279,7 @@ Skill selection is expected to remain one prioritization signal for the future S
   - returns request, error, latency, token, and method-usage metrics
 - `POST /select-skills`
   - current public business API for skill ranking
+- no public project-selection route exists in this milestone
 - `python -m app.resume_evidence.cli`
   - current local interface for project evidence CRUD/session management
 
