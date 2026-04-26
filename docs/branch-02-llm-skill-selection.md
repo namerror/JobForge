@@ -4,8 +4,8 @@
 This branch explores a pure LLM-based skill-selection method while staying strictly within skill selection. It does not generate resume bullets, experience claims, or user profile content.
 
 ## Current Repo Context
-- The current production request/response contract is `SkillSelectRequest` and `SkillSelectResponse` in `app/models.py`.
-- Implemented methods today are `baseline` and `embeddings`; service dispatch lives in `app/services/skill_selector.py`.
+- The current production request/response contract is `SkillSelectRequest` and `SkillSelectResponse` in `app/skill_selection/models.py`.
+- Implemented methods today are `baseline`, `embeddings`, and `llm`; service dispatch lives in `app/skill_selection/selector.py`.
 - Baseline ranking is deterministic and remains the required fallback.
 - Evaluation assets already exist in `data/eval_cases/` and `scripts/eval.py`.
 
@@ -15,11 +15,11 @@ This branch explores a pure LLM-based skill-selection method while staying stric
 - Baseline remains the safe fallback path and must keep working if embeddings or LLM-based methods fail.
 - All public JSON examples use snake_case and match the existing `/select-skills` shape unless a doc explicitly introduces a future schema.
 - Shared source-of-truth resources:
-  - role profiles: `app/data/role_profiles/*.yaml`
-  - skill normalization: `app/scoring/synonyms.py`
+  - role profiles: `app/skill_selection/data/role_profiles/*.yaml`
+  - skill normalization: `app/skill_selection/scoring/synonyms.py`
   - normalized skill pools: `data/skill_pools/normalized/skill_pools.json`
   - evaluation cases: `data/eval_cases/*.json`
-  - embedding cache: `app/data/embeddings/{model}/`
+  - embedding cache: `app/skill_selection/data/embeddings/{model}/`
 - Model-backed branches use the existing OpenAI Python SDK direction and must route outbound calls through one service/client layer, not scattered direct calls.
 - Benchmarking must measure both quality and efficiency:
   - quality: relevance, subset compliance, grounding/support, failure handling
@@ -35,7 +35,7 @@ This branch explores a pure LLM-based skill-selection method while staying stric
 - If the LLM call fails or returns unusable output, fall back to the baseline method and surface a warning in dev metadata.
 
 ## Quick Guide
-1. Add a dedicated LLM client wrapper under the service layer.
+1. Use the dedicated skill-selection LLM client wrapper.
 2. Define the prompt input schema and structured JSON output schema.
 3. Implement strict validation and repair rules before ranking.
 4. Sort locally by `score desc`, then normalized skill name asc.
@@ -95,4 +95,3 @@ This branch explores a pure LLM-based skill-selection method while staying stric
   - deterministic local ranking
   - fallback to baseline on client or parsing failure
 - Keep this branch scoped to skill selection only; resume generation belongs to Branch 03.
-

@@ -21,8 +21,8 @@ import json
 import glob
 from pathlib import Path
 from app.config import settings
-from app.models import SkillSelectRequest
-from app.services.skill_selector import select_skills_service
+from app.skill_selection.models import SkillSelectRequest
+from app.skill_selection.selector import select_skills_service
 
 REPO_ROOT = Path(__file__).parent.parent
 EVAL_CASES_DIR = REPO_ROOT / "data" / "eval_cases"

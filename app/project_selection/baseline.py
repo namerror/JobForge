@@ -10,7 +10,7 @@ from app.project_selection.models import (
     ProjectSelectionResult,
     RankedProject,
 )
-from app.scoring.baseline import baseline_select_skills
+from app.skill_selection.scoring.baseline import baseline_select_skills
 
 CATEGORIES = ("technology", "programming", "concepts")
 MAX_SKILL_MATCHES = 5

@@ -73,5 +73,5 @@ flowchart TD
   T --> V[Return response]
 ```
 
-- `app/services/embedding_client.py` handles communication with the OpenAI API, including batching and optional dimensionality reduction, and the main embedding logic.
-- `app/scoring/embeddings.py` will implement the cosine similarity scoring and ranking logic, using the embedding client to get vectors.
+- `app/skill_selection/embedding_client.py` handles communication with the OpenAI API, including batching and optional dimensionality reduction, and the main embedding logic.
+- `app/skill_selection/scoring/embeddings.py` will implement the cosine similarity scoring and ranking logic, using the embedding client to get vectors.

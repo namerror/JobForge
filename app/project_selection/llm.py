@@ -10,7 +10,7 @@ from app.project_selection.models import (
     ProjectSelectionResult,
     RankedProject,
 )
-from app.services.project_llm_client import (
+from app.project_selection.llm_client import (
     ProjectLLMClientError,
     score_projects_with_llm,
 )

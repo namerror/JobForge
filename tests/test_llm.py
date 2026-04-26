@@ -1,9 +1,9 @@
 import pytest
 
-from app.scoring import llm
-from app.scoring.baseline import baseline_select_skills
-from app.scoring.llm import llm_select_skills
-from app.services.llm_client import LLMClientError, LLMScoreResult
+from app.skill_selection.scoring import llm
+from app.skill_selection.scoring.baseline import baseline_select_skills
+from app.skill_selection.scoring.llm import llm_select_skills
+from app.skill_selection.llm_client import LLMClientError, LLMScoreResult
 
 
 def _llm_result(scores):

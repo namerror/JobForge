@@ -42,9 +42,9 @@ def pytest_configure(config):
 def setup_test_environment():
     """Set up test environment and reload modules with correct env vars."""
     # Reload the baseline module to pick up the new DEV_MODE value
-    if "app.scoring.baseline" in sys.modules:
+    if "app.skill_selection.scoring.baseline" in sys.modules:
         import importlib
-        import app.scoring.baseline
-        importlib.reload(app.scoring.baseline)
+        import app.skill_selection.scoring.baseline
+        importlib.reload(app.skill_selection.scoring.baseline)
 
     yield

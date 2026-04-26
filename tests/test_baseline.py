@@ -1,4 +1,4 @@
-from app.scoring.baseline import score_skill, normalize_skill, rank_skills, baseline_select_skills
+from app.skill_selection.scoring.baseline import score_skill, normalize_skill, rank_skills, baseline_select_skills
 
 
 # === Normalization tests ===

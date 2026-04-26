@@ -4,12 +4,12 @@ import httpx
 
 from app.main import app
 from app.metrics import metrics
-from app.models import SkillSelectRequest
-from app.scoring import llm as llm_scorer
-from app.scoring.baseline import baseline_select_skills
-from app.services import baseline_filter
-from app.services import skill_selector
-from app.services.llm_client import LLMScoreResult
+from app.skill_selection.models import SkillSelectRequest
+from app.skill_selection.scoring import llm as llm_scorer
+from app.skill_selection.scoring.baseline import baseline_select_skills
+from app.skill_selection import baseline_filter
+from app.skill_selection import selector as skill_selector
+from app.skill_selection.llm_client import LLMScoreResult
 from scripts import eval as eval_script
 
 

@@ -6,8 +6,8 @@ This branch is the next skill-selection upgrade. It stays within the current ski
 The approach is an optional two-pass selection flow controlled by `baseline_filter`. The request `method` still names the scorer to use, such as `baseline`, `embeddings`, or `llm`; `baseline_filter` only controls whether the deterministic baseline scorer pre-filters recognized skills before the selected method handles the remainder.
 
 ## Current Repo Context
-- The current production request/response contract is `SkillSelectRequest` and `SkillSelectResponse` in `app/models.py`.
-- Implemented methods today are `baseline`, `embeddings` and `llm`; service dispatch lives in `app/services/skill_selector.py`.
+- The current production request/response contract is `SkillSelectRequest` and `SkillSelectResponse` in `app/skill_selection/models.py`.
+- Implemented methods today are `baseline`, `embeddings` and `llm`; service dispatch lives in `app/skill_selection/selector.py`.
 - Baseline ranking is deterministic and remains the required fallback.
 - Evaluation assets already exist in `data/eval_cases/` and `scripts/eval.py`.
 
@@ -17,11 +17,11 @@ The approach is an optional two-pass selection flow controlled by `baseline_filt
 - Baseline remains the safe fallback path and must keep working if embeddings or LLM-based methods fail.
 - All public JSON examples use snake_case and match the existing `/select-skills` shape unless a doc explicitly introduces a future schema.
 - Shared source-of-truth resources:
-  - role profiles: `app/data/role_profiles/*.yaml`
-  - skill normalization: `app/scoring/synonyms.py`
+  - role profiles: `app/skill_selection/data/role_profiles/*.yaml`
+  - skill normalization: `app/skill_selection/scoring/synonyms.py`
   - normalized skill pools: `data/skill_pools/normalized/skill_pools.json`
   - evaluation cases: `data/eval_cases/*.json`
-  - embedding cache: `app/data/embeddings/{model}/`
+  - embedding cache: `app/skill_selection/data/embeddings/{model}/`
 - Model-backed branches use the existing OpenAI Python SDK direction and must route outbound calls through one service/client layer, not scattered direct calls.
 - Benchmarking must measure both quality and efficiency:
   - quality: relevance, subset compliance, grounding/support, failure handling
@@ -32,7 +32,7 @@ The approach is an optional two-pass selection flow controlled by `baseline_filt
 - Add a future `baseline_filter` request/config option with default `false` so current method behavior is preserved unless callers opt in.
 - When `baseline_filter=false`, dispatch directly to the selected `method` and keep existing method behavior unchanged.
 - When `baseline_filter=true`, run the deterministic baseline scorer over all user-provided skills first.
-- Treat skills with baseline score `> 0` as recognized because they matched the resolved role profile from `app/data/role_profiles/*.yaml`.
+- Treat skills with baseline score `> 0` as recognized because they matched the resolved role profile from `app/skill_selection/data/role_profiles/*.yaml`.
 - Pass only unrecognized skills, baseline score `0`, to the selected non-baseline method for second-pass scoring.
 - Merge baseline-recognized skills and second-pass-scored skills per category before taking `top_n`.
 - Normalize all final candidate scores to a comparable `0.0` to `1.0` range before final ranking.
@@ -70,10 +70,10 @@ The approach is an optional two-pass selection flow controlled by `baseline_filt
 - Future method values remain actual scorers only: `baseline`, `embeddings`, `llm`.
 - Dev metadata may include baseline-recognized versus second-pass source, baseline raw score, selected method score or similarity, normalized final score, normalized skill, and fallback warnings.
 - Reuse these existing resources directly:
-  - `app/scoring/baseline.py`
-  - `app/scoring/embeddings.py`
-  - `app/services/embedding_client.py`
-  - `app/services/embedding_cache.py`
+  - `app/skill_selection/scoring/baseline.py`
+  - `app/skill_selection/scoring/embeddings.py`
+  - `app/skill_selection/embedding_client.py`
+  - `app/skill_selection/embedding_cache.py`
 - Treat `data/eval_runs/` as a future convention for saved benchmark outputs; create it only when benchmark persistence is implemented.
 
 ## Benchmarking And Verification

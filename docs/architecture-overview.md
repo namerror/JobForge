@@ -1,90 +1,67 @@
 # Architecture Overview
 
-This document maps the current `app/` structure so agents can move quickly between the shipped skill-selection service and the implemented first milestone of the grounded resume-evidence pipeline.
+This document maps the current `app/` structure so agents can move quickly across the resume-engine subsystems: skill selection, project selection, and resume evidence.
 
 ## 1) High-Level Structure (`app/`)
 
 - `app/main.py`
   - FastAPI app composition, lifespan setup, HTTP routes, startup evidence loading
-- `app/models.py`
-  - request/response contracts for `/select-skills`
 - `app/config.py`
   - runtime settings loaded from environment
 - `app/metrics.py`
-  - in-memory request, error, latency, and token counters
+  - in-memory aggregate and per-subsystem request, error, latency, and token counters
 - `app/logging_config.py`
   - structured logging setup
-- `app/services/skill_selector.py`
-  - API orchestration for method selection, metrics, logging, and response shaping
-- `app/services/baseline_filter.py`
-  - optional deterministic first-pass routing before model-backed methods
-- `app/services/embedding_client.py`
-  - OpenAI embeddings client and cache integration
-- `app/services/llm_client.py`
-  - OpenAI Responses API wrapper for LLM scoring
-- `app/services/project_llm_client.py`
-  - OpenAI Responses API wrapper for internal project relevance scoring
-- `app/scoring/baseline.py`
-  - deterministic baseline ranking pipeline
-- `app/scoring/embeddings.py`
-  - embedding-based ranking with deterministic output shaping
-- `app/scoring/llm.py`
-  - LLM scoring validation, deterministic ranking, and baseline fallback
-- `app/scoring/role_profiles.py`
-  - role profile loading and role-family detection
-- `app/scoring/synonyms.py`
-  - skill normalization alias map
-- `app/resume_evidence/models.py`
-  - strict Pydantic schema for `projects.yaml`
-- `app/resume_evidence/loader.py`
-  - schema registry, default evidence paths, YAML loading helpers
-- `app/resume_evidence/session.py`
-  - staged project CRUD session with validation and atomic save
-- `app/resume_evidence/cli.py`
-  - interactive CLI for managing `projects.yaml`
+- `app/skill_selection/`
+  - skill-selection models, service wrapper, baseline filter, model clients, scoring logic, role profiles, synonym map, and embedding caches
 - `app/project_selection/`
-  - internal project ranking package for job-targeted resume evidence selection
-- `app/data/role_profiles/*.yaml`
-  - role profile knowledge base
-- `user/resume_evidence/projects.yaml`
-  - currently implemented user-authored evidence source file
+  - project-selection models, API service wrapper, selector, baseline/LLM rankers, and project LLM client
+- `app/resume_evidence/`
+  - strict evidence schemas, registry loading, staged CRUD/session logic, and CLI
+- `app/skill_selection/selector.py`
+  - API orchestration for method selection, metrics, logging, and response shaping
+- `app/models.py`, `app/scoring/*`, `app/services/*`
+  - compatibility shims for legacy import paths; new code should use subsystem paths
 
 ## 2) Module Dependency Map
 
 ```text
 app.main
-  -> app.models
   -> app.config
-  -> app.services.skill_selector
   -> app.metrics
   -> app.logging_config
+  -> app.skill_selection
+  -> app.project_selection
   -> app.resume_evidence
 
-app.services.skill_selector
+app.skill_selection.selector
   -> app.config
   -> app.metrics
-  -> app.models
-  -> app.services.baseline_filter
-  -> app.scoring.baseline
-  -> app.scoring.embeddings
-  -> app.scoring.llm
+  -> app.skill_selection.models
+  -> app.skill_selection.baseline_filter
+  -> app.skill_selection.scoring
 
-app.services.baseline_filter
-  -> app.models
-  -> app.scoring.baseline
-  -> app.scoring.embeddings
-  -> app.scoring.llm
+app.skill_selection.scoring.baseline
+  -> app.skill_selection.scoring.synonyms
+  -> app.skill_selection.scoring.role_profiles
+  -> app.skill_selection.data
 
-app.scoring.baseline
-  -> app.scoring.synonyms
-  -> app.scoring.role_profiles
+app.skill_selection.scoring.embeddings
+  -> app.skill_selection.embedding_client
+  -> app.skill_selection.embedding_cache
 
-app.scoring.embeddings
-  -> app.services.embedding_client
+app.skill_selection.scoring.llm
+  -> app.skill_selection.scoring.baseline
+  -> app.skill_selection.llm_client
 
-app.scoring.llm
-  -> app.scoring.baseline
-  -> app.services.llm_client
+app.project_selection.service
+  -> app.metrics
+  -> app.project_selection.selector
+
+app.project_selection
+  -> app.resume_evidence.models
+  -> app.skill_selection.scoring.baseline
+  -> app.project_selection.llm_client
 
 app.resume_evidence
   -> app.resume_evidence.loader
@@ -99,10 +76,9 @@ app.resume_evidence.session
   -> app.resume_evidence.loader
   -> app.resume_evidence.models
 
-app.project_selection
-  -> app.resume_evidence.models
-  -> app.scoring.baseline
-  -> app.services.project_llm_client
+legacy compatibility shims
+  -> app.skill_selection.*
+  -> app.project_selection.llm_client
 ```
 
 ## 3) Startup And Runtime Flow
@@ -129,10 +105,10 @@ flowchart TD
 flowchart TD
     A[POST /select-skills] --> B[FastAPI validates SkillSelectRequest]
     B --> C[main.select_skills]
-    C --> D[services.select_skills_service]
+    C --> D[skill_selection.select_skills_service]
     D --> E[resolve method, top_n, baseline_filter, dev_mode]
     E --> F{baseline_filter enabled<br>and method model-backed?}
-    F -- yes --> G[services.baseline_filter]
+    F -- yes --> G[skill_selection.baseline_filter]
     F -- no --> H{method}
     G --> I[merge deterministic baseline results with second-pass scorer]
     H -- baseline --> J[baseline_select_skills]
@@ -144,6 +120,23 @@ flowchart TD
     L --> M
     M --> N[metrics and structured log event]
     N --> O[SkillSelectResponse]
+```
+
+### Project-selection request flow
+
+```mermaid
+flowchart TD
+    A[POST /select-projects] --> B[Validate ProjectSelectRequest]
+    B --> C[project_selection.select_projects_service]
+    C --> D{method}
+    D -- baseline --> E[baseline_select_projects]
+    D -- llm --> F[llm_select_projects]
+    F --> G[project LLM client]
+    G --> H[validate scores and rank locally]
+    F -- fallback --> E
+    E --> I[ProjectSelectionResult]
+    H --> I
+    I --> J[project_selection metrics and structured log event]
 ```
 
 ## 4) Current Skill-Selection Logic
@@ -168,12 +161,13 @@ flowchart TD
 - `baseline_filter`
   - lets deterministic matches bypass the second pass so model-backed methods only score the remainder
 
-## 5) Internal Project Selection
+## 5) Project Selection
 
-The repo now includes an internal project selector for Branch 03. It is not exposed as a FastAPI route and does not generate resume content.
+The repo now includes project selection as a first-class subsystem. It ranks explicit project candidates for a job target and does not generate resume content.
 
 Implemented now:
 
+- `POST /select-projects` accepts explicit project candidates plus job title/description context.
 - `select_projects(...)` accepts explicit project candidates plus job title/description context.
 - `method="baseline"` combines existing baseline skill selection over each project’s skills with deterministic summary/job text overlap.
 - `method="llm"` uses a dedicated project LLM client, validates project-id scores locally, ranks locally, and falls back to baseline when the LLM path fails.
@@ -232,7 +226,7 @@ Validation guarantees:
 
 ## 7) Future Resume Pipeline
 
-The evidence layer and internal project selector above are implemented. The broader resume-generation pipeline below is still planned:
+The evidence layer and explicit-candidate project selector above are implemented. The broader resume-generation pipeline below is still planned:
 
 ```text
 user/resume_evidence/*.yaml
@@ -261,13 +255,13 @@ Skill selection is expected to remain one prioritization signal for the future S
 - Configuration state
   - loaded from `.env` and environment variables through `app/config.py`
 - Knowledge state
-  - role profiles from `app/data/role_profiles/*.yaml`
-  - synonym normalization from `app/data/synonym_to_normalized.json`
+  - role profiles from `app/skill_selection/data/role_profiles/*.yaml`
+  - synonym normalization from `app/skill_selection/data/synonym_to_normalized.json`
 - Mutable runtime state
   - `metrics` singleton in `app/metrics.py`
   - `app.state.resume_evidence` loaded during FastAPI startup
 - Disk-backed derived state
-  - embedding caches under `app/data/embeddings/{model}/`
+  - embedding caches under `app/skill_selection/data/embeddings/{model}/`
 - User-authored source-of-truth state
   - `user/resume_evidence/projects.yaml`
 
@@ -276,14 +270,15 @@ Skill selection is expected to remain one prioritization signal for the future S
 - `GET /health`
   - returns liveness plus effective config values
 - `GET /metrics-lite`
-  - returns request, error, latency, token, and method-usage metrics
+  - returns aggregate plus `skill_selection` and `project_selection` request, error, latency, token, and method-usage metrics
 - `POST /select-skills`
   - current public business API for skill ranking
-- no public project-selection route exists in this milestone
+- `POST /select-projects`
+  - public project-ranking API for explicit project candidates
 - `python -m app.resume_evidence.cli`
   - current local interface for project evidence CRUD/session management
 
-## 9) Agent Quick-Read Sequence
+## 10) Agent Quick-Read Sequence
 
 1. `AGENTS.md`
 2. `CLAUDE.md`
@@ -291,9 +286,12 @@ Skill selection is expected to remain one prioritization signal for the future S
 4. `docs/architecture-overview.md`
 5. `README.md`
 6. `app/main.py`
-7. `app/services/skill_selector.py`
-8. `app/resume_evidence/loader.py`
-9. `app/resume_evidence/session.py`
-10. `docs/branch-03-grounded-resume-generation.md`
-11. `docs/decisions/003-grounded-resume-evidence-pipeline.md`
-12. `docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md`
+7. `app/skill_selection/selector.py`
+8. `app/project_selection/service.py`
+9. `app/project_selection/selector.py`
+10. `app/resume_evidence/loader.py`
+11. `app/resume_evidence/session.py`
+12. `docs/branch-03-grounded-resume-generation.md`
+13. `docs/decisions/003-grounded-resume-evidence-pipeline.md`
+14. `docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md`
+15. `docs/decisions/005-subsystem-package-organization.md`
