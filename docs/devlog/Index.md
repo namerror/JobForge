@@ -13,6 +13,8 @@
 
 ## Session Index
 
+- `04-27-2026-Codex-smooth-version-test.md` - 2026-04-27 - Smooth version consistency test
+- `04-27-2026-Codex-add-ci-version-guard.md` - 2026-04-27 - Add CI workflow and version guard
 - `04-26-2026-Codex-refactor-subsystem-packages.md` - 2026-04-26 - Refactor app into subsystem packages
 - `04-26-2026-Codex-add-project-selection-module.md` - 2026-04-26 - Add internal project selection module
 - `04-23-2026-Codex-refresh-jobforge-docs-for-grounded-resume-engine.md` - 2026-04-23 - Refresh JobForge docs around the grounded resume engine

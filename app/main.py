@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from app import __version__
 from pydantic import ValidationError
 
 from app.skill_selection.models import SkillSelectRequest, SkillSelectResponse
@@ -28,7 +29,7 @@ app = FastAPI(title="JobForge Resume Engine", lifespan=lifespan)
 async def health():
     return {
         "status": "ok",
-        "version": "0.2.0",
+        "version": __version__,
         "service": "jobforge-resume-engine",
         "method": settings.METHOD,
         "top_n": settings.TOP_N,

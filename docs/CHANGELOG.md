@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-27
+
 ### Added
 - `POST /select-projects` project-selection API with baseline/LLM methods, local validation, baseline fallback, and project-selection metrics
 - `app/skill_selection/` subsystem package for skill-selection models, scoring, clients, data, and compatibility shims for legacy import paths
