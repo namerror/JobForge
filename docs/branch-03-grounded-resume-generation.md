@@ -12,10 +12,11 @@ This document explains both the current milestone and the larger future pipeline
 
 ## Current Repo Context
 
-- The current public API is still the skill-selection service exposed by `SkillSelectRequest` and `SkillSelectResponse` in `app/models.py`.
+- The public API includes skill selection through `SkillSelectRequest`/`SkillSelectResponse` in `app/skill_selection/models.py`.
 - Implemented methods today are `baseline`, `embeddings`, and `llm`.
 - `baseline_filter` can pre-handle deterministic matches before model-backed second-pass scoring.
 - Baseline remains the required fallback and deterministic safety path.
+- The project-selection subsystem is exposed through `POST /select-projects` for explicit project candidates.
 - The repo now also ships `app.resume_evidence`, which validates and loads `user/resume_evidence/projects.yaml`.
 - Evaluation assets already exist in `data/eval_cases/` and `scripts/eval.py`.
 
@@ -134,6 +135,16 @@ Examples:
 - manage staged edits without hand-editing the file directly
 - preserve categorized project skills that align with the existing skill-selection taxonomy
 - prepare evidence records that future synthesis can reuse
+
+### Use case: job-targeted project ranking
+
+Use `/select-projects` when you have explicit project candidates and want to rank them for a target job without generating new claims.
+
+Examples:
+
+- rank project IDs for a backend job using deterministic baseline scoring
+- use LLM scoring with local validation and baseline fallback
+- keep project summaries and highlights out of the selection response while preserving traceability through IDs
 
 ## Future Pipeline
 

@@ -8,11 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `POST /select-projects` project-selection API with baseline/LLM methods, local validation, baseline fallback, and project-selection metrics
+- `app/skill_selection/` subsystem package for skill-selection models, scoring, clients, data, and compatibility shims for legacy import paths
 - Interactive projects evidence CLI with staged in-memory CRUD, hidden auto-generated IDs, and explicit `apply` confirmation before writing `user/resume_evidence/projects.yaml`
 - Optional `baseline_filter` request/config flag that pre-filters deterministic baseline matches before embeddings or LLM scoring, with full-baseline fallback behavior
 - `/metrics-lite` now reports cumulative model token usage and counts fallback responses under the effective baseline method
 - LLM skill-selection method (`method="llm"`) with OpenAI Responses API scoring, strict local validation, deterministic ranking, dev metadata, and baseline fallback
-- Embeddings scorer (`embedding_select_skills`) in `app/scoring/embeddings.py` with per-category cosine similarity ranking, stable tie-breaking, dev mode similarity scores, short role text warnings, and rate limit error handling
+- Embeddings scorer (`embedding_select_skills`) in `app/skill_selection/scoring/embeddings.py` with per-category cosine similarity ranking, stable tie-breaking, dev mode similarity scores, short role text warnings, and rate limit error handling
 - Role family detection and inheritance in baseline scorer
 - Baseline scoring algorithm with role-specific boosts
 - Skill selection service with latency tracking and structured logging

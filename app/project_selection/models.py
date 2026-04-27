@@ -33,3 +33,11 @@ class ProjectSelectionResult(StrictSchemaModel):
     selected_project_ids: list[str]
     ranked_projects: list[RankedProject]
     details: dict[str, Any] | None = None
+
+
+class ProjectSelectRequest(StrictSchemaModel):
+    context: ProjectJobContext
+    candidates: list[ProjectCandidate]
+    method: Literal["baseline", "llm"] | None = None
+    top_n: int | None = None
+    dev_mode: bool | None = None

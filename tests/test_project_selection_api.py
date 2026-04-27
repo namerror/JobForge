@@ -1,0 +1,139 @@
+import asyncio
+
+import httpx
+
+from app.main import app
+from app.project_selection import llm as project_llm
+from app.project_selection.llm_client import LLMProjectScoreResult, ProjectLLMClientError
+
+
+def api_request(method: str, path: str, **kwargs):
+    async def _request():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.request(method, path, **kwargs)
+
+    return asyncio.run(_request())
+
+
+def _project_payload(project_id: str, name: str, *, programming: list[str] | None = None) -> dict:
+    return {
+        "id": project_id,
+        "name": name,
+        "summary": f"{name} backend API project.",
+        "skills": {
+            "technology": ["Django"],
+            "programming": programming or ["Python"],
+            "concepts": ["API"],
+        },
+    }
+
+
+def _request_payload(**overrides) -> dict:
+    payload = {
+        "context": {
+            "title": "Backend Engineer",
+            "description": "Build Python Django APIs.",
+        },
+        "candidates": [
+            _project_payload("jobforge", "JobForge"),
+            _project_payload("portfolio", "Portfolio", programming=["JavaScript"]),
+        ],
+        "method": "baseline",
+        "top_n": 1,
+        "dev_mode": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_select_projects_api_baseline_success_with_top_n_and_details():
+    response = api_request("POST", "/select-projects", json=_request_payload())
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["selected_project_ids"] == ["jobforge"]
+    assert [project["project_id"] for project in data["ranked_projects"]] == ["jobforge"]
+    assert data["details"]["method"] == "baseline"
+    assert "jobforge" in data["details"]["projects"]
+
+
+def test_select_projects_api_rejects_duplicate_project_ids():
+    duplicate = _project_payload("same-id", "Duplicate")
+    response = api_request(
+        "POST",
+        "/select-projects",
+        json=_request_payload(candidates=[duplicate, duplicate]),
+    )
+
+    assert response.status_code == 400
+    assert "Duplicate project ids" in response.json()["detail"]
+
+
+def test_select_projects_api_rejects_unsupported_method():
+    response = api_request("POST", "/select-projects", json=_request_payload(method="embeddings"))
+
+    assert response.status_code == 400
+    assert "method" in response.json()["detail"]
+
+
+def test_select_projects_api_llm_fallback_returns_baseline(monkeypatch):
+    def raise_client_error(**_kwargs):
+        raise ProjectLLMClientError("network down")
+
+    monkeypatch.setattr(project_llm, "score_projects_with_llm", raise_client_error)
+
+    response = api_request("POST", "/select-projects", json=_request_payload(method="llm"))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ranked_projects"][0]["method"] == "baseline"
+    assert data["details"]["_fallback_method"] == "baseline"
+    assert data["details"]["_project_llm"]["fallback"] == "baseline"
+
+
+def test_select_projects_api_records_project_metrics_and_tokens(monkeypatch):
+    before = api_request("GET", "/metrics-lite").json()
+
+    monkeypatch.setattr(
+        project_llm,
+        "score_projects_with_llm",
+        lambda **_kwargs: LLMProjectScoreResult(
+            scores={"jobforge": 3, "portfolio": 1},
+            metadata={
+                "model": "test-model",
+                "api_calls": 1,
+                "prompt_tokens": 10,
+                "completion_tokens": 3,
+                "total_tokens": 13,
+                "latency_ms": 1.2,
+            },
+        ),
+    )
+
+    response = api_request("POST", "/select-projects", json=_request_payload(method="llm"))
+
+    assert response.status_code == 200
+    after = api_request("GET", "/metrics-lite").json()
+    project_metrics = after["subsystems"]["project_selection"]
+    before_project_metrics = before["subsystems"]["project_selection"]
+
+    assert after["requests_total"] == before["requests_total"] + 1
+    assert after["total_tokens"] == before["total_tokens"] + 13
+    assert project_metrics["requests_total"] == before_project_metrics["requests_total"] + 1
+    assert project_metrics["total_tokens"] == before_project_metrics["total_tokens"] + 13
+    assert project_metrics["method_usage"].get("llm", 0) == before_project_metrics["method_usage"].get("llm", 0) + 1
+
+
+def test_select_projects_api_records_project_errors():
+    before = api_request("GET", "/metrics-lite").json()
+
+    response = api_request("POST", "/select-projects", json=_request_payload(method="embeddings"))
+
+    assert response.status_code == 400
+    after = api_request("GET", "/metrics-lite").json()
+    project_metrics = after["subsystems"]["project_selection"]
+    before_project_metrics = before["subsystems"]["project_selection"]
+
+    assert after["errors_total"] == before["errors_total"] + 1
+    assert project_metrics["errors_total"] == before_project_metrics["errors_total"] + 1

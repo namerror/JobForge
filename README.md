@@ -3,9 +3,10 @@
 This project is evolving from a skill-selection microservice into a grounded resume-generation service. Today the repo ships two capability tracks:
 
 - a production FastAPI API for skill selection with deterministic baseline, embeddings, and LLM methods
+- a public project-selection API for ranking explicit user project candidates for a target job
 - an implemented first milestone of the evidence-based resume pipeline centered on `user/resume_evidence/projects.yaml`
 
-The existing `/select-skills` API and the FastAPI app title still use the legacy skill-selector framing. The broader project direction is now a grounded resume engine where skill selection is one reusable subsystem.
+The app is now organized around peer subsystems under `app/`: `skill_selection`, `project_selection`, and `resume_evidence`.
 
 ## Vision
 
@@ -66,6 +67,16 @@ The currently implemented evidence schema is:
   - `schema_version: 1`
   - strict project records with `id`, `name`, `summary`, `highlights`, `active`, `skills`, and optional `links`
 
+### Project selection API
+
+The project-selection subsystem ranks explicit project candidates for a job target without generating resume prose.
+
+- `POST /select-projects`
+  - accepts `context` with job title/description and explicit project `candidates`
+  - supports deterministic `baseline` and model-backed `llm` methods
+  - validates LLM project-id scores locally and falls back to baseline when needed
+  - returns project IDs and scores, not project summaries, highlights, links, or generated claims
+
 ### Evidence CLI workflow
 
 Use the CLI to manage staged edits to `projects.yaml` without hand-editing YAML:
@@ -111,6 +122,7 @@ See [scripts/README.md](/home/leon/Documents/proj/JobForge/scripts/README.md) fo
 JobForge now has a broader resume-engine shape:
 
 - the skills API helps prioritize and rank skills for the future Skills section
+- the project-selection API helps prioritize grounded projects for a target job
 - the resume-evidence package establishes grounded source-of-truth data under `user/resume_evidence/`
 - future synthesis will combine target job context, evidence, and selected skills into structured fill data
 - future deterministic assembly will turn that structured fill data into resume output without inventing claims
@@ -129,6 +141,7 @@ Example response:
 {
   "status": "ok",
   "version": "0.2.0",
+  "service": "jobforge-resume-engine",
   "method": "baseline",
   "top_n": 10,
   "baseline_filter": false,
@@ -167,6 +180,52 @@ Example response:
 }
 ```
 
+### Select Projects
+
+`POST /select-projects`
+
+Example request:
+
+```json
+{
+  "context": {
+    "title": "Backend Engineer",
+    "description": "Build Python APIs with Django and PostgreSQL."
+  },
+  "candidates": [
+    {
+      "id": "jobforge",
+      "name": "JobForge",
+      "summary": "Resume engine with deterministic selection and grounded evidence.",
+      "skills": {
+        "technology": ["Django", "PostgreSQL"],
+        "programming": ["Python"],
+        "concepts": ["API"]
+      }
+    }
+  ],
+  "method": "baseline",
+  "top_n": 1,
+  "dev_mode": true
+}
+```
+
+Example response:
+
+```json
+{
+  "selected_project_ids": ["jobforge"],
+  "ranked_projects": [
+    {
+      "project_id": "jobforge",
+      "score": 0.75,
+      "method": "baseline"
+    }
+  ],
+  "details": {}
+}
+```
+
 ### Metrics
 
 `GET /metrics-lite`
@@ -183,11 +242,32 @@ Example response:
     "baseline": 30,
     "embeddings": 8,
     "llm": 4
+  },
+  "subsystems": {
+    "skill_selection": {
+      "requests_total": 38,
+      "errors_total": 1,
+      "total_tokens": 9000,
+      "avg_latency_ms": 22.1,
+      "method_usage": {
+        "baseline": 30,
+        "embeddings": 8
+      }
+    },
+    "project_selection": {
+      "requests_total": 4,
+      "errors_total": 0,
+      "total_tokens": 3000,
+      "avg_latency_ms": 55.7,
+      "method_usage": {
+        "llm": 4
+      }
+    }
   }
 }
 ```
 
-`method_usage` reflects the method that actually produced the response. If a model-backed method falls back to baseline, the request is counted under `baseline`.
+`method_usage` reflects the method that actually produced the response. If a model-backed method falls back to baseline, the request is counted under `baseline`. The top-level metrics remain aggregate; `subsystems` breaks out skill selection and project selection.
 
 ## Configuration
 
@@ -209,7 +289,7 @@ LLM_MODEL=gpt-5-mini
 LLM_MAX_OUTPUT_TOKENS=1200
 ```
 
-`OPENAI_API_KEY` is only required for the `embeddings` and `llm` methods.
+`OPENAI_API_KEY` is only required for skill-selection `embeddings`, skill-selection `llm`, and project-selection `llm` requests.
 
 ## Running Locally
 
@@ -267,10 +347,10 @@ See:
 - [docs/architecture-overview.md](/home/leon/Documents/proj/JobForge/docs/architecture-overview.md)
 - [docs/decisions/003-grounded-resume-evidence-pipeline.md](/home/leon/Documents/proj/JobForge/docs/decisions/003-grounded-resume-evidence-pipeline.md)
 - [docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md](/home/leon/Documents/proj/JobForge/docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md)
+- [docs/decisions/005-subsystem-package-organization.md](/home/leon/Documents/proj/JobForge/docs/decisions/005-subsystem-package-organization.md)
 
 ## Current Limitations
 
 - JobForge does not yet ship a public full-resume generation API.
 - `projects.yaml` is the only implemented evidence schema today.
 - Resume synthesis, assembly, and additional evidence files are still future work.
-- The FastAPI app title still reads `Skill Relevance Selector`; that is legacy runtime naming, not the full project vision.

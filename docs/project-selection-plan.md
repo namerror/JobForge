@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This milestone adds the first internal project-ranking layer for the grounded resume evidence pipeline. It selects user-provided project candidates for a job target without generating resume prose or changing evidence files.
+This milestone adds the first project-ranking layer for the grounded resume evidence pipeline. It selects user-provided project candidates for a job target without generating resume prose or changing evidence files.
 
 ## Summary
 
-- Implement an internal project selector only: no FastAPI route, no CLI command, no public API change.
+- Implement project selection as a first-class subsystem with an internal selector and `POST /select-projects` route.
 - Accept explicit project candidates with `id`, `name`, `summary`, and categorized `skills`, plus job context `title` and `description`.
 - Support `method="llm"` and `method="baseline"`.
 - Validate LLM scores locally and fall back to deterministic baseline scoring on client or response failure.
@@ -14,8 +14,10 @@ This milestone adds the first internal project-ranking layer for the grounded re
 ## Components
 
 - `app/project_selection/models.py`
-  - Defines `ProjectJobContext`, `ProjectCandidate`, `RankedProject`, and `ProjectSelectionResult`.
+  - Defines `ProjectJobContext`, `ProjectCandidate`, `ProjectSelectRequest`, `RankedProject`, and `ProjectSelectionResult`.
   - Reuses `ProjectSkills` so project skill categories remain exactly `technology`, `programming`, and `concepts`.
+- `app/project_selection/service.py`
+  - Wraps project selection for the API with request defaults, metrics, logging, token extraction, and fallback-method tracking.
 - `app/project_selection/baseline.py`
   - Scores each project with existing baseline skill selection over project skills.
   - Blends top skill matches with deterministic project-summary/job-context token overlap.
@@ -23,7 +25,7 @@ This milestone adds the first internal project-ranking layer for the grounded re
   - Calls a dedicated project LLM client, validates returned project-id scores, ranks locally, and falls back to baseline when the LLM path is unusable.
 - `app/project_selection/selector.py`
   - Exposes `select_projects(...)` as the service-style internal entrypoint.
-- `app/services/project_llm_client.py`
+- `app/project_selection/llm_client.py`
   - Owns the OpenAI Responses API call for project scoring.
 
 ## Scoring Behavior
@@ -49,10 +51,11 @@ LLM scoring:
 - LLM selector tests cover local ranking, invented IDs, invalid scores, fallback behavior, and token metadata.
 - Client tests cover strict schema construction, compact payloads, model parameter compatibility, invalid JSON, and missing API keys.
 - Service/model tests cover duplicate project IDs, `top_n` slicing after ranking, and output that contains project IDs/scores rather than generated project content.
+- API tests cover `POST /select-projects`, invalid requests, fallback behavior, and project-selection metrics.
 
 ## Assumptions
 
 - Core selection uses only project `summary` and `skills`; `highlights`, `links`, and `active` are outside v1 scoring input.
 - Callers are responsible for passing the candidate set they want ranked.
 - Saved evidence adapters can be added later; v1 starts with explicit candidates for testability and reuse.
-- This milestone does not update `docs/CHANGELOG.md` because it is internal and not user-facing.
+- The API route is user-facing and is tracked in `docs/CHANGELOG.md`.

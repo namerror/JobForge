@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.services import llm_client
-from app.services.llm_client import LLMClientError, score_skills_with_llm
+from app.skill_selection import llm_client
+from app.skill_selection.llm_client import LLMClientError, score_skills_with_llm
 
 
 def test_score_skills_with_llm_sends_responses_schema(monkeypatch):

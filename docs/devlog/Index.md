@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `04-26-2026-Codex-refactor-subsystem-packages.md` - 2026-04-26 - Refactor app into subsystem packages
 - `04-26-2026-Codex-add-project-selection-module.md` - 2026-04-26 - Add internal project selection module
 - `04-23-2026-Codex-refresh-jobforge-docs-for-grounded-resume-engine.md` - 2026-04-23 - Refresh JobForge docs around the grounded resume engine
 - `04-22-2026-Codex-add-projects-evidence-cli.md` - 2026-04-22 - Add staged projects evidence CLI

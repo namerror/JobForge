@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import logging
 import pytest
 
-from app.services import embedding_client
+from app.skill_selection import embedding_client
 
 
 class FakeTokenizer:

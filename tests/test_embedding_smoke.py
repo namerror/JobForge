@@ -15,7 +15,7 @@ pytestmark = pytest.mark.smoke
 
 
 def test_embed_role_returns_valid_vector():
-    from app.services.embedding_client import embed_role
+    from app.skill_selection.embedding_client import embed_role
 
     vec = embed_role("Senior Backend Engineer building Python microservices")
     assert isinstance(vec, list)
@@ -24,7 +24,7 @@ def test_embed_role_returns_valid_vector():
 
 
 def test_embed_skills_returns_matching_vectors():
-    from app.services.embedding_client import embed_skills
+    from app.skill_selection.embedding_client import embed_skills
 
     skills = ["Python", "Docker", "Kubernetes"]
     vecs = embed_skills(skills)
@@ -38,7 +38,7 @@ def test_embed_skills_returns_matching_vectors():
 
 def test_embed_role_and_skills_same_dimensions():
     """Role and skill embeddings must share the same vector space."""
-    from app.services.embedding_client import embed_role, embed_skills
+    from app.skill_selection.embedding_client import embed_role, embed_skills
 
     role_vec = embed_role("Data Engineer")
     skill_vecs = embed_skills(["Spark", "SQL"])
@@ -49,8 +49,8 @@ def test_embed_role_and_skills_same_dimensions():
 
 def test_cosine_similarity_with_real_embeddings():
     """Sanity check: related terms should score higher than unrelated ones."""
-    from app.services.embedding_client import embed_role, embed_skills
-    from app.scoring.embeddings import cosine_similarity
+    from app.skill_selection.embedding_client import embed_role, embed_skills
+    from app.skill_selection.scoring.embeddings import cosine_similarity
 
     role_vec = embed_role("Machine Learning Engineer")
     vecs = embed_skills(["PyTorch", "Accounting"])

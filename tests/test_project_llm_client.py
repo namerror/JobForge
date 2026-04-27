@@ -7,8 +7,8 @@ import pytest
 
 from app.project_selection import ProjectCandidate, ProjectJobContext
 from app.resume_evidence.models import ProjectSkills
-from app.services import project_llm_client
-from app.services.project_llm_client import ProjectLLMClientError, score_projects_with_llm
+from app.project_selection import llm_client as project_llm_client
+from app.project_selection.llm_client import ProjectLLMClientError, score_projects_with_llm
 
 
 def _candidate(project_id: str, name: str) -> ProjectCandidate:

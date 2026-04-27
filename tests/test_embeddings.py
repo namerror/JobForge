@@ -1,18 +1,18 @@
-"""Unit tests for app/scoring/embeddings.py"""
+"""Unit tests for app/skill_selection/scoring/embeddings.py"""
 import json
 import math
 import pytest
 from unittest.mock import patch
 
-from app.scoring import embeddings
-from app.scoring.embeddings import (
+from app.skill_selection.scoring import embeddings
+from app.skill_selection.scoring.embeddings import (
     normalize_skill,
     construct_role_text,
     cosine_similarity,
     embedding_rank_skills,
     embedding_select_skills,
 )
-from app.services.embedding_cache import EmbeddingCache
+from app.skill_selection.embedding_cache import EmbeddingCache
 
 
 # ---------------------------------------------------------------------------
@@ -584,19 +584,19 @@ def test_embedding_rank_skills_partial_cache_only_embeds_missing(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_embed_skills_rejects_non_string_items():
-    from app.services.embedding_client import embed_skills
+    from app.skill_selection.embedding_client import embed_skills
     with pytest.raises(ValueError, match="empty strings or non-strings"):
         embed_skills(["valid", 123])
 
 
 def test_embed_skills_rejects_empty_string_items():
-    from app.services.embedding_client import embed_skills
+    from app.skill_selection.embedding_client import embed_skills
     with pytest.raises(ValueError, match="empty strings or non-strings"):
         embed_skills(["valid", ""])
 
 
 def test_embed_role_rejects_empty_string():
-    from app.services.embedding_client import embed_role
+    from app.skill_selection.embedding_client import embed_role
     with pytest.raises(ValueError, match="empty string"):
         embed_role("")
 

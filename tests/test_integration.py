@@ -3,10 +3,10 @@ import asyncio
 
 import httpx
 
-from app.scoring import llm as llm_scorer
+from app.skill_selection.scoring import llm as llm_scorer
 from app.main import app
 from app.metrics import metrics
-from app.services.llm_client import LLMClientError, LLMScoreResult
+from app.skill_selection.llm_client import LLMClientError, LLMScoreResult
 
 PAYLOAD = {
     "job_role": "backend",

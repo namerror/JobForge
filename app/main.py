@@ -1,10 +1,16 @@
 from contextlib import asynccontextmanager
+from typing import Any
+
 from fastapi import FastAPI, HTTPException
-from app.models import SkillSelectRequest, SkillSelectResponse
+from pydantic import ValidationError
+
+from app.skill_selection.models import SkillSelectRequest, SkillSelectResponse
 from app.config import settings
-from app.services.skill_selector import select_skills_service
+from app.skill_selection.selector import select_skills_service
 from app.metrics import metrics
 from app.logging_config import setup_logging
+from app.project_selection.models import ProjectSelectRequest, ProjectSelectionResult
+from app.project_selection.service import record_project_selection_error, select_projects_service
 from app.resume_evidence import load_registered_evidence
 
 
@@ -15,7 +21,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Skill Relevance Selector", lifespan=lifespan)
+app = FastAPI(title="JobForge Resume Engine", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -23,6 +29,7 @@ async def health():
     return {
         "status": "ok",
         "version": "0.2.0",
+        "service": "jobforge-resume-engine",
         "method": settings.METHOD,
         "top_n": settings.TOP_N,
         "baseline_filter": settings.BASELINE_FILTER,
@@ -38,6 +45,7 @@ async def get_metrics():
         "total_tokens": metrics.total_tokens,
         "avg_latency_ms": round(metrics.avg_latency_ms(), 3),
         "method_usage": metrics.method_usage,
+        "subsystems": metrics.subsystem_snapshots(),
     }
 
 
@@ -45,5 +53,18 @@ async def get_metrics():
 async def select_skills(payload: SkillSelectRequest) -> SkillSelectResponse:
     try:
         return select_skills_service(payload)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.post("/select-projects", response_model=ProjectSelectionResult)
+async def select_projects(payload: dict[str, Any]) -> ProjectSelectionResult:
+    try:
+        request = ProjectSelectRequest.model_validate(payload)
+        return select_projects_service(request)
+    except ValidationError as ve:
+        method = payload.get("method") if isinstance(payload, dict) else None
+        record_project_selection_error(method if isinstance(method, str) else "invalid")
+        raise HTTPException(status_code=400, detail=str(ve))
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
