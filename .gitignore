@@ -8,3 +8,5 @@ __pycache__/
 user/resume_evidence
 
 .vscode
+
+.codex
