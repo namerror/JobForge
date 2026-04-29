@@ -24,8 +24,8 @@ def test_score_skills_with_llm_sends_responses_schema(monkeypatch):
 
     monkeypatch.setattr(llm_client, "OpenAI", DummyOpenAI)
     monkeypatch.setattr(llm_client.settings, "OPENAI_API_KEY", "test-key")
-    monkeypatch.setattr(llm_client.settings, "LLM_MODEL", "test-model")
-    monkeypatch.setattr(llm_client.settings, "LLM_MAX_OUTPUT_TOKENS", 321)
+    monkeypatch.setattr(llm_client.settings, "SKILL_LLM_MODEL", "test-model")
+    monkeypatch.setattr(llm_client.settings, "SKILL_LLM_MAX_OUTPUT_TOKENS", 321)
 
     result = score_skills_with_llm(
         job_role="Frontend Engineer",
@@ -51,6 +51,7 @@ def test_score_skills_with_llm_sends_responses_schema(monkeypatch):
     assert result.metadata["completion_tokens"] == 8
     assert result.metadata["total_tokens"] == 20
     assert result.metadata["api_calls"] == 1
+    assert result.metadata["model"] == "test-model"
 
 
 def test_score_skills_with_llm_omits_temperature_for_gpt_5_mini(monkeypatch):
@@ -70,7 +71,7 @@ def test_score_skills_with_llm_omits_temperature_for_gpt_5_mini(monkeypatch):
 
     monkeypatch.setattr(llm_client, "OpenAI", DummyOpenAI)
     monkeypatch.setattr(llm_client.settings, "OPENAI_API_KEY", "test-key")
-    monkeypatch.setattr(llm_client.settings, "LLM_MODEL", "gpt-5-mini")
+    monkeypatch.setattr(llm_client.settings, "SKILL_LLM_MODEL", "gpt-5-mini")
 
     score_skills_with_llm(
         job_role="Frontend Engineer",

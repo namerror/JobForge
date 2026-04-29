@@ -162,17 +162,21 @@ def score_skills_with_llm(
     try:
         client = OpenAI(api_key=api_key)
         create_kwargs = build_response_create_kwargs(
-            model=settings.LLM_MODEL,
+            model=settings.SKILL_LLM_MODEL,
             instructions=instructions,
             prompt_payload=prompt_payload,
             schema=schema,
-            max_output_tokens=settings.LLM_MAX_OUTPUT_TOKENS,
+            max_output_tokens=settings.SKILL_LLM_MAX_OUTPUT_TOKENS,
         )
         response = client.responses.create(**create_kwargs)
     except Exception as exc:
         logger.exception(
             "llm_request_failed",
-            extra={"event": "llm_request_failed", "model": settings.LLM_MODEL},
+            extra={
+                "event": "llm_request_failed",
+                "subsystem": "skill_selection",
+                "model": settings.SKILL_LLM_MODEL,
+            },
         )
         raise LLMClientError(f"LLM request failed: {exc}") from exc
 
@@ -187,7 +191,7 @@ def score_skills_with_llm(
         raise LLMClientError(f"LLM response was not valid JSON: {exc}") from exc
 
     metadata = {
-        "model": settings.LLM_MODEL,
+        "model": settings.SKILL_LLM_MODEL,
         "api_calls": 1,
         "latency_ms": round(latency_ms, 3),
         **_usage_metadata(response),

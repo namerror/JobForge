@@ -77,7 +77,7 @@ For each project-selection response, check:
 
 ## Environment
 - API base URL:
-- App version from `/health`:
+- App version and scoped selection config from `/health`:
 - Model-related environment, if known:
 - Dataset file and revision:
 

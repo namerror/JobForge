@@ -61,6 +61,29 @@ def test_baseline_filter_false_preserves_selected_method_behavior(monkeypatch):
     assert calls[0]["top_n"] == 10
 
 
+def test_skill_request_overrides_scoped_settings(monkeypatch):
+    calls = []
+
+    def fake_embedding_select_skills(**kwargs):
+        calls.append(kwargs)
+        return (
+            {"technology": ["AlphaDB"], "programming": [], "concepts": []},
+            {"technology": {}, "programming": {}, "concepts": {}},
+        )
+
+    monkeypatch.setattr(skill_selector, "embedding_select_skills", fake_embedding_select_skills)
+    monkeypatch.setattr(skill_selector.settings, "SKILL_METHOD", "baseline")
+    monkeypatch.setattr(skill_selector.settings, "SKILL_TOP_N", 9)
+    monkeypatch.setattr(skill_selector.settings, "SKILL_BASELINE_FILTER", False)
+
+    response = skill_selector.select_skills_service(
+        _request(method="embeddings", top_n=1, baseline_filter=False)
+    )
+
+    assert response.technology == ["AlphaDB"]
+    assert calls[0]["top_n"] == 1
+
+
 def test_baseline_method_treats_baseline_filter_as_noop():
     req = _request(method="baseline", baseline_filter=True, top_n=2)
     response = skill_selector.select_skills_service(req)
@@ -319,7 +342,10 @@ def test_health_includes_baseline_filter():
     response = api_request("GET", "/health")
 
     assert response.status_code == 200
-    assert "baseline_filter" in response.json()
+    data = response.json()
+    assert "baseline_filter" not in data
+    assert data["skill_selection"]["baseline_filter"] is False
+    assert "project_selection" in data
 
 
 def test_baseline_filter_fallback_counts_baseline_usage(monkeypatch):

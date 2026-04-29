@@ -50,8 +50,8 @@ PYTHONPATH=. python scripts/eval.py                              # default: eval
 PYTHONPATH=. python scripts/eval.py -f eval_cases_real.json      # specific file (looked up in data/eval_cases/)
 PYTHONPATH=. python scripts/eval.py -f path/to/custom.json       # relative or absolute path
 PYTHONPATH=. python scripts/eval.py --run-generated              # all files in data/eval_cases/generated/
-BASELINE_FILTER=true METHOD=embeddings PYTHONPATH=. python scripts/eval.py
-METHOD=embeddings PYTHONPATH=. python scripts/eval.py --baseline-filter
+SKILL_BASELINE_FILTER=true SKILL_METHOD=embeddings PYTHONPATH=. python scripts/eval.py
+SKILL_METHOD=embeddings PYTHONPATH=. python scripts/eval.py --baseline-filter
 ```
 
 | Flag | Description |

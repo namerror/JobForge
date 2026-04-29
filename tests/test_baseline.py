@@ -629,7 +629,7 @@ def test_rank_skills_preserves_input_casing():
 
 
 def test_rank_skills_top_n_limit():
-    """Test that rank_skills respects TOP_N limit."""
+    """Test that rank_skills respects SKILL_TOP_N limit."""
     # Create a large list of skills
     skills = [
         "Python", "JavaScript", "Java", "C#", "React", "Vue", "Angular",
@@ -640,10 +640,10 @@ def test_rank_skills_top_n_limit():
     category = "technology"
 
     import os
-    top_n = int(os.getenv("TOP_N", 10))
+    top_n = int(os.getenv("SKILL_TOP_N", 10))
     ranked, _ = rank_skills(skills, role_family, category, None, top_n=top_n)
 
-    # Should return at most TOP_N skills (default 10)
+    # Should return at most SKILL_TOP_N skills (default 10)
     assert len(ranked) <= top_n, f"Should return at most {top_n} skills"
     assert len(ranked) <= len(skills), "Should not return more than input size"
 
@@ -962,11 +962,11 @@ def test_baseline_select_skills_ml_engineer():
 
 
 def test_baseline_select_skills_respects_top_n():
-    """Test that output respects TOP_N limit per category."""
+    """Test that output respects SKILL_TOP_N limit per category."""
     import os
-    top_n = int(os.getenv("TOP_N", "10"))
+    top_n = int(os.getenv("SKILL_TOP_N", "10"))
 
-    # Create request with more skills than TOP_N
+    # Create request with more skills than SKILL_TOP_N
     tech_skills = [f"Skill{i}" for i in range(top_n + 5)] + ["Python", "Django", "React"]
 
     result, _ = baseline_select_skills(
@@ -977,7 +977,7 @@ def test_baseline_select_skills_respects_top_n():
         top_n=top_n,
     )
 
-    # Each category should have at most TOP_N skills
+    # Each category should have at most SKILL_TOP_N skills
     assert len(result["technology"]) <= top_n, f"Should return at most {top_n} technology skills"
     assert len(result["programming"]) <= top_n, f"Should return at most {top_n} programming skills"
     assert len(result["concepts"]) <= top_n, f"Should return at most {top_n} concepts"

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Runtime selection configuration is now subsystem-scoped: use `SKILL_METHOD`, `SKILL_TOP_N`, `SKILL_BASELINE_FILTER`, `PROJ_METHOD`, and `PROJ_TOP_N` instead of generic selection env vars.
+- Skill-selection and project-selection LLM defaults are configured separately with `SKILL_LLM_*` and `PROJ_LLM_*` settings; legacy `LLM_MODEL` and `LLM_MAX_OUTPUT_TOKENS` are no longer read.
+- `/health` now reports scoped `skill_selection` and `project_selection` config blocks instead of top-level generic selection keys.
+
 ## [0.2.0] - 2026-04-27
 
 ### Added

@@ -6,14 +6,14 @@ Usage:
     python scripts/eval.py -f /absolute/path.json    # Absolute path also works
     python scripts/eval.py --run-generated            # Run against all generated eval case files
 
-The scoring method is controlled by the METHOD setting (env var or .env file):
-    METHOD=baseline  python scripts/eval.py         # Use baseline scorer (default)
-    METHOD=embeddings python scripts/eval.py        # Use embedding scorer
-    METHOD=llm       python scripts/eval.py         # Use LLM scorer
+The scoring method is controlled by the SKILL_METHOD setting (env var or .env file):
+    SKILL_METHOD=baseline  python scripts/eval.py         # Use baseline scorer (default)
+    SKILL_METHOD=embeddings python scripts/eval.py        # Use embedding scorer
+    SKILL_METHOD=llm       python scripts/eval.py         # Use LLM scorer
 
-Baseline pre-filtering can be enabled with BASELINE_FILTER=true or CLI flags:
-    BASELINE_FILTER=true METHOD=embeddings python scripts/eval.py
-    METHOD=embeddings python scripts/eval.py --baseline-filter
+Baseline pre-filtering can be enabled with SKILL_BASELINE_FILTER=true or CLI flags:
+    SKILL_BASELINE_FILTER=true SKILL_METHOD=embeddings python scripts/eval.py
+    SKILL_METHOD=embeddings python scripts/eval.py --baseline-filter
 """
 
 import argparse
@@ -62,7 +62,7 @@ def eval_case(selected_skills: dict, expected: dict) -> dict:
         average_score: mean of the three category scores
         mistakes:      per-category lists of missing and unexpected items
     """
-    top_n = settings.TOP_N
+    top_n = settings.SKILL_TOP_N
     scores = {}
     mistakes = {}
 
@@ -103,8 +103,8 @@ def select_skills(
             programming=programming,
             concepts=concepts,
             job_text=job_text,
-            method=settings.METHOD,
-            top_n=settings.TOP_N,
+            method=settings.SKILL_METHOD,
+            top_n=settings.SKILL_TOP_N,
             baseline_filter=baseline_filter,
             dev_mode=True,
         )
@@ -175,15 +175,17 @@ def evaluate(cases: list[dict], baseline_filter: bool | None = None) -> dict:
 
     average_score = round(score_sum / len(results), 4)
     return {
-        "method": settings.METHOD,
-        "baseline_filter": baseline_filter if baseline_filter is not None else settings.BASELINE_FILTER,
+        "method": settings.SKILL_METHOD,
+        "baseline_filter": (
+            baseline_filter if baseline_filter is not None else settings.SKILL_BASELINE_FILTER
+        ),
         "results": results,
         "overall_score": average_score,
         "efficiency_totals": {
             **{key: efficiency_totals[key] for key in EFFICIENCY_KEYS},
             "latency_ms": round(efficiency_totals["latency_ms"], 3),
         },
-        "top_n": settings.TOP_N,
+        "top_n": settings.SKILL_TOP_N,
     }
 
 
@@ -251,8 +253,11 @@ def main():
             print(f"No generated eval case files found in {GENERATED_DIR}")
             return
 
-        print(f"Method: {settings.METHOD}")
-        print(f"Baseline filter: {baseline_filter if baseline_filter is not None else settings.BASELINE_FILTER}")
+        print(f"Method: {settings.SKILL_METHOD}")
+        print(
+            "Baseline filter: "
+            f"{baseline_filter if baseline_filter is not None else settings.SKILL_BASELINE_FILTER}"
+        )
         for filepath in files:
             cases = load_cases(filepath)
             print(f"\n{'='*60}")
@@ -268,8 +273,11 @@ def main():
             filepath = EVAL_CASES_DIR / "eval_cases_basic.json"
 
         cases = load_cases(filepath)
-        print(f"Method: {settings.METHOD}")
-        print(f"Baseline filter: {baseline_filter if baseline_filter is not None else settings.BASELINE_FILTER}")
+        print(f"Method: {settings.SKILL_METHOD}")
+        print(
+            "Baseline filter: "
+            f"{baseline_filter if baseline_filter is not None else settings.SKILL_BASELINE_FILTER}"
+        )
         print(f"File: {filepath.name} ({len(cases)} cases)")
         eval_results = evaluate(cases, baseline_filter=baseline_filter)
         print(json.dumps(eval_results, indent=2))

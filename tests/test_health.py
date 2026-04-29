@@ -20,7 +20,16 @@ def test_health():
     """Test health endpoint returns OK."""
     res = api_request("GET", "/health")
     assert res.status_code == 200
-    assert res.json()["status"] == "ok"
+    data = res.json()
+    assert data["status"] == "ok"
+    assert "method" not in data
+    assert "top_n" not in data
+    assert "baseline_filter" not in data
+    assert data["skill_selection"]["method"] == "baseline"
+    assert data["skill_selection"]["top_n"] == 10
+    assert data["skill_selection"]["baseline_filter"] is False
+    assert data["project_selection"]["method"] == "llm"
+    assert data["project_selection"]["top_n"] is None
 
 
 def test_health_method_not_allowed():

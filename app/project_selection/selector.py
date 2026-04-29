@@ -43,7 +43,7 @@ def select_projects(
     *,
     context: ProjectJobContext | dict[str, Any],
     candidates: list[ProjectCandidate] | list[dict[str, Any]],
-    method: str = "llm",
+    method: str,
     top_n: int | None = None,
     dev_mode: bool = False,
 ) -> ProjectSelectionResult:

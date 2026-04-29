@@ -10,7 +10,6 @@ from app.project_selection.selector import select_projects
 
 logger = logging.getLogger("project_selector")
 
-DEFAULT_PROJECT_SELECTION_METHOD = "llm"
 METRICS_SUBSYSTEM = "project_selection"
 
 
@@ -52,7 +51,8 @@ def record_project_selection_error(method: str = "invalid") -> None:
 
 
 def select_projects_service(req: ProjectSelectRequest) -> ProjectSelectionResult:
-    method = req.method or DEFAULT_PROJECT_SELECTION_METHOD
+    method = req.method or settings.PROJ_METHOD
+    top_n = req.top_n if req.top_n is not None else settings.PROJ_TOP_N
     dev_mode = req.dev_mode if req.dev_mode is not None else settings.DEV_MODE
 
     start = time.perf_counter()
@@ -63,7 +63,7 @@ def select_projects_service(req: ProjectSelectRequest) -> ProjectSelectionResult
             context=req.context,
             candidates=req.candidates,
             method=method,
-            top_n=req.top_n,
+            top_n=top_n,
             dev_mode=dev_mode,
         )
 
@@ -78,10 +78,11 @@ def select_projects_service(req: ProjectSelectRequest) -> ProjectSelectionResult
             "select_projects",
             extra={
                 "event": "select_projects",
+                "subsystem": METRICS_SUBSYSTEM,
                 "job_title": req.context.title,
                 "method": effective_method,
                 "requested_method": method,
-                "top_n": req.top_n,
+                "top_n": top_n,
                 "latency_ms": round(latency_ms, 3),
                 "candidate_count": len(req.candidates),
                 "selected_count": len(result.selected_project_ids),
@@ -96,6 +97,11 @@ def select_projects_service(req: ProjectSelectRequest) -> ProjectSelectionResult
         metrics.inc_error(subsystem=METRICS_SUBSYSTEM)
         logger.exception(
             "select_projects_failed",
-            extra={"event": "select_projects_failed", "job_title": req.context.title, "method": method},
+            extra={
+                "event": "select_projects_failed",
+                "subsystem": METRICS_SUBSYSTEM,
+                "job_title": req.context.title,
+                "method": method,
+            },
         )
         raise

@@ -142,10 +142,20 @@ Example response:
   "status": "ok",
   "version": "0.2.0",
   "service": "jobforge-resume-engine",
-  "method": "baseline",
-  "top_n": 10,
-  "baseline_filter": false,
-  "dev_mode": true
+  "dev_mode": true,
+  "skill_selection": {
+    "method": "baseline",
+    "top_n": 10,
+    "baseline_filter": false,
+    "llm_model": "gpt-5-mini",
+    "llm_max_output_tokens": 1200
+  },
+  "project_selection": {
+    "method": "llm",
+    "top_n": null,
+    "llm_model": "gpt-5-mini",
+    "llm_max_output_tokens": 1200
+  }
 }
 ```
 
@@ -274,9 +284,13 @@ Example response:
 JobForge reads settings from environment variables via `app/config.py`.
 
 ```bash
-METHOD=baseline # available options: baseline, embeddings, llm
-TOP_N=10 # how many top-ranked skills to return per category
-BASELINE_FILTER=false # if true, deterministic matches bypass model-backed scoring and are guaranteed in the output
+SKILL_METHOD=baseline # available options: baseline, embeddings, llm
+SKILL_TOP_N=10 # how many top-ranked skills to return per category
+SKILL_BASELINE_FILTER=false # if true, deterministic skill matches bypass model-backed scoring
+
+PROJ_METHOD=llm # available options: baseline, llm
+# PROJ_TOP_N=2 # optional; omit to return all ranked projects unless the request overrides it
+
 DEV_MODE=true # return debugging info
 LOG_LEVEL=INFO
 
@@ -285,11 +299,15 @@ OPENAI_API_KEY=your_key_here
 EMBEDDING_MODEL=text-embedding-3-small
 EMBEDDING_BATCH_SIZE=100
 
-LLM_MODEL=gpt-5-mini
-LLM_MAX_OUTPUT_TOKENS=1200
+SKILL_LLM_MODEL=gpt-5-mini
+SKILL_LLM_MAX_OUTPUT_TOKENS=1200
+PROJ_LLM_MODEL=gpt-5-mini
+PROJ_LLM_MAX_OUTPUT_TOKENS=1200
 ```
 
 `OPENAI_API_KEY` is only required for skill-selection `embeddings`, skill-selection `llm`, and project-selection `llm` requests.
+Legacy generic selection variables such as `METHOD`, `TOP_N`, `BASELINE_FILTER`, `LLM_MODEL`, and `LLM_MAX_OUTPUT_TOKENS` are no longer read.
+Baseline filtering is skill-selection-only; project selection does not define a baseline pre-filter pass yet.
 
 ## Running Locally
 

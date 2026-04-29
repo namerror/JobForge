@@ -31,10 +31,20 @@ async def health():
         "status": "ok",
         "version": __version__,
         "service": "jobforge-resume-engine",
-        "method": settings.METHOD,
-        "top_n": settings.TOP_N,
-        "baseline_filter": settings.BASELINE_FILTER,
         "dev_mode": settings.DEV_MODE,
+        "skill_selection": {
+            "method": settings.SKILL_METHOD,
+            "top_n": settings.SKILL_TOP_N,
+            "baseline_filter": settings.SKILL_BASELINE_FILTER,
+            "llm_model": settings.SKILL_LLM_MODEL,
+            "llm_max_output_tokens": settings.SKILL_LLM_MAX_OUTPUT_TOKENS,
+        },
+        "project_selection": {
+            "method": settings.PROJ_METHOD,
+            "top_n": settings.PROJ_TOP_N,
+            "llm_model": settings.PROJ_LLM_MODEL,
+            "llm_max_output_tokens": settings.PROJ_LLM_MAX_OUTPUT_TOKENS,
+        },
     }
 
 

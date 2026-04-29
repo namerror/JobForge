@@ -42,8 +42,8 @@ def test_score_projects_with_llm_sends_strict_project_schema(monkeypatch):
 
     monkeypatch.setattr(project_llm_client, "OpenAI", DummyOpenAI)
     monkeypatch.setattr(project_llm_client.settings, "OPENAI_API_KEY", "test-key")
-    monkeypatch.setattr(project_llm_client.settings, "LLM_MODEL", "test-model")
-    monkeypatch.setattr(project_llm_client.settings, "LLM_MAX_OUTPUT_TOKENS", 333)
+    monkeypatch.setattr(project_llm_client.settings, "PROJ_LLM_MODEL", "test-model")
+    monkeypatch.setattr(project_llm_client.settings, "PROJ_LLM_MAX_OUTPUT_TOKENS", 333)
 
     result = score_projects_with_llm(
         context=ProjectJobContext(title="Backend Engineer", description="Build APIs."),
@@ -67,6 +67,7 @@ def test_score_projects_with_llm_sends_strict_project_schema(monkeypatch):
     assert payload["projects"][0]["skills"]["programming"] == ["Python"]
     assert result.scores == {"jobforge": 3, "portfolio": 1}
     assert result.metadata["total_tokens"] == 17
+    assert result.metadata["model"] == "test-model"
 
 
 def test_score_projects_with_llm_omits_temperature_for_gpt_5_mini(monkeypatch):
@@ -83,7 +84,7 @@ def test_score_projects_with_llm_omits_temperature_for_gpt_5_mini(monkeypatch):
 
     monkeypatch.setattr(project_llm_client, "OpenAI", DummyOpenAI)
     monkeypatch.setattr(project_llm_client.settings, "OPENAI_API_KEY", "test-key")
-    monkeypatch.setattr(project_llm_client.settings, "LLM_MODEL", "gpt-5-mini")
+    monkeypatch.setattr(project_llm_client.settings, "PROJ_LLM_MODEL", "gpt-5-mini")
 
     score_projects_with_llm(
         context=ProjectJobContext(title="Backend Engineer"),

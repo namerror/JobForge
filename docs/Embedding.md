@@ -5,7 +5,7 @@ The embedding method is currently still under development, so some information m
 
 ## What is the embedding-based method?
 
-`METHOD=embeddings` ranks input skills (per category) by cosine similarity between:
+`SKILL_METHOD=embeddings` ranks input skills (per category) by cosine similarity between:
 
 * **role text** = `job_role` + optional `job_description`
 * **skill text** = each skill string
@@ -41,9 +41,9 @@ flowchart TD
 ```mermaid
 flowchart TD
   A[select-skills endpoint] --> B[Validate request schema<br>3 categories + non-empty skill strings]
-  B --> C["Pick scorer via METHOD<br>baseline &#124; embeddings &#124; hybrid"]
+  B --> C["Pick scorer via SKILL_METHOD<br>baseline &#124; embeddings &#124; hybrid"]
 
-  C --> D{METHOD == embeddings?}
+  C --> D{SKILL_METHOD == embeddings?}
   D -- No --> Z["Use other scorer<br>(baseline/hybrid)"] --> Y[Return Top N per category]
 
   D -- Yes --> E["For each category:<br>Technology / Programming / Concepts"]

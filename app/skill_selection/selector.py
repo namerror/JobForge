@@ -86,14 +86,16 @@ def _call_scorer(
             dev_mode=True,
         )
 
-    raise ValueError(f"Unsupported METHOD: {method}")
+    raise ValueError(f"Unsupported skill selection method: {method}")
 
 
 def select_skills_service(req: SkillSelectRequest) -> SkillSelectResponse:
-    method = req.method.lower() if req.method is not None else settings.METHOD.lower()
-    top_n = req.top_n if req.top_n is not None else settings.TOP_N
+    method = req.method.lower() if req.method is not None else settings.SKILL_METHOD.lower()
+    top_n = req.top_n if req.top_n is not None else settings.SKILL_TOP_N
     dev_mode = req.dev_mode if req.dev_mode is not None else settings.DEV_MODE
-    baseline_filter = req.baseline_filter if req.baseline_filter is not None else settings.BASELINE_FILTER
+    baseline_filter = (
+        req.baseline_filter if req.baseline_filter is not None else settings.SKILL_BASELINE_FILTER
+    )
 
     start = time.perf_counter()
     request_counted = False
@@ -128,6 +130,7 @@ def select_skills_service(req: SkillSelectRequest) -> SkillSelectResponse:
             "select_skills",
             extra={
                 "event": "select_skills",
+                "subsystem": "skill_selection",
                 "role": req.job_role,
                 "method": effective_method,
                 "requested_method": method,
@@ -151,6 +154,11 @@ def select_skills_service(req: SkillSelectRequest) -> SkillSelectResponse:
         metrics.inc_error()
         logger.exception(
             "select_skills_failed",
-            extra={"event": "select_skills_failed", "role": req.job_role, "method": method},
+            extra={
+                "event": "select_skills_failed",
+                "subsystem": "skill_selection",
+                "role": req.job_role,
+                "method": method,
+            },
         )
         raise

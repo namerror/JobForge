@@ -4,6 +4,7 @@ import httpx
 
 from app.main import app
 from app.project_selection import llm as project_llm
+from app.project_selection import service as project_service
 from app.project_selection.llm_client import LLMProjectScoreResult, ProjectLLMClientError
 
 
@@ -56,6 +57,34 @@ def test_select_projects_api_baseline_success_with_top_n_and_details():
     assert [project["project_id"] for project in data["ranked_projects"]] == ["jobforge"]
     assert data["details"]["method"] == "baseline"
     assert "jobforge" in data["details"]["projects"]
+
+
+def test_select_projects_api_uses_scoped_settings_when_request_omits_overrides(monkeypatch):
+    monkeypatch.setattr(project_service.settings, "PROJ_METHOD", "baseline")
+    monkeypatch.setattr(project_service.settings, "PROJ_TOP_N", 1)
+    payload = _request_payload()
+    payload.pop("method")
+    payload.pop("top_n")
+
+    response = api_request("POST", "/select-projects", json=payload)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["selected_project_ids"] == ["jobforge"]
+    assert len(data["ranked_projects"]) == 1
+    assert data["ranked_projects"][0]["method"] == "baseline"
+
+
+def test_select_projects_api_request_overrides_scoped_settings(monkeypatch):
+    monkeypatch.setattr(project_service.settings, "PROJ_METHOD", "llm")
+    monkeypatch.setattr(project_service.settings, "PROJ_TOP_N", None)
+
+    response = api_request("POST", "/select-projects", json=_request_payload(method="baseline", top_n=1))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["ranked_projects"]) == 1
+    assert data["ranked_projects"][0]["method"] == "baseline"
 
 
 def test_select_projects_api_rejects_duplicate_project_ids():

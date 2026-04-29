@@ -131,17 +131,21 @@ def score_projects_with_llm(
     try:
         client = OpenAI(api_key=api_key)
         create_kwargs = build_project_response_create_kwargs(
-            model=settings.LLM_MODEL,
+            model=settings.PROJ_LLM_MODEL,
             instructions=instructions,
             prompt_payload=prompt_payload,
             schema=schema,
-            max_output_tokens=settings.LLM_MAX_OUTPUT_TOKENS,
+            max_output_tokens=settings.PROJ_LLM_MAX_OUTPUT_TOKENS,
         )
         response = client.responses.create(**create_kwargs)
     except Exception as exc:
         logger.exception(
             "project_llm_request_failed",
-            extra={"event": "project_llm_request_failed", "model": settings.LLM_MODEL},
+            extra={
+                "event": "project_llm_request_failed",
+                "subsystem": "project_selection",
+                "model": settings.PROJ_LLM_MODEL,
+            },
         )
         raise ProjectLLMClientError(f"Project LLM request failed: {exc}") from exc
 
@@ -156,7 +160,7 @@ def score_projects_with_llm(
         raise ProjectLLMClientError(f"Project LLM response was not valid JSON: {exc}") from exc
 
     metadata = {
-        "model": settings.LLM_MODEL,
+        "model": settings.PROJ_LLM_MODEL,
         "api_calls": 1,
         "latency_ms": round(latency_ms, 3),
         **_usage_metadata(response),

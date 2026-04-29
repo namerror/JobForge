@@ -7,7 +7,7 @@ This document maps the current `app/` structure so agents can move quickly acros
 - `app/main.py`
   - FastAPI app composition, lifespan setup, HTTP routes, startup evidence loading
 - `app/config.py`
-  - runtime settings loaded from environment
+  - scoped runtime settings loaded from environment for skill selection and project selection
 - `app/metrics.py`
   - in-memory aggregate and per-subsystem request, error, latency, and token counters
 - `app/logging_config.py`
@@ -107,7 +107,7 @@ flowchart TD
     B --> C[main.select_skills]
     C --> D[skill_selection.select_skills_service]
     D --> E[resolve method, top_n, baseline_filter, dev_mode]
-    E --> F{baseline_filter enabled<br>and method model-backed?}
+    E --> F{skill baseline_filter enabled<br>and method model-backed?}
     F -- yes --> G[skill_selection.baseline_filter]
     F -- no --> H{method}
     G --> I[merge deterministic baseline results with second-pass scorer]
@@ -128,15 +128,16 @@ flowchart TD
 flowchart TD
     A[POST /select-projects] --> B[Validate ProjectSelectRequest]
     B --> C[project_selection.select_projects_service]
-    C --> D{method}
-    D -- baseline --> E[baseline_select_projects]
-    D -- llm --> F[llm_select_projects]
-    F --> G[project LLM client]
-    G --> H[validate scores and rank locally]
-    F -- fallback --> E
-    E --> I[ProjectSelectionResult]
-    H --> I
-    I --> J[project_selection metrics and structured log event]
+    C --> D[resolve method, top_n, dev_mode]
+    D --> E{method}
+    E -- baseline --> F[baseline_select_projects]
+    E -- llm --> G[llm_select_projects]
+    G --> H[project LLM client]
+    H --> I[validate scores and rank locally]
+    G -- fallback --> F
+    F --> J[ProjectSelectionResult]
+    I --> J
+    J --> K[project_selection metrics and structured log event]
 ```
 
 ## 4) Current Skill-Selection Logic
@@ -171,6 +172,8 @@ Implemented now:
 - `select_projects(...)` accepts explicit project candidates plus job title/description context.
 - `method="baseline"` combines existing baseline skill selection over each project’s skills with deterministic summary/job text overlap.
 - `method="llm"` uses a dedicated project LLM client, validates project-id scores locally, ranks locally, and falls back to baseline when the LLM path fails.
+- Runtime defaults are scoped with `PROJ_METHOD` and `PROJ_TOP_N`.
+- Baseline filtering is currently skill-selection-only; project selection has no `PROJ_BASELINE_FILTER` setting or two-pass baseline-filter algorithm.
 - Results contain project IDs and numeric scores, not project summaries, highlights, links, or synthesized claims.
 
 ## 6) Currently Implemented Evidence Layer
@@ -254,6 +257,7 @@ Skill selection is expected to remain one prioritization signal for the future S
 
 - Configuration state
   - loaded from `.env` and environment variables through `app/config.py`
+  - selection settings are scoped as `SKILL_*` and `PROJ_*`; legacy generic selection env vars are ignored
 - Knowledge state
   - role profiles from `app/skill_selection/data/role_profiles/*.yaml`
   - synonym normalization from `app/skill_selection/data/synonym_to_normalized.json`
