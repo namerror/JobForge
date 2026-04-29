@@ -3,6 +3,7 @@
   "purpose": "Small agentic testing dataset for human-like review of JobForge API results without excessive token use.",
   "base_url": "http://127.0.0.1:8000",
   "skill_selection": {
+    "endpoint": "/select-skills",
     "instructions": "Run each input set with the listed variants. Keep the input values identical within a set so method and baseline-filter behavior can be compared directly.",
     "input_sets": [
       {
@@ -157,6 +158,7 @@
     ]
   },
   "project_selection": {
+    "endpoint": "/select-projects",
     "instructions": "Run each input set with baseline and llm variants. Candidate lists are intentionally short but include plausible distractors.",
     "input_sets": [
       {

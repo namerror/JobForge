@@ -13,11 +13,31 @@ Use `docs/agentic-testing/dataset.json` as the source of truth. The dataset is i
 
 ## How To Run
 
+1. Activate the repo virtual environment with `source .venv/bin/activate`, or call tools through `.venv/bin/...`.
+2. Start the local API with `.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`.
+3. Confirm `GET /health` returns `status: ok`.
+4. Run the dataset with `docs/agentic-testing/run_agentic_dataset.py`.
+5. Save the generated JSON output, then write a review report in the style of `docs/notes/`, with more explicit scoring and critique than the earlier human notes.
+
+Examples:
+
+```bash
+.venv/bin/python docs/agentic-testing/run_agentic_dataset.py --suite skill_selection --exclude-variant embeddings_with_filter --output /tmp/jobforge-skill-results.json
+```
+
+```bash
+.venv/bin/python docs/agentic-testing/run_agentic_dataset.py --suite skill_selection --input-set skills_backend_platform --variant baseline --dry-run
+```
+
+The runner reads `dataset.json`, combines each input set's `base_payload` with the selected variant fields, posts to the suite `endpoint`, and records status codes, response bodies, and request payloads.
+
+Manual REST clients can still use this sequence:
+
 1. Start the local API.
 2. Confirm `GET /health` returns `status: ok`.
 3. For every dataset input set, run each listed variant.
 4. Save the full request payload, response body, status code, and any runtime error.
-5. Write a review report in the style of `docs/notes/`, with more explicit scoring and critique than the earlier human notes.
+5. Write the review report.
 
 For model-backed variants, record whether the response used the requested method or fell back to baseline. A fallback is acceptable if it is clearly reported in `details`, but it should be called out because it changes what was actually tested.
 
