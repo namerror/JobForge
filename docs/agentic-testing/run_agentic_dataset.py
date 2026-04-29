@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Run selected JobForge agentic-testing dataset requests."""
 
-"""Usage: """
-
 from __future__ import annotations
 
 import argparse
