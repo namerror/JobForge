@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `04-29-2026-Codex-run-agentic-project-baseline-test.md` - 2026-04-29 - Run agentic project baseline test
 - `04-29-2026-Codex-scope-selection-config.md` - 2026-04-29 - Scope selection runtime config
 - `04-29-2026-Codex-add-request-payloads-to-agentic-report.md` - 2026-04-29 - Add request payloads to agentic test report
 - `04-29-2026-Codex-run-agentic-skill-selection-test.md` - 2026-04-29 - Run agentic skill-selection test without embeddings
