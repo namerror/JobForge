@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `04-29-2026-Codex-add-agentic-testing-dataset.md` - 2026-04-29 - Add agentic testing dataset and guide
 - `04-27-2026-Codex-smooth-version-test.md` - 2026-04-27 - Smooth version consistency test
 - `04-27-2026-Codex-add-ci-version-guard.md` - 2026-04-27 - Add CI workflow and version guard
 - `04-26-2026-Codex-refactor-subsystem-packages.md` - 2026-04-26 - Refactor app into subsystem packages
