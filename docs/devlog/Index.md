@@ -13,6 +13,8 @@
 
 ## Session Index
 
+- `04-29-2026-Codex-add-request-payloads-to-agentic-report.md` - 2026-04-29 - Add request payloads to agentic test report
+- `04-29-2026-Codex-run-agentic-skill-selection-test.md` - 2026-04-29 - Run agentic skill-selection test without embeddings
 - `04-29-2026-Codex-add-agentic-testing-runner.md` - 2026-04-29 - Add agentic testing dataset runner
 - `04-29-2026-Codex-add-agentic-testing-dataset.md` - 2026-04-29 - Add agentic testing dataset and guide
 - `04-27-2026-Codex-smooth-version-test.md` - 2026-04-27 - Smooth version consistency test
