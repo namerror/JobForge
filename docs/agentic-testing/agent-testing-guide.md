@@ -41,6 +41,8 @@ Manual REST clients can still use this sequence:
 
 For model-backed variants, record whether the response used the requested method or fell back to baseline. A fallback is acceptable if it is clearly reported in `details`, but it should be called out because it changes what was actually tested.
 
+In the report body, include the request payload next to each response being evaluated. The request can be compact, but it should show enough fields to make the method, options, candidate inputs, and job context readable without opening the raw JSON result file.
+
 ## Skill-Selection Review Criteria
 
 For each skill-selection response, check:
@@ -88,12 +90,14 @@ For each project-selection response, check:
 ## Skill Selection
 ### skills_backend_platform
 - Variants run:
+- Request/response pairs:
 - Best response:
 - Issues:
 - Notes on baseline filter:
 
 ### skills_frontend_product
 - Variants run:
+- Request/response pairs:
 - Best response:
 - Issues:
 - Notes on baseline filter:
@@ -101,12 +105,14 @@ For each project-selection response, check:
 ## Project Selection
 ### projects_backend_api
 - Variants run:
+- Request/response pairs:
 - Best response:
 - Issues:
 - Ranking rationale:
 
 ### projects_frontend_product
 - Variants run:
+- Request/response pairs:
 - Best response:
 - Issues:
 - Ranking rationale:
@@ -117,7 +123,7 @@ For each project-selection response, check:
 - Nice to have:
 
 ## Raw Results Appendix
-Include compact JSON excerpts or links to saved response files.
+Include compact JSON excerpts or links to saved result files. The main report sections should still contain readable request/response pairs for each evaluated case.
 ```
 
 ## Suggested Verdict Scale
