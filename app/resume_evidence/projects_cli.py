@@ -110,7 +110,7 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
             index,
             name=self._prompt_required_text("Name", default=project.name),
             summary=self._prompt_required_text("Summary", default=project.summary),
-            highlights=self._prompt_editable_list("Highlights", project.highlights, required=True),
+            highlights=self._prompt_editable_highlights(project.highlights),
             active=self._prompt_bool("Active", default=project.active),
             technology=self._prompt_comma_list(
                 "Technology skills",
@@ -127,6 +127,90 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
             links=self._prompt_optional_editable_list("Links", project.links),
         )
         self._println(f"Staged updates for '{updated.name}'. Run 'apply' to save.")
+
+    def _prompt_editable_highlights(self, current_highlights: list[str]) -> list[str]:
+        self._show_indexed_list("Current Highlights", current_highlights)
+        if self._confirm("Keep current highlights?", default=True):
+            return list(current_highlights)
+        return self._run_highlights_editor(current_highlights)
+
+    def _run_highlights_editor(self, current_highlights: list[str]) -> list[str]:
+        highlights = list(current_highlights)
+        self._println("Editing highlights. Type 'help' for commands.")
+        self._show_indexed_list("Highlights", highlights)
+
+        while True:
+            try:
+                raw_command = self.input_func("highlights> ").strip()
+            except EOFError:
+                return highlights
+            except KeyboardInterrupt:
+                self._println("\nInterrupted. Type 'done' to finish editing highlights.")
+                continue
+
+            if not raw_command:
+                continue
+
+            try:
+                parts = shlex.split(raw_command)
+                command = parts[0].lower()
+
+                if command == "help":
+                    self._show_highlights_help()
+                elif command == "list":
+                    self._show_indexed_list("Highlights", highlights)
+                elif command == "edit":
+                    highlight_index = self._parse_highlight_index(parts, "edit", highlights)
+                    highlights[highlight_index] = self._prompt_required_text(
+                        "Highlight",
+                        default=highlights[highlight_index],
+                    )
+                elif command == "add":
+                    if len(parts) != 1:
+                        raise ValueError("Usage: add")
+                    highlights.append(self._prompt_required_text("Highlight"))
+                elif command == "delete":
+                    highlight_index = self._parse_highlight_index(parts, "delete", highlights)
+                    if len(highlights) == 1:
+                        raise ValueError("At least one highlight is required.")
+                    deleted = highlights.pop(highlight_index)
+                    self._println(f"Deleted highlight: {deleted}")
+                elif command == "done":
+                    if len(parts) != 1:
+                        raise ValueError("Usage: done")
+                    return highlights
+                else:
+                    raise ValueError(f"Unknown highlights command '{command}'")
+            except ValueError as exc:
+                self._println(f"Error: {exc}")
+
+    def _show_highlights_help(self) -> None:
+        self._println("Highlight commands:")
+        self._println("  help           Show highlight commands")
+        self._println("  list           List staged highlights")
+        self._println("  edit <index>   Edit a highlight")
+        self._println("  add            Append a new highlight")
+        self._println("  delete <index> Delete a highlight")
+        self._println("  done           Finish editing highlights")
+
+    def _show_indexed_list(self, label: str, items: list[str]) -> None:
+        if not items:
+            self._println(f"{label}: none")
+            return
+        self._println(f"{label}:")
+        for index, item in enumerate(items, start=1):
+            self._println(f"  {index}. {item}")
+
+    def _parse_highlight_index(self, parts: list[str], command: str, highlights: list[str]) -> int:
+        if len(parts) != 2:
+            raise ValueError(f"Usage: {command} <index>")
+        try:
+            index = int(parts[1])
+        except ValueError as exc:
+            raise ValueError(f"Highlight index must be an integer for '{command}'") from exc
+        if index < 1 or index > len(highlights):
+            raise ValueError(f"Highlight index {index} is out of range")
+        return index - 1
 
     def _delete_project(self, index: int) -> None:
         project = self.session.get_project(index)

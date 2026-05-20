@@ -332,9 +332,131 @@ def test_cli_edit_updates_project_after_apply_and_keeps_id_hidden(tmp_path):
 
     loaded = load_evidence_yaml(path, "projects")
     assert loaded.projects[0].summary == "Updated summary"
+    assert loaded.projects[0].highlights == _valid_projects_payload()["projects"][0]["highlights"]
     assert loaded.projects[0].skills.technology == ["FastAPI", "Distributed Computing"]
     assert loaded.projects[0].id == "project-123"
     assert "project-123" not in output
+
+
+def test_cli_edit_updates_highlight_by_temporary_index(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+
+    _run_cli(
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "n",
+            "edit 2",
+            "Defined a file-based evidence pipeline, with indexed editing.",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert loaded.projects[0].highlights == [
+        "Built a deterministic baseline skill selector.",
+        "Defined a file-based evidence pipeline, with indexed editing.",
+    ]
+
+
+def test_cli_edit_can_add_and_delete_highlights_by_temporary_index(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+
+    _run_cli(
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "n",
+            "add",
+            "Added a nested editor, preserving commas in highlight text.",
+            "delete 1",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert loaded.projects[0].highlights == [
+        "Defined a file-based evidence pipeline for resume generation.",
+        "Added a nested editor, preserving commas in highlight text.",
+    ]
+
+
+def test_cli_edit_rejects_deleting_final_highlight(tmp_path):
+    payload = _valid_projects_payload()
+    payload["projects"][0]["highlights"] = ["Only highlight."]
+    path = _write_yaml(tmp_path, payload)
+
+    output = _run_cli(
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "n",
+            "delete 1",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert loaded.projects[0].highlights == ["Only highlight."]
+    assert "Error: At least one highlight is required." in output
+
+
+def test_cli_edit_highlight_invalid_commands_do_not_mutate_staged_data(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+
+    output = _run_cli(
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "n",
+            "wat",
+            "edit 99",
+            "delete nope",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert loaded.projects[0].highlights == _valid_projects_payload()["projects"][0]["highlights"]
+    assert "Error: Unknown highlights command 'wat'" in output
+    assert "Error: Highlight index 99 is out of range" in output
+    assert "Error: Highlight index must be an integer for 'delete'" in output
 
 
 def test_cli_apply_requires_confirmation_before_writing(tmp_path):
