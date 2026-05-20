@@ -63,9 +63,18 @@ class SkillsEvidenceCLI(EvidenceCLIBase):
     def _edit_skills(self) -> None:
         skills_file = self.session.get_skills()
         self.session.update_skills(
-            technology=self._prompt_editable_list("Technology skills", skills_file.skills.technology),
-            programming=self._prompt_editable_list("Programming skills", skills_file.skills.programming),
-            concepts=self._prompt_editable_list("Concepts", skills_file.skills.concepts),
+            technology=self._prompt_comma_list(
+                "Technology skills",
+                default_items=skills_file.skills.technology,
+            ),
+            programming=self._prompt_comma_list(
+                "Programming skills",
+                default_items=skills_file.skills.programming,
+            ),
+            concepts=self._prompt_comma_list(
+                "Concepts",
+                default_items=skills_file.skills.concepts,
+            ),
         )
         self._println("Staged skills updates. Run 'apply' to save.")
 

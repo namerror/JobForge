@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from app.resume_evidence import ProjectsEvidenceSession, SkillsEvidenceSession, load_evidence_yaml
+from app.resume_evidence.base_cli import EvidenceCLIBase
 from app.resume_evidence.cli import main as cli_main
 from app.resume_evidence.session import generate_project_id
 
@@ -62,6 +63,31 @@ class InputFeeder:
             return next(self._responses)
         except StopIteration as exc:
             raise EOFError from exc
+
+
+def test_comma_skill_parser_preserves_internal_spaces():
+    cli = EvidenceCLIBase(output=StringIO())
+
+    parsed = cli._parse_comma_list(
+        "Technology skills",
+        "FastAPI, Distributed Computing, Docker",
+    )
+
+    assert parsed == ["FastAPI", "Distributed Computing", "Docker"]
+
+
+def test_comma_skill_parser_allows_empty_input_when_optional():
+    cli = EvidenceCLIBase(output=StringIO())
+
+    assert cli._parse_comma_list("Technology skills", "   ") == []
+
+
+@pytest.mark.parametrize("raw_value", ["Python, , SQL", "Python,   , SQL", "Python,"])
+def test_comma_skill_parser_rejects_empty_segments(raw_value):
+    cli = EvidenceCLIBase(output=StringIO())
+
+    with pytest.raises(ValueError, match="empty comma-separated items"):
+        cli._parse_comma_list("Programming skills", raw_value)
 
 
 def _run_cli(path, responses: list[str]) -> str:
@@ -293,9 +319,9 @@ def test_cli_edit_updates_project_after_apply_and_keeps_id_hidden(tmp_path):
             "Updated summary",
             "y",
             "",
-            "y",
-            "y",
-            "y",
+            "FastAPI, Distributed Computing",
+            "",
+            "",
             "y",
             "apply",
             "y",
@@ -306,6 +332,7 @@ def test_cli_edit_updates_project_after_apply_and_keeps_id_hidden(tmp_path):
 
     loaded = load_evidence_yaml(path, "projects")
     assert loaded.projects[0].summary == "Updated summary"
+    assert loaded.projects[0].skills.technology == ["FastAPI", "Distributed Computing"]
     assert loaded.projects[0].id == "project-123"
     assert "project-123" not in output
 
@@ -402,6 +429,17 @@ def test_skills_cli_list_shows_category_buckets(tmp_path):
     assert "Concepts: Schema validation" in output
 
 
+def test_skills_cli_edit_keeps_existing_skills_on_blank_input(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+
+    _run_skills_cli(path, ["edit", "", "", "", "list", "quit"])
+
+    loaded = load_evidence_yaml(path, "skills")
+    assert loaded.skills.technology == ["FastAPI"]
+    assert loaded.skills.programming == ["Python"]
+    assert loaded.skills.concepts == ["Schema validation"]
+
+
 def test_skills_cli_edit_updates_after_apply(tmp_path):
     path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
 
@@ -409,15 +447,9 @@ def test_skills_cli_edit_updates_after_apply(tmp_path):
         path,
         [
             "edit",
-            "n",
-            "FastAPI",
-            "Docker",
+            "FastAPI, Docker",
+            "Python, SQL",
             "",
-            "n",
-            "Python",
-            "SQL",
-            "",
-            "y",
             "apply",
             "y",
             "list",
@@ -438,12 +470,9 @@ def test_skills_cli_apply_requires_confirmation_before_writing(tmp_path):
         path,
         [
             "edit",
-            "y",
-            "n",
-            "Python",
-            "SQL",
             "",
-            "y",
+            "Python, SQL",
+            "",
             "apply",
             "n",
             "quit",
@@ -463,11 +492,9 @@ def test_skills_cli_reload_discards_dirty_changes_only_after_confirmation(tmp_pa
         path,
         [
             "edit",
-            "n",
             "Docker",
             "",
-            "y",
-            "y",
+            "",
             "reload",
             "y",
             "list",
@@ -488,11 +515,9 @@ def test_skills_cli_quit_warns_about_unapplied_changes(tmp_path):
         path,
         [
             "edit",
-            "n",
             "Docker",
             "",
-            "y",
-            "y",
+            "",
             "quit",
             "n",
             "quit",

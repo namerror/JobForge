@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `05-20-2026-Codex-refine-resume-evidence-cli-editing.md` - 2026-05-20 - Refine resume evidence CLI editing
 - `05-20-2026-Codex-modularize-resume-evidence-cli.md` - 2026-05-20 - Modularize resume evidence CLI
 - `05-18-2026-Codex-add-skills-evidence-support.md` - 2026-05-18 - Add skills evidence support
 - `04-29-2026-Codex-run-agentic-project-baseline-test.md` - 2026-04-29 - Run agentic project baseline test

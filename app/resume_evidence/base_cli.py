@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import sys
 from typing import Callable, TextIO
 
@@ -71,6 +72,22 @@ class EvidenceCLIBase:
         items = self._prompt_list(label)
         return items or None
 
+    def _prompt_comma_list(
+        self,
+        label: str,
+        *,
+        default_items: list[str] | None = None,
+        required: bool = False,
+    ) -> list[str]:
+        default = self._format_comma_list(default_items) if default_items is not None else None
+
+        while True:
+            raw_value = self._prompt_value(label, default=default)
+            try:
+                return self._parse_comma_list(label, raw_value, required=required)
+            except ValueError as exc:
+                self._println(f"Error: {exc}")
+
     def _prompt_editable_list(
         self,
         label: str,
@@ -109,12 +126,42 @@ class EvidenceCLIBase:
         return self._prompt_bool(message, default=default)
 
     def _prompt_value(self, label: str, default: str | None = None) -> str:
+        if default is not None and self.input_func is builtins.input:
+            return self._prompt_value_with_prefill(label, default)
+
         if default is None:
             prompt = f"{label}: "
         else:
             prompt = f"{label} [{default}]: "
         value = self.input_func(prompt)
         return value if value else (default or "")
+
+    def _prompt_value_with_prefill(self, label: str, default: str) -> str:
+        try:
+            import readline
+        except ImportError:
+            value = self.input_func(f"{label} [{default}]: ")
+            return value if value else default
+
+        readline.set_startup_hook(lambda: readline.insert_text(default))
+        try:
+            return self.input_func(f"{label}: ")
+        finally:
+            readline.set_startup_hook()
+
+    def _format_comma_list(self, items: list[str] | None) -> str:
+        return ", ".join(items or [])
+
+    def _parse_comma_list(self, label: str, raw_value: str, required: bool = False) -> list[str]:
+        if not raw_value.strip():
+            if required:
+                raise ValueError(f"At least one {label.lower()} item is required.")
+            return []
+
+        items = [item.strip() for item in raw_value.split(",")]
+        if any(not item for item in items):
+            raise ValueError(f"{label} cannot contain empty comma-separated items.")
+        return items
 
     def _show_list(self, label: str, items: list[str]) -> None:
         if not items:

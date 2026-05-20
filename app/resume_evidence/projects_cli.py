@@ -97,9 +97,9 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
             summary=self._prompt_required_text("Summary"),
             highlights=self._prompt_list("Highlights", required=True),
             active=self._prompt_bool("Active", default=True),
-            technology=self._prompt_list("Technology skills"),
-            programming=self._prompt_list("Programming skills"),
-            concepts=self._prompt_list("Concepts"),
+            technology=self._prompt_comma_list("Technology skills"),
+            programming=self._prompt_comma_list("Programming skills"),
+            concepts=self._prompt_comma_list("Concepts"),
             links=self._prompt_optional_list("Links"),
         )
         self._println(f"Staged new project '{project.name}'. Run 'apply' to save.")
@@ -112,9 +112,18 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
             summary=self._prompt_required_text("Summary", default=project.summary),
             highlights=self._prompt_editable_list("Highlights", project.highlights, required=True),
             active=self._prompt_bool("Active", default=project.active),
-            technology=self._prompt_editable_list("Technology skills", project.skills.technology),
-            programming=self._prompt_editable_list("Programming skills", project.skills.programming),
-            concepts=self._prompt_editable_list("Concepts", project.skills.concepts),
+            technology=self._prompt_comma_list(
+                "Technology skills",
+                default_items=project.skills.technology,
+            ),
+            programming=self._prompt_comma_list(
+                "Programming skills",
+                default_items=project.skills.programming,
+            ),
+            concepts=self._prompt_comma_list(
+                "Concepts",
+                default_items=project.skills.concepts,
+            ),
             links=self._prompt_optional_editable_list("Links", project.links),
         )
         self._println(f"Staged updates for '{updated.name}'. Run 'apply' to save.")
