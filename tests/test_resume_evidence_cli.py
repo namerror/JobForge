@@ -5,7 +5,7 @@ from io import StringIO
 import pytest
 import yaml
 
-from app.resume_evidence import ProjectsEvidenceSession, load_evidence_yaml
+from app.resume_evidence import ProjectsEvidenceSession, SkillsEvidenceSession, load_evidence_yaml
 from app.resume_evidence.cli import main as cli_main
 from app.resume_evidence.session import generate_project_id
 
@@ -42,6 +42,17 @@ def _write_yaml(tmp_path, payload: dict, filename: str = "projects.yaml"):
     return path
 
 
+def _valid_skills_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "skills": {
+            "technology": ["FastAPI"],
+            "programming": ["Python"],
+            "concepts": ["Schema validation"],
+        },
+    }
+
+
 class InputFeeder:
     def __init__(self, responses: list[str]):
         self._responses = iter(responses)
@@ -56,6 +67,17 @@ class InputFeeder:
 def _run_cli(path, responses: list[str]) -> str:
     output = StringIO()
     exit_code = cli_main(["--path", str(path)], input_func=InputFeeder(responses), output=output)
+    assert exit_code == 0
+    return output.getvalue()
+
+
+def _run_skills_cli(path, responses: list[str]) -> str:
+    output = StringIO()
+    exit_code = cli_main(
+        ["--schema", "skills", "--path", str(path)],
+        input_func=InputFeeder(responses),
+        output=output,
+    )
     assert exit_code == 0
     return output.getvalue()
 
@@ -159,6 +181,70 @@ def test_session_apply_writes_schema_valid_yaml_and_clears_dirty_flag(tmp_path):
     assert reloaded.schema_version == 1
     assert [project.name for project in reloaded.projects] == ["JobForge", "Portfolio Tracker"]
     assert session.dirty is False
+
+
+def test_skills_session_update_stages_changes_without_writing_file(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+    session = SkillsEvidenceSession.load(path)
+
+    updated = session.update_skills(
+        technology=["FastAPI", "Docker"],
+        programming=["Python", "SQL"],
+        concepts=["Schema validation", "Deterministic systems"],
+    )
+
+    assert updated.skills.technology == ["FastAPI", "Docker"]
+    assert session.dirty is True
+    loaded = load_evidence_yaml(path, "skills")
+    assert loaded.model_dump() == _valid_skills_payload()
+
+
+def test_skills_session_rejects_invalid_edit_without_mutating_staged_state(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+    session = SkillsEvidenceSession.load(path)
+    before = session.staged.model_dump()
+
+    with pytest.raises(ValueError):
+        session.update_skills(
+            technology="FastAPI",  # type: ignore[arg-type]
+            programming=["Python"],
+            concepts=["Schema validation"],
+        )
+
+    assert session.staged.model_dump() == before
+
+
+def test_skills_session_apply_writes_schema_valid_yaml_and_clears_dirty_flag(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+    session = SkillsEvidenceSession.load(path)
+
+    session.update_skills(
+        technology=["FastAPI", "Docker"],
+        programming=["Python", "SQL"],
+        concepts=["Schema validation"],
+    )
+
+    session.apply()
+
+    reloaded = load_evidence_yaml(path, "skills")
+    assert reloaded.skills.technology == ["FastAPI", "Docker"]
+    assert reloaded.skills.programming == ["Python", "SQL"]
+    assert session.dirty is False
+
+
+def test_skills_session_reload_restores_baseline_state(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+    session = SkillsEvidenceSession.load(path)
+
+    session.update_skills(
+        technology=["Docker"],
+        programming=["Go"],
+        concepts=["CLI design"],
+    )
+
+    session.reload()
+
+    assert session.staged.model_dump() == _valid_skills_payload()
 
 
 def test_cli_list_shows_numbered_projects(tmp_path):
@@ -296,6 +382,117 @@ def test_cli_quit_warns_about_unapplied_changes(tmp_path):
             "",
             "",
             "",
+            "quit",
+            "n",
+            "quit",
+            "y",
+        ],
+    )
+
+    assert "Quit canceled." in output
+
+
+def test_skills_cli_list_shows_category_buckets(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+
+    output = _run_skills_cli(path, ["list", "quit"])
+
+    assert "Technology: FastAPI" in output
+    assert "Programming: Python" in output
+    assert "Concepts: Schema validation" in output
+
+
+def test_skills_cli_edit_updates_after_apply(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+
+    output = _run_skills_cli(
+        path,
+        [
+            "edit",
+            "n",
+            "FastAPI",
+            "Docker",
+            "",
+            "n",
+            "Python",
+            "SQL",
+            "",
+            "y",
+            "apply",
+            "y",
+            "list",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "skills")
+    assert loaded.skills.technology == ["FastAPI", "Docker"]
+    assert loaded.skills.programming == ["Python", "SQL"]
+    assert "Technology: FastAPI, Docker" in output
+
+
+def test_skills_cli_apply_requires_confirmation_before_writing(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+
+    output = _run_skills_cli(
+        path,
+        [
+            "edit",
+            "y",
+            "n",
+            "Python",
+            "SQL",
+            "",
+            "y",
+            "apply",
+            "n",
+            "quit",
+            "y",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "skills")
+    assert loaded.skills.programming == ["Python"]
+    assert "Apply canceled." in output
+
+
+def test_skills_cli_reload_discards_dirty_changes_only_after_confirmation(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+
+    output = _run_skills_cli(
+        path,
+        [
+            "edit",
+            "n",
+            "Docker",
+            "",
+            "y",
+            "y",
+            "reload",
+            "y",
+            "list",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "skills")
+    assert loaded.skills.technology == ["FastAPI"]
+    assert "Reloaded skills evidence from disk." in output
+    assert "Technology: FastAPI" in output.split("Reloaded skills evidence from disk.")[-1]
+
+
+def test_skills_cli_quit_warns_about_unapplied_changes(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+
+    output = _run_skills_cli(
+        path,
+        [
+            "edit",
+            "n",
+            "Docker",
+            "",
+            "y",
+            "y",
             "quit",
             "n",
             "quit",

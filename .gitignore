@@ -5,7 +5,7 @@ temp/
 __pycache__/
 *.pyc
 
-user/resume_evidence
+user/resume_evidence/*
 
 .vscode
 

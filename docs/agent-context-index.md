@@ -25,6 +25,8 @@ Use this file as the primary navigation index for coding agents.
    - superseding decision for the `user/resume_evidence/` root and the implemented projects-evidence milestone
 7. `docs/decisions/005-subsystem-package-organization.md`
    - current subsystem layout and legacy import compatibility policy
+8. `docs/decisions/007-skills-evidence-bucketed-schema.md`
+   - implemented minimal `skills.yaml` contract and CLI editing model
 
 ## Recommended Read Order
 
@@ -45,6 +47,7 @@ Use this file as the primary navigation index for coding agents.
 15. `docs/decisions/003-grounded-resume-evidence-pipeline.md`
 16. `docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md`
 17. `docs/decisions/005-subsystem-package-organization.md`
+18. `docs/decisions/007-skills-evidence-bucketed-schema.md`
 
 ## Skill Selection Entry Points
 
@@ -60,15 +63,23 @@ Use this file as the primary navigation index for coding agents.
 ## Resume Evidence Entry Points
 
 - `app/resume_evidence/models.py`
-  - strict runtime models for `projects.yaml`
+  - strict runtime models for `projects.yaml` and `skills.yaml`
 - `app/resume_evidence/loader.py`
   - evidence registry and startup loading
 - `app/resume_evidence/session.py`
-  - staged CRUD/session logic
+  - staged CRUD/session logic for projects and skills
 - `app/resume_evidence/cli.py`
-  - interactive evidence-management CLI
+  - CLI entrypoint and schema dispatcher
+- `app/resume_evidence/base_cli.py`
+  - shared interactive CLI prompt and command helpers
+- `app/resume_evidence/projects_cli.py`
+  - project-evidence command implementation
+- `app/resume_evidence/skills_cli.py`
+  - skills-evidence command implementation
 - `user/resume_evidence/projects.yaml`
-  - currently implemented source-of-truth evidence file
+  - implemented project source-of-truth evidence file
+- `user/resume_evidence/skills.yaml`
+  - implemented skills source-of-truth evidence file
 
 ## Project Selection Entry Points
 

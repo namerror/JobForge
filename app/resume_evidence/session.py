@@ -11,11 +11,15 @@ import yaml
 from pydantic import ValidationError
 
 from app.resume_evidence.loader import DEFAULT_EVIDENCE_PATHS, load_evidence_yaml
-from app.resume_evidence.models import ProjectRecord, ProjectsFile
+from app.resume_evidence.models import ProjectRecord, ProjectsFile, SkillsFile
 
 
 def _projects_file_to_data(projects_file: ProjectsFile) -> dict[str, Any]:
     return projects_file.model_dump(mode="python")
+
+
+def _skills_file_to_data(skills_file: SkillsFile) -> dict[str, Any]:
+    return skills_file.model_dump(mode="python")
 
 
 def _normalize_slug_text(value: str) -> str:
@@ -43,6 +47,39 @@ class PendingProjectChanges:
 
     def is_empty(self) -> bool:
         return not (self.created or self.updated or self.deleted)
+
+
+@dataclass(frozen=True)
+class PendingSkillsChanges:
+    changed_categories: tuple[str, ...]
+
+    def is_empty(self) -> bool:
+        return not self.changed_categories
+
+
+def _write_yaml_atomic(path: Path, data: dict[str, Any], error_context: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_file_path: str | None = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            yaml.safe_dump(data, handle, sort_keys=False)
+            temp_file_path = handle.name
+
+        if temp_file_path is None:
+            raise RuntimeError(f"Failed to create temporary file for {error_context}")
+
+        os.replace(temp_file_path, path)
+    finally:
+        if temp_file_path is not None and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
 
 
 class ProjectsEvidenceSession:
@@ -159,29 +196,7 @@ class ProjectsEvidenceSession:
 
     def apply(self) -> None:
         staged_data = _projects_file_to_data(self._staged)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temp_file_path: str | None = None
-
-        try:
-            with tempfile.NamedTemporaryFile(
-                "w",
-                encoding="utf-8",
-                dir=self.path.parent,
-                prefix=f".{self.path.name}.",
-                suffix=".tmp",
-                delete=False,
-            ) as handle:
-                yaml.safe_dump(staged_data, handle, sort_keys=False)
-                temp_file_path = handle.name
-
-            if temp_file_path is None:
-                raise RuntimeError("Failed to create temporary file for projects evidence save")
-
-            os.replace(temp_file_path, self.path)
-        finally:
-            if temp_file_path is not None and os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
-
+        _write_yaml_atomic(self.path, staged_data, "projects evidence save")
         self._baseline = self._staged.model_copy(deep=True)
 
     def pending_changes(self) -> PendingProjectChanges:
@@ -216,5 +231,78 @@ class ProjectsEvidenceSession:
     def _validate_projects_file(self, data: dict[str, Any]) -> ProjectsFile:
         try:
             return ProjectsFile.model_validate(data)
+        except ValidationError as exc:
+            raise ValueError(str(exc)) from exc
+
+
+class SkillsEvidenceSession:
+    def __init__(self, path: Path, baseline: SkillsFile):
+        self.path = path
+        self._baseline = baseline
+        self._staged = baseline.model_copy(deep=True)
+
+    @classmethod
+    def load(cls, path: Path | str | None = None) -> "SkillsEvidenceSession":
+        resolved_path = Path(path) if path is not None else DEFAULT_EVIDENCE_PATHS["skills"]
+        loaded = load_evidence_yaml(resolved_path, "skills")
+        if not isinstance(loaded, SkillsFile):
+            raise TypeError("Expected skills evidence to load into SkillsFile")
+        return cls(resolved_path, loaded)
+
+    @property
+    def baseline(self) -> SkillsFile:
+        return self._baseline.model_copy(deep=True)
+
+    @property
+    def staged(self) -> SkillsFile:
+        return self._staged.model_copy(deep=True)
+
+    @property
+    def dirty(self) -> bool:
+        return _skills_file_to_data(self._baseline) != _skills_file_to_data(self._staged)
+
+    def get_skills(self) -> SkillsFile:
+        return self._staged.model_copy(deep=True)
+
+    def update_skills(
+        self,
+        *,
+        technology: list[str],
+        programming: list[str],
+        concepts: list[str],
+    ) -> SkillsFile:
+        staged_data = _skills_file_to_data(self._staged)
+        staged_data["skills"] = {
+            "technology": technology,
+            "programming": programming,
+            "concepts": concepts,
+        }
+        validated = self._validate_skills_file(staged_data)
+        self._staged = validated
+        return validated.model_copy(deep=True)
+
+    def reload(self) -> None:
+        reloaded = load_evidence_yaml(self.path, "skills")
+        if not isinstance(reloaded, SkillsFile):
+            raise TypeError("Expected skills evidence to reload into SkillsFile")
+        self._baseline = reloaded
+        self._staged = reloaded.model_copy(deep=True)
+
+    def apply(self) -> None:
+        staged_data = _skills_file_to_data(self._staged)
+        _write_yaml_atomic(self.path, staged_data, "skills evidence save")
+        self._baseline = self._staged.model_copy(deep=True)
+
+    def pending_changes(self) -> PendingSkillsChanges:
+        changed_categories: list[str] = []
+        for category in ("technology", "programming", "concepts"):
+            if getattr(self._baseline.skills, category) != getattr(self._staged.skills, category):
+                changed_categories.append(category)
+
+        return PendingSkillsChanges(changed_categories=tuple(changed_categories))
+
+    def _validate_skills_file(self, data: dict[str, Any]) -> SkillsFile:
+        try:
+            return SkillsFile.model_validate(data)
         except ValidationError as exc:
             raise ValueError(str(exc)) from exc

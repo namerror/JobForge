@@ -6,16 +6,18 @@ from typing import Mapping
 import yaml
 from pydantic import BaseModel
 
-from app.resume_evidence.models import ProjectsFile
+from app.resume_evidence.models import ProjectsFile, SkillsFile
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 SCHEMA_REGISTRY: dict[str, type[BaseModel]] = {
     "projects": ProjectsFile,
+    "skills": SkillsFile,
 }
 
 DEFAULT_EVIDENCE_PATHS: dict[str, Path] = {
     "projects": _REPO_ROOT / "user" / "resume_evidence" / "projects.yaml",
+    "skills": _REPO_ROOT / "user" / "resume_evidence" / "skills.yaml",
 }
 
 

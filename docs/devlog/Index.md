@@ -13,6 +13,8 @@
 
 ## Session Index
 
+- `05-20-2026-Codex-modularize-resume-evidence-cli.md` - 2026-05-20 - Modularize resume evidence CLI
+- `05-18-2026-Codex-add-skills-evidence-support.md` - 2026-05-18 - Add skills evidence support
 - `04-29-2026-Codex-run-agentic-project-baseline-test.md` - 2026-04-29 - Run agentic project baseline test
 - `04-29-2026-Codex-scope-selection-config.md` - 2026-04-29 - Scope selection runtime config
 - `04-29-2026-Codex-add-request-payloads-to-agentic-report.md` - 2026-04-29 - Add request payloads to agentic test report

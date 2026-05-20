@@ -183,11 +183,21 @@ This repo is no longer only a skill-selection codebase. It now contains an imple
 ### Implemented now
 
 - canonical evidence root: `user/resume_evidence/`
-- implemented schema: `user/resume_evidence/projects.yaml`
-- runtime model: `ProjectsFile` containing validated `ProjectRecord` items
+- implemented schemas:
+  - `user/resume_evidence/projects.yaml`
+  - `user/resume_evidence/skills.yaml`
+- runtime models:
+  - `ProjectsFile` containing validated `ProjectRecord` items
+  - `SkillsFile` containing validated categorized skills
 - startup loading: `load_registered_evidence()` in `app.main`
-- local CRUD/session workflow: `ProjectsEvidenceSession`
-- interactive CLI: `python -m app.resume_evidence.cli`
+- local CRUD/session workflows:
+  - `ProjectsEvidenceSession`
+  - `SkillsEvidenceSession`
+- interactive CLI:
+  - `python -m app.resume_evidence.cli`
+  - `cli.py` dispatches by schema
+  - `projects_cli.py` and `skills_cli.py` contain schema-specific commands
+  - `base_cli.py` contains shared prompt helpers
 
 ### `projects.yaml` contract
 
@@ -217,6 +227,24 @@ Validation guarantees:
 - skill buckets must match the shared `technology` / `programming` / `concepts` taxonomy
 - duplicate project IDs are rejected
 
+### `skills.yaml` contract
+
+The implemented root shape is:
+
+```yaml
+schema_version: 1
+skills:
+  technology: []
+  programming: []
+  concepts: []
+```
+
+Validation guarantees:
+
+- extra fields are rejected
+- `schema_version` is locked to `1`
+- skill buckets must match the shared `technology` / `programming` / `concepts` taxonomy
+
 ### CLI/session behavior
 
 `ProjectsEvidenceSession` works on a staged in-memory copy:
@@ -226,6 +254,14 @@ Validation guarantees:
 - `apply()` writes atomically to disk
 - `reload()` discards staged changes and reloads from disk
 - project IDs are generated from project names for new records and remain stable across renames
+
+`SkillsEvidenceSession` works on the same staged-edit pattern:
+
+- `edit` replaces the categorized skills document after validation
+- `dirty` tracks whether staged data differs from the baseline file
+- `apply()` writes atomically to disk
+- `reload()` discards staged changes and reloads from disk
+- the CLI switches schemas with `python -m app.resume_evidence.cli --schema skills`
 
 ## 7) Future Resume Pipeline
 
@@ -245,7 +281,6 @@ Planned but not yet implemented:
 - additional evidence files
   - `user/resume_evidence/profile.yaml`
   - `user/resume_evidence/experience.yaml`
-  - `user/resume_evidence/skills.yaml`
 - resume format definitions under `app/data/resume_formats/`
 - synthesis/extraction logic
 - deterministic full-resume assembly
@@ -268,6 +303,7 @@ Skill selection is expected to remain one prioritization signal for the future S
   - embedding caches under `app/skill_selection/data/embeddings/{model}/`
 - User-authored source-of-truth state
   - `user/resume_evidence/projects.yaml`
+  - `user/resume_evidence/skills.yaml`
 
 ## 9) Routes And Interfaces
 

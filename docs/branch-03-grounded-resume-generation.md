@@ -5,8 +5,9 @@
 Branch 03 is no longer only a forward-looking design space. The repo now includes the first implemented milestone of the grounded resume pipeline:
 
 - strict `projects.yaml` parsing
+- strict `skills.yaml` parsing
 - startup loading into `app.state.resume_evidence`
-- staged local CRUD/session management through the projects evidence CLI
+- staged local CRUD/session management through the evidence CLI
 
 This document explains both the current milestone and the larger future pipeline it supports.
 
@@ -17,7 +18,7 @@ This document explains both the current milestone and the larger future pipeline
 - `baseline_filter` can pre-handle deterministic matches before model-backed second-pass scoring.
 - Baseline remains the required fallback and deterministic safety path.
 - The project-selection subsystem is exposed through `POST /select-projects` for explicit project candidates.
-- The repo now also ships `app.resume_evidence`, which validates and loads `user/resume_evidence/projects.yaml`.
+- The repo now also ships `app.resume_evidence`, which validates and loads `user/resume_evidence/projects.yaml` and `user/resume_evidence/skills.yaml`.
 - Evaluation assets already exist in `data/eval_cases/` and `scripts/eval.py`.
 
 ## Shared Contract
@@ -37,9 +38,10 @@ User-authored resume evidence now lives under:
 
 - `user/resume_evidence/`
 
-The only implemented schema in that root today is:
+The implemented schemas in that root today are:
 
 - `user/resume_evidence/projects.yaml`
+- `user/resume_evidence/skills.yaml`
 
 ### Implemented `projects.yaml` schema
 
@@ -82,14 +84,32 @@ Validation rules currently implemented:
 - `highlights` must be non-empty
 - skill buckets must match the shared three-category taxonomy
 
+### Implemented `skills.yaml` schema
+
+The implemented root shape is:
+
+```yaml
+schema_version: 1
+skills:
+  technology: []
+  programming: []
+  concepts: []
+```
+
+Validation rules currently implemented:
+
+- extra fields are forbidden
+- `schema_version` is locked to `1`
+- skill buckets must match the shared three-category taxonomy
+
 ### Runtime integration
 
 The implemented runtime flow is:
 
 ```text
-user/resume_evidence/projects.yaml
+user/resume_evidence/*.yaml
   -> load_registered_evidence()
-  -> ProjectsFile validation
+  -> typed evidence validation
   -> app.state.resume_evidence
 ```
 
@@ -103,12 +123,20 @@ The CLI entrypoint is:
 python -m app.resume_evidence.cli
 ```
 
+The module layout now separates the entrypoint from command implementations:
+
+- `cli.py` parses arguments and dispatches by schema
+- `projects_cli.py` contains project-evidence commands
+- `skills_cli.py` contains skills-evidence commands
+- `base_cli.py` contains shared interactive helpers
+
 Supported workflow today:
 
 - list current staged projects
 - inspect a project with `show`
 - create a project with auto-generated hidden IDs
 - edit or delete projects in staged state
+- switch to `--schema skills` for categorized skills editing
 - confirm `apply` before writing to disk
 - discard staged changes with `reload` or `quit`
 
@@ -135,6 +163,16 @@ Examples:
 - manage staged edits without hand-editing the file directly
 - preserve categorized project skills that align with the existing skill-selection taxonomy
 - prepare evidence records that future synthesis can reuse
+
+### Use case: grounded skills evidence management
+
+Use `skills.yaml` and `python -m app.resume_evidence.cli --schema skills` when you want the canonical resume skill inventory stored as validated categorized lists.
+
+Examples:
+
+- keep resume skills grounded in user-authored YAML
+- edit category buckets without hand-editing the file directly
+- preserve the shared `technology` / `programming` / `concepts` taxonomy for later synthesis
 
 ### Use case: job-targeted project ranking
 
@@ -164,7 +202,6 @@ Planned next layers:
 - additional evidence files
   - `user/resume_evidence/profile.yaml`
   - `user/resume_evidence/experience.yaml`
-  - `user/resume_evidence/skills.yaml`
 - broader runtime evidence index across multiple files
 - synthesis/extraction that uses job target, evidence, and selected skills
 - resume format definitions under `app/data/resume_formats/`
@@ -181,6 +218,6 @@ Planned next layers:
 ## Agent Guidance
 
 - Treat this document as both milestone status and future design guidance.
-- `projects.yaml` is implemented; do not describe it as merely hypothetical.
-- `profile.yaml`, `experience.yaml`, `skills.yaml`, synthesis, and assembly remain future work unless explicitly implemented.
+- `projects.yaml` and `skills.yaml` are implemented; do not describe them as merely hypothetical.
+- `profile.yaml`, `experience.yaml`, synthesis, and assembly remain future work unless explicitly implemented.
 - Keep new resume-generation work grounded, testable, and inspectable before adding prose-heavy or model-dependent layers.

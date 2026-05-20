@@ -12,6 +12,7 @@ from app.resume_evidence import (
     DEFAULT_EVIDENCE_PATHS,
     ProjectRecord,
     ProjectsFile,
+    SkillsFile,
     load_evidence_yaml,
     load_registered_evidence,
 )
@@ -50,6 +51,17 @@ def _write_yaml(tmp_path, payload: dict, filename: str = "projects.yaml"):
     return path
 
 
+def _valid_skills_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "skills": {
+            "technology": ["FastAPI", "OpenAI"],
+            "programming": ["Python"],
+            "concepts": ["Schema validation"],
+        },
+    }
+
+
 def test_load_projects_yaml_returns_typed_runtime_object(tmp_path):
     path = _write_yaml(tmp_path, _valid_projects_payload())
 
@@ -60,6 +72,16 @@ def test_load_projects_yaml_returns_typed_runtime_object(tmp_path):
     assert parsed.schema_version == 1
     assert [project.id for project in parsed.iter_projects()] == ["jobforge"]
     assert parsed.projects_by_id()["jobforge"].name == "JobForge"
+
+
+def test_load_skills_yaml_returns_typed_runtime_object(tmp_path):
+    path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+
+    parsed = load_evidence_yaml(path, "skills")
+
+    assert isinstance(parsed, SkillsFile)
+    assert parsed.schema_version == 1
+    assert parsed.skills.technology == ["FastAPI", "OpenAI"]
 
 
 def test_load_projects_yaml_rejects_missing_required_field(tmp_path):
@@ -73,6 +95,17 @@ def test_load_projects_yaml_rejects_missing_required_field(tmp_path):
     assert "summary" in str(exc_info.value)
 
 
+def test_load_skills_yaml_rejects_missing_required_field(tmp_path):
+    payload = _valid_skills_payload()
+    del payload["skills"]["concepts"]
+    path = _write_yaml(tmp_path, payload, filename="skills.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "skills")
+
+    assert "concepts" in str(exc_info.value)
+
+
 def test_load_projects_yaml_rejects_extra_top_level_field(tmp_path):
     payload = _valid_projects_payload()
     payload["unexpected"] = "nope"
@@ -80,6 +113,17 @@ def test_load_projects_yaml_rejects_extra_top_level_field(tmp_path):
 
     with pytest.raises(ValidationError) as exc_info:
         load_evidence_yaml(path, "projects")
+
+    assert "unexpected" in str(exc_info.value)
+
+
+def test_load_skills_yaml_rejects_extra_top_level_field(tmp_path):
+    payload = _valid_skills_payload()
+    payload["unexpected"] = "nope"
+    path = _write_yaml(tmp_path, payload, filename="skills.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "skills")
 
     assert "unexpected" in str(exc_info.value)
 
@@ -148,6 +192,17 @@ def test_load_projects_yaml_rejects_extra_skill_category(tmp_path):
     assert "other" in str(exc_info.value)
 
 
+def test_load_skills_yaml_rejects_extra_skill_category(tmp_path):
+    payload = _valid_skills_payload()
+    payload["skills"]["other"] = []
+    path = _write_yaml(tmp_path, payload, filename="skills.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "skills")
+
+    assert "other" in str(exc_info.value)
+
+
 def test_load_projects_yaml_rejects_non_list_skill_bucket(tmp_path):
     payload = _valid_projects_payload()
     payload["projects"][0]["skills"]["technology"] = "FastAPI"
@@ -159,6 +214,17 @@ def test_load_projects_yaml_rejects_non_list_skill_bucket(tmp_path):
     assert "technology" in str(exc_info.value)
 
 
+def test_load_skills_yaml_rejects_non_list_skill_bucket(tmp_path):
+    payload = _valid_skills_payload()
+    payload["skills"]["technology"] = "FastAPI"
+    path = _write_yaml(tmp_path, payload, filename="skills.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "skills")
+
+    assert "technology" in str(exc_info.value)
+
+
 def test_load_projects_yaml_rejects_unsupported_schema_version(tmp_path):
     payload = _valid_projects_payload()
     payload["schema_version"] = 2
@@ -166,6 +232,17 @@ def test_load_projects_yaml_rejects_unsupported_schema_version(tmp_path):
 
     with pytest.raises(ValidationError) as exc_info:
         load_evidence_yaml(path, "projects")
+
+    assert "schema_version" in str(exc_info.value)
+
+
+def test_load_skills_yaml_rejects_unsupported_schema_version(tmp_path):
+    payload = _valid_skills_payload()
+    payload["schema_version"] = 2
+    path = _write_yaml(tmp_path, payload, filename="skills.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "skills")
 
     assert "schema_version" in str(exc_info.value)
 
@@ -202,20 +279,27 @@ def test_load_projects_yaml_is_deterministic_across_repeated_parses(tmp_path):
 
 
 def test_load_registered_evidence_loads_registered_schemas(tmp_path):
-    path = _write_yaml(tmp_path, _valid_projects_payload())
+    projects_path = _write_yaml(tmp_path, _valid_projects_payload())
+    skills_path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
 
-    loaded = load_registered_evidence({"projects": path})
+    loaded = load_registered_evidence({"projects": projects_path, "skills": skills_path})
 
     assert isinstance(loaded["projects"], ProjectsFile)
+    assert isinstance(loaded["skills"], SkillsFile)
     assert loaded["projects"].projects_by_id()["jobforge"].summary.startswith("Grounded resume")
+    assert loaded["skills"].skills.programming == ["Python"]
 
 
 def test_default_evidence_path_points_to_user_directory():
     assert str(DEFAULT_EVIDENCE_PATHS["projects"]).endswith("user/resume_evidence/projects.yaml")
+    assert str(DEFAULT_EVIDENCE_PATHS["skills"]).endswith("user/resume_evidence/skills.yaml")
 
 
 def test_app_startup_loads_resume_evidence(monkeypatch):
-    loaded = {"projects": ProjectsFile.model_validate(_valid_projects_payload())}
+    loaded = {
+        "projects": ProjectsFile.model_validate(_valid_projects_payload()),
+        "skills": SkillsFile.model_validate(_valid_skills_payload()),
+    }
 
     monkeypatch.setattr("app.main.load_registered_evidence", lambda: loaded)
 

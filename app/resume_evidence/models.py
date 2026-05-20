@@ -51,3 +51,8 @@ class ProjectsFile(StrictSchemaModel):
 
     def projects_by_id(self) -> dict[str, ProjectRecord]:
         return {project.id: project for project in self.projects}
+
+
+class SkillsFile(StrictSchemaModel):
+    schema_version: Literal[1]
+    skills: ProjectSkills

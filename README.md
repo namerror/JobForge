@@ -51,21 +51,32 @@ Skill selection remains constrained by the repo invariants:
 The first implemented milestone is the `app.resume_evidence` package.
 
 - `app/resume_evidence/models.py`
-  - strict Pydantic models for `projects.yaml`
+  - strict Pydantic models for `projects.yaml` and `skills.yaml`
 - `app/resume_evidence/loader.py`
   - schema registry and deterministic YAML loading
 - `app/resume_evidence/session.py`
   - staged in-memory CRUD with validation-before-mutation and atomic apply-to-disk writes
 - `app/resume_evidence/cli.py`
-  - interactive project-evidence CLI
+  - CLI entrypoint and schema dispatcher
+- `app/resume_evidence/base_cli.py`
+  - shared interactive CLI base helpers
+- `app/resume_evidence/projects_cli.py`
+  - project-evidence command implementation
+- `app/resume_evidence/skills_cli.py`
+  - skills-evidence command implementation
 - `app/main.py`
   - loads registered evidence on startup into `app.state.resume_evidence`
 
-The currently implemented evidence schema is:
+The currently implemented evidence schemas are:
 
 - `user/resume_evidence/projects.yaml`
   - `schema_version: 1`
   - strict project records with `id`, `name`, `summary`, `highlights`, `active`, `skills`, and optional `links`
+- `user/resume_evidence/skills.yaml`
+  - `schema_version: 1`
+  - strict categorized skill lists under `technology`, `programming`, and `concepts`
+
+These schemas should be managed by users via the CLI or by other tools that write to the `user/resume_evidence/` directory. Hand-editing is possible but not recommended, as the CLI provides validation and preserves stable hidden IDs for projects.
 
 ### Project selection API
 
@@ -79,7 +90,7 @@ The project-selection subsystem ranks explicit project candidates for a job targ
 
 ### Evidence CLI workflow
 
-Use the CLI to manage staged edits to `projects.yaml` without hand-editing YAML:
+Use the CLI to manage staged edits to evidence YAML without hand-editing:
 
 ```bash
 PYTHONPATH=. python -m app.resume_evidence.cli
@@ -91,7 +102,7 @@ If your shell does not expose `python`, run:
 PYTHONPATH=. python3 -m app.resume_evidence.cli
 ```
 
-Available commands:
+Default `projects` commands:
 
 - `list`
 - `show <index>`
@@ -102,7 +113,15 @@ Available commands:
 - `reload`
 - `quit`
 
-The CLI keeps edits staged in memory until `apply` is confirmed, preserves stable hidden IDs, and writes atomically to disk.
+The default schema is `projects`. For skills evidence, use:
+
+```bash
+PYTHONPATH=. python -m app.resume_evidence.cli --schema skills
+```
+
+The skills CLI supports `list`, `edit`, `apply`, `reload`, and `quit`.
+
+The CLI keeps edits staged in memory until `apply` is confirmed, preserves stable hidden IDs for projects, and writes atomically to disk.
 
 ### Evaluation and support scripts
 
@@ -329,6 +348,12 @@ Run the evidence CLI:
 PYTHONPATH=. python -m app.resume_evidence.cli
 ```
 
+Run the skills evidence CLI:
+
+```bash
+PYTHONPATH=. python -m app.resume_evidence.cli --schema skills
+```
+
 ## Tests
 
 Tests assume the repo root is on `PYTHONPATH`:
@@ -353,8 +378,7 @@ The following pieces are planned but not yet implemented as a public resume-gene
 - additional evidence files under `user/resume_evidence/`
   - `profile.yaml`
   - `experience.yaml`
-  - `skills.yaml`
-- a rebuildable runtime evidence index spanning more than `projects.yaml`
+- a broader runtime evidence index and downstream adapters beyond today's `projects.yaml` / `skills.yaml` loading
 - grounded synthesis/extraction that returns structured resume fill data with provenance
 - resume format definitions under `app/data/resume_formats/`
 - deterministic assembly that renders full resume artifacts from structured fill data
@@ -370,5 +394,5 @@ See:
 ## Current Limitations
 
 - JobForge does not yet ship a public full-resume generation API.
-- `projects.yaml` is the only implemented evidence schema today.
+- The evidence layer currently stops at `projects.yaml` and `skills.yaml`.
 - Resume synthesis, assembly, and additional evidence files are still future work.

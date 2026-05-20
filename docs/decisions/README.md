@@ -56,3 +56,4 @@ Files are named: `NNN-short-kebab-case-title.md`
 - `003-grounded-resume-evidence-pipeline.md`
 - `004-user-resume-evidence-root-and-projects-milestone.md`
 - `005-subsystem-package-organization.md`
+- `006-scoped-selection-runtime-config.md`
