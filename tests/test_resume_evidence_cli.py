@@ -352,13 +352,43 @@ def test_projects_cli_action_menu_lists_projects_at_startup(tmp_path):
         (
             "Choose project action",
             [
+                ("list", "list"),
+                ("show", "show"),
                 ("edit", "edit"),
                 ("create", "create"),
                 ("delete", "delete"),
+                ("apply", "apply"),
+                ("reload", "reload"),
                 ("quit", "quit"),
             ],
         )
     ]
+
+
+def test_projects_cli_action_menu_list_matches_list_command(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    action_picker = FakeChoicePicker(["list", "quit"])
+
+    output = _run_projects_cli_with_action_picker(path, [], action_picker)
+
+    assert output.count("1. JobForge [active]") >= 2
+    assert output.endswith("Goodbye.\n")
+
+
+def test_projects_cli_action_menu_show_matches_show_command(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    action_picker = FakeChoicePicker(["show", "quit"])
+    project_picker = FakePicker([1])
+
+    output = _run_projects_cli_with_action_picker(
+        path,
+        [],
+        action_picker,
+        picker=project_picker,
+    )
+
+    assert project_picker.calls == [("Choose a project to show", ["1. JobForge [active]"])]
+    assert "Summary: Grounded resume tooling for deterministic resume generation." in output
 
 
 def test_projects_cli_action_menu_edit_matches_edit_command(tmp_path):
@@ -388,6 +418,34 @@ def test_projects_cli_action_menu_edit_matches_edit_command(tmp_path):
     assert project_picker.calls == [("Choose a project to edit", ["1. JobForge [active]"])]
     assert loaded.model_dump() == _valid_projects_payload()
     assert "Staged updates for 'JobForge'. Run 'apply' to save." in output
+
+
+def test_projects_cli_action_menu_apply_saves_after_menu_edit(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    action_picker = FakeChoicePicker(["edit", "apply", "quit"])
+    project_picker = FakePicker([1])
+
+    output = _run_projects_cli_with_action_picker(
+        path,
+        [
+            "",
+            "Updated and saved from action menu",
+            "y",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "y",
+        ],
+        action_picker,
+        picker=project_picker,
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert loaded.projects[0].summary == "Updated and saved from action menu"
+    assert "Staged updates for 'JobForge'. Run 'apply' to save." in output
+    assert f"Saved staged changes to {path}" in output
 
 
 def test_projects_cli_action_menu_create_matches_create_command(tmp_path):
@@ -462,6 +520,32 @@ def test_projects_cli_action_menu_quit_uses_existing_dirty_confirmation(tmp_path
     assert [project.name for project in loaded.projects] == ["JobForge"]
     assert "Quit canceled." in output
     assert output.endswith("Goodbye.\n")
+
+
+def test_projects_cli_action_menu_reload_matches_reload_command(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    action_picker = FakeChoicePicker(["create", "reload", "quit"])
+
+    output = _run_projects_cli_with_action_picker(
+        path,
+        [
+            "Portfolio Tracker",
+            "Tracks resume-ready work samples.",
+            "Built CRUD workflows for resume evidence.",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "y",
+        ],
+        action_picker,
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert [project.name for project in loaded.projects] == ["JobForge"]
+    assert "Reloaded projects evidence from disk." in output
 
 
 def test_projects_cli_action_menu_cancellation_returns_to_typed_prompt(tmp_path):

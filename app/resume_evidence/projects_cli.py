@@ -9,9 +9,13 @@ from app.resume_evidence.session import ProjectsEvidenceSession, PendingProjectC
 class ProjectsEvidenceCLI(EvidenceCLIBase):
     prompt_label = "projects"
     action_choices: list[tuple[str | None, str]] = [
+        ("list", "list"),
+        ("show", "show"),
         ("edit", "edit"),
         ("create", "create"),
         ("delete", "delete"),
+        ("apply", "apply"),
+        ("reload", "reload"),
         ("quit", "quit"),
     ]
 

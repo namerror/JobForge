@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `05-22-2026-Codex-expand-project-action-menu.md` - 2026-05-22 - Expand project action menu
 - `05-22-2026-Codex-remove-project-menu-back-key.md` - 2026-05-22 - Remove project menu Back key
 - `05-22-2026-Codex-project-cli-action-menu.md` - 2026-05-22 - Add project CLI action menu
 - `05-21-2026-Codex-modern-cli-selection-ui.md` - 2026-05-21 - Modern CLI selection UI
