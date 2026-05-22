@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `05-21-2026-Codex-modern-cli-selection-ui.md` - 2026-05-21 - Modern CLI selection UI
 - `05-20-2026-Codex-indexed-highlight-editor.md` - 2026-05-20 - Add indexed highlight editor
 - `05-20-2026-Codex-refine-resume-evidence-cli-editing.md` - 2026-05-20 - Refine resume evidence CLI editing
 - `05-20-2026-Codex-modularize-resume-evidence-cli.md` - 2026-05-20 - Modularize resume evidence CLI

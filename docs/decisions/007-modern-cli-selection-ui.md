@@ -4,7 +4,7 @@ Date: 2026-05-20
 
 ## Status
 
-Pending
+Accepted
 
 ## Context
 
@@ -19,7 +19,7 @@ editing. This could reduce typing and make repeated evidence edits feel more mod
 
 ## Decision
 
-Consider a focused `prompt_toolkit` based selection layer as the preferred future direction.
+A focused `prompt_toolkit` based selection layer is the accepted direction.
 This would add reusable picker/edit widgets for project and highlight selection while
 keeping the existing command REPL as a fallback.
 
@@ -29,6 +29,14 @@ The first implementation should be limited to:
 - Choosing a highlight within a project.
 - Returning selected one-based indices into the current session logic.
 - Preserving the existing YAML schemas and staged session APIs.
+
+The initial implementation exposes picker selection through optional indices in the existing
+command REPL:
+
+- `show`, `edit`, and `delete` open a project picker when no project index is provided.
+- Nested highlight `edit` and `delete` commands open a highlight picker when no highlight
+  index is provided.
+- Existing indexed command forms remain supported for deterministic scripts and fallback.
 
 Estimated implementation size is roughly 250-500 lines of application code and tests for a
 small reusable picker. A broader full-screen TUI using Textual or raw curses is possible,
@@ -53,7 +61,8 @@ interaction testing and terminal compatibility handling.
 
 - Evidence schemas do not change.
 - Session and validation logic should remain command-agnostic.
-- This ADR does not authorize implementation yet; it records a pending direction.
+- The first accepted implementation remains limited to focused list selection, not a
+  full-screen TUI.
 
 ## Alternatives Considered
 

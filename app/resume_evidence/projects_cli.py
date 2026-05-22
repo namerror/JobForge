@@ -1,9 +1,9 @@
 from __future__ import annotations
 import shlex
 from typing import Callable, TextIO
-from collections.abc import Callable
 
 from app.resume_evidence.base_cli import EvidenceCLIBase
+from app.resume_evidence.selection_ui import PickerFunc, choose_index
 from app.resume_evidence.session import ProjectsEvidenceSession, PendingProjectChanges
 
 class ProjectsEvidenceCLI(EvidenceCLIBase):
@@ -15,9 +15,11 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
         *,
         input_func: Callable[[str], str] = input,
         output: TextIO | None = None,
+        picker: PickerFunc | None = None,
     ):
         super().__init__(input_func=input_func, output=output)
         self.session = session
+        self.picker = picker or choose_index
 
     def execute(self, raw_command: str) -> bool:
         parts = shlex.split(raw_command)
@@ -30,19 +32,22 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
             self._list_projects()
             return True
         if command == "show":
-            index = self._parse_single_index(parts, "show")
-            self._show_project(index)
+            index = self._resolve_project_index_or_pick(parts, "show")
+            if index is not None:
+                self._show_project(index)
             return True
         if command == "create":
             self._create_project()
             return True
         if command == "edit":
-            index = self._parse_single_index(parts, "edit")
-            self._edit_project(index)
+            index = self._resolve_project_index_or_pick(parts, "edit")
+            if index is not None:
+                self._edit_project(index)
             return True
         if command == "delete":
-            index = self._parse_single_index(parts, "delete")
-            self._delete_project(index)
+            index = self._resolve_project_index_or_pick(parts, "delete")
+            if index is not None:
+                self._delete_project(index)
             return True
         if command == "apply":
             self._apply_changes()
@@ -59,10 +64,10 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
         self._println("Commands:")
         self._println("  help           Show available commands")
         self._println("  list           List staged projects")
-        self._println("  show <index>   Show a staged project")
+        self._println("  show [index]   Show a staged project")
         self._println("  create         Create a new staged project")
-        self._println("  edit <index>   Edit an existing staged project")
-        self._println("  delete <index> Delete a staged project")
+        self._println("  edit [index]   Edit an existing staged project")
+        self._println("  delete [index] Delete a staged project")
         self._println("  apply          Save staged changes to disk")
         self._println("  reload         Discard staged changes and reload from disk")
         self._println("  quit           Exit the CLI")
@@ -160,21 +165,31 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
                 elif command == "list":
                     self._show_indexed_list("Highlights", highlights)
                 elif command == "edit":
-                    highlight_index = self._parse_highlight_index(parts, "edit", highlights)
-                    highlights[highlight_index] = self._prompt_required_text(
-                        "Highlight",
-                        default=highlights[highlight_index],
+                    highlight_index = self._resolve_highlight_index_or_pick(
+                        parts,
+                        "edit",
+                        highlights,
                     )
+                    if highlight_index is not None:
+                        highlights[highlight_index] = self._prompt_required_text(
+                            "Highlight",
+                            default=highlights[highlight_index],
+                        )
                 elif command == "add":
                     if len(parts) != 1:
                         raise ValueError("Usage: add")
                     highlights.append(self._prompt_required_text("Highlight"))
                 elif command == "delete":
-                    highlight_index = self._parse_highlight_index(parts, "delete", highlights)
-                    if len(highlights) == 1:
-                        raise ValueError("At least one highlight is required.")
-                    deleted = highlights.pop(highlight_index)
-                    self._println(f"Deleted highlight: {deleted}")
+                    highlight_index = self._resolve_highlight_index_or_pick(
+                        parts,
+                        "delete",
+                        highlights,
+                    )
+                    if highlight_index is not None:
+                        if len(highlights) == 1:
+                            raise ValueError("At least one highlight is required.")
+                        deleted = highlights.pop(highlight_index)
+                        self._println(f"Deleted highlight: {deleted}")
                 elif command == "done":
                     if len(parts) != 1:
                         raise ValueError("Usage: done")
@@ -188,9 +203,9 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
         self._println("Highlight commands:")
         self._println("  help           Show highlight commands")
         self._println("  list           List staged highlights")
-        self._println("  edit <index>   Edit a highlight")
+        self._println("  edit [index]   Edit a highlight")
         self._println("  add            Append a new highlight")
-        self._println("  delete <index> Delete a highlight")
+        self._println("  delete [index] Delete a highlight")
         self._println("  done           Finish editing highlights")
 
     def _show_indexed_list(self, label: str, items: list[str]) -> None:
@@ -211,6 +226,26 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
         if index < 1 or index > len(highlights):
             raise ValueError(f"Highlight index {index} is out of range")
         return index - 1
+
+    def _resolve_highlight_index_or_pick(
+        self,
+        parts: list[str],
+        command: str,
+        highlights: list[str],
+    ) -> int | None:
+        if len(parts) == 2:
+            return self._parse_highlight_index(parts, command, highlights)
+        if len(parts) != 1:
+            raise ValueError(f"Usage: {command} [index]")
+
+        labels = [f"{index}. {highlight}" for index, highlight in enumerate(highlights, start=1)]
+        selected = self.picker(f"Choose a highlight to {command}", labels)
+        if selected is None:
+            self._println(f"No highlight selected. Use '{command} <index>' to choose directly.")
+            return None
+        if selected < 1 or selected > len(highlights):
+            raise ValueError(f"Highlight index {selected} is out of range")
+        return selected - 1
 
     def _delete_project(self, index: int) -> None:
         project = self.session.get_project(index)
@@ -267,6 +302,30 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
             return int(parts[1])
         except ValueError as exc:
             raise ValueError(f"Project index must be an integer for '{command}'") from exc
+
+    def _resolve_project_index_or_pick(self, parts: list[str], command: str) -> int | None:
+        if len(parts) == 2:
+            return self._parse_single_index(parts, command)
+        if len(parts) != 1:
+            raise ValueError(f"Usage: {command} [index]")
+
+        projects = self.session.list_projects()
+        if not projects:
+            self._println("No projects in staged state.")
+            return None
+
+        labels = []
+        for index, project in enumerate(projects, start=1):
+            status = "active" if project.active else "inactive"
+            labels.append(f"{index}. {project.name} [{status}]")
+
+        selected = self.picker(f"Choose a project to {command}", labels)
+        if selected is None:
+            self._println(f"No project selected. Use '{command} <index>' to choose directly.")
+            return None
+        if selected < 1 or selected > len(projects):
+            raise IndexError(f"Project index {selected} is out of range")
+        return selected
 
     def _print_pending_changes(self, changes: PendingProjectChanges) -> None:
         self._println(

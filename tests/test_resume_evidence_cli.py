@@ -8,6 +8,7 @@ import yaml
 from app.resume_evidence import ProjectsEvidenceSession, SkillsEvidenceSession, load_evidence_yaml
 from app.resume_evidence.base_cli import EvidenceCLIBase
 from app.resume_evidence.cli import main as cli_main
+from app.resume_evidence.projects_cli import ProjectsEvidenceCLI
 from app.resume_evidence.session import generate_project_id
 
 
@@ -105,6 +106,32 @@ def _run_skills_cli(path, responses: list[str]) -> str:
         output=output,
     )
     assert exit_code == 0
+    return output.getvalue()
+
+
+class FakePicker:
+    def __init__(self, selections: list[int | None]):
+        self._selections = iter(selections)
+        self.calls: list[tuple[str, list[str]]] = []
+
+    def __call__(self, message: str, labels) -> int | None:
+        self.calls.append((message, list(labels)))
+        try:
+            return next(self._selections)
+        except StopIteration:
+            return None
+
+
+def _run_projects_cli_with_picker(path, responses: list[str], picker: FakePicker) -> str:
+    output = StringIO()
+    session = ProjectsEvidenceSession.load(path)
+    cli = ProjectsEvidenceCLI(
+        session,
+        input_func=InputFeeder(responses),
+        output=output,
+        picker=picker,
+    )
+    assert cli.run() == 0
     return output.getvalue()
 
 
@@ -281,6 +308,84 @@ def test_cli_list_shows_numbered_projects(tmp_path):
     assert "1. JobForge [active]" in output
 
 
+def test_cli_show_without_index_uses_project_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    picker = FakePicker([1])
+
+    output = _run_projects_cli_with_picker(path, ["show", "quit"], picker)
+
+    assert picker.calls == [
+        ("Choose a project to show", ["1. JobForge [active]"]),
+    ]
+    assert "Summary: Grounded resume tooling for deterministic resume generation." in output
+
+
+def test_cli_edit_without_index_uses_project_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    picker = FakePicker([1])
+
+    _run_projects_cli_with_picker(
+        path,
+        [
+            "edit",
+            "",
+            "Updated from picker",
+            "y",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+        picker,
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert picker.calls[0] == ("Choose a project to edit", ["1. JobForge [active]"])
+    assert loaded.projects[0].summary == "Updated from picker"
+
+
+def test_cli_delete_without_index_uses_project_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    picker = FakePicker([1])
+
+    _run_projects_cli_with_picker(
+        path,
+        ["delete", "y", "apply", "y", "quit"],
+        picker,
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert picker.calls == [
+        ("Choose a project to delete", ["1. JobForge [active]"]),
+    ]
+    assert loaded.projects == []
+
+
+def test_cli_project_picker_cancellation_leaves_staged_data_unchanged(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    picker = FakePicker([None])
+
+    output = _run_projects_cli_with_picker(path, ["edit", "quit"], picker)
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert loaded.model_dump() == _valid_projects_payload()
+    assert "No project selected. Use 'edit <index>' to choose directly." in output
+
+
+def test_cli_project_picker_unavailable_falls_back_to_index_guidance(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+
+    output = _run_cli(path, ["delete", "quit"])
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert loaded.model_dump() == _valid_projects_payload()
+    assert "No project selected. Use 'delete <index>' to choose directly." in output
+
+
 def test_cli_create_stages_changes_without_persisting_before_apply(tmp_path):
     path = _write_yaml(tmp_path, _valid_projects_payload())
 
@@ -369,6 +474,48 @@ def test_cli_edit_updates_highlight_by_temporary_index(tmp_path):
     ]
 
 
+def test_cli_edit_highlight_without_index_uses_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    picker = FakePicker([2])
+
+    _run_projects_cli_with_picker(
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "n",
+            "edit",
+            "Defined a file-based evidence pipeline, with picker editing.",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+        picker,
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert picker.calls == [
+        (
+            "Choose a highlight to edit",
+            [
+                "1. Built a deterministic baseline skill selector.",
+                "2. Defined a file-based evidence pipeline for resume generation.",
+            ],
+        )
+    ]
+    assert loaded.projects[0].highlights == [
+        "Built a deterministic baseline skill selector.",
+        "Defined a file-based evidence pipeline, with picker editing.",
+    ]
+
+
 def test_cli_edit_can_add_and_delete_highlights_by_temporary_index(tmp_path):
     path = _write_yaml(tmp_path, _valid_projects_payload())
 
@@ -398,6 +545,38 @@ def test_cli_edit_can_add_and_delete_highlights_by_temporary_index(tmp_path):
     assert loaded.projects[0].highlights == [
         "Defined a file-based evidence pipeline for resume generation.",
         "Added a nested editor, preserving commas in highlight text.",
+    ]
+
+
+def test_cli_delete_highlight_without_index_uses_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    picker = FakePicker([1])
+
+    _run_projects_cli_with_picker(
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "n",
+            "delete",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+        picker,
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert picker.calls[0][0] == "Choose a highlight to delete"
+    assert loaded.projects[0].highlights == [
+        "Defined a file-based evidence pipeline for resume generation.",
     ]
 
 
