@@ -3,11 +3,17 @@ import shlex
 from typing import Callable, TextIO
 
 from app.resume_evidence.base_cli import EvidenceCLIBase
-from app.resume_evidence.selection_ui import PickerFunc, choose_index
+from app.resume_evidence.selection_ui import ChoiceFunc, PickerFunc, choose_index, choose_value
 from app.resume_evidence.session import ProjectsEvidenceSession, PendingProjectChanges
 
 class ProjectsEvidenceCLI(EvidenceCLIBase):
     prompt_label = "projects"
+    action_choices: list[tuple[str | None, str]] = [
+        ("edit", "edit"),
+        ("create", "create"),
+        ("delete", "delete"),
+        ("quit", "quit"),
+    ]
 
     def __init__(
         self,
@@ -16,10 +22,50 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
         input_func: Callable[[str], str] = input,
         output: TextIO | None = None,
         picker: PickerFunc | None = None,
+        action_picker: ChoiceFunc[str] | None = None,
     ):
         super().__init__(input_func=input_func, output=output)
         self.session = session
         self.picker = picker or choose_index
+        self.action_picker = action_picker or choose_value
+
+    def run(self) -> int:
+        self._println(f"{self.prompt_label.capitalize()} evidence CLI. Type 'help' for commands.")
+
+        while True:
+            self._list_projects()
+            action = self.action_picker("Choose project action", self.action_choices)
+            if action is not None:
+                if not self._execute_raw_command(action):
+                    return 0
+                continue
+
+            if not self._run_typed_command_once():
+                return 0
+
+    def _run_typed_command_once(self) -> bool:
+        try:
+            raw_command = self.input_func(f"{self.prompt_label}> ").strip()
+        except EOFError:
+            return self._handle_quit()
+        except KeyboardInterrupt:
+            self._println("\nInterrupted. Type 'quit' to exit.")
+            return True
+
+        if not raw_command:
+            return True
+
+        return self._execute_raw_command(raw_command)
+
+    def _execute_raw_command(self, raw_command: str) -> bool:
+        try:
+            return self.execute(raw_command)
+        except ValueError as exc:
+            self._println(f"Error: {exc}")
+            return True
+        except IndexError as exc:
+            self._println(f"Error: {exc}")
+            return True
 
     def execute(self, raw_command: str) -> bool:
         parts = shlex.split(raw_command)

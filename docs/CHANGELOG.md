@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Modern project and highlight picker support in the resume evidence projects CLI when `show`, `edit`, or `delete` are run without an index.
+- Modern project and highlight picker support (action menu) in the resume evidence CLI.
 - `user/resume_evidence/skills.yaml` evidence support with strict loading, startup registration, and staged CLI editing via `python -m app.resume_evidence.cli --schema skills`
 
 ### Changed

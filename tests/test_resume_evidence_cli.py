@@ -122,6 +122,19 @@ class FakePicker:
             return None
 
 
+class FakeChoicePicker:
+    def __init__(self, selections: list[str | None]):
+        self._selections = iter(selections)
+        self.calls: list[tuple[str, list[tuple[str | None, str]]]] = []
+
+    def __call__(self, message: str, choices) -> str | None:
+        self.calls.append((message, list(choices)))
+        try:
+            return next(self._selections)
+        except StopIteration:
+            return None
+
+
 def _run_projects_cli_with_picker(path, responses: list[str], picker: FakePicker) -> str:
     output = StringIO()
     session = ProjectsEvidenceSession.load(path)
@@ -130,6 +143,26 @@ def _run_projects_cli_with_picker(path, responses: list[str], picker: FakePicker
         input_func=InputFeeder(responses),
         output=output,
         picker=picker,
+    )
+    assert cli.run() == 0
+    return output.getvalue()
+
+
+def _run_projects_cli_with_action_picker(
+    path,
+    responses: list[str],
+    action_picker: FakeChoicePicker,
+    *,
+    picker: FakePicker | None = None,
+) -> str:
+    output = StringIO()
+    session = ProjectsEvidenceSession.load(path)
+    cli = ProjectsEvidenceCLI(
+        session,
+        input_func=InputFeeder(responses),
+        output=output,
+        picker=picker,
+        action_picker=action_picker,
     )
     assert cli.run() == 0
     return output.getvalue()
@@ -306,6 +339,150 @@ def test_cli_list_shows_numbered_projects(tmp_path):
     output = _run_cli(path, ["list", "quit"])
 
     assert "1. JobForge [active]" in output
+
+
+def test_projects_cli_action_menu_lists_projects_at_startup(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    action_picker = FakeChoicePicker([None])
+
+    output = _run_projects_cli_with_action_picker(path, ["quit"], action_picker)
+
+    assert "1. JobForge [active]" in output
+    assert action_picker.calls == [
+        (
+            "Choose project action",
+            [
+                ("edit", "edit"),
+                ("create", "create"),
+                ("delete", "delete"),
+                ("quit", "quit"),
+            ],
+        )
+    ]
+
+
+def test_projects_cli_action_menu_edit_matches_edit_command(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    action_picker = FakeChoicePicker(["edit", None])
+    project_picker = FakePicker([1])
+
+    output = _run_projects_cli_with_action_picker(
+        path,
+        [
+            "",
+            "Updated from action menu",
+            "y",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "quit",
+            "y",
+        ],
+        action_picker,
+        picker=project_picker,
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert project_picker.calls == [("Choose a project to edit", ["1. JobForge [active]"])]
+    assert loaded.model_dump() == _valid_projects_payload()
+    assert "Staged updates for 'JobForge'. Run 'apply' to save." in output
+
+
+def test_projects_cli_action_menu_create_matches_create_command(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    action_picker = FakeChoicePicker(["create", None])
+
+    output = _run_projects_cli_with_action_picker(
+        path,
+        [
+            "Portfolio Tracker",
+            "Tracks resume-ready work samples.",
+            "Built CRUD workflows for resume evidence.",
+            "",
+            "",
+            "FastAPI",
+            "Python",
+            "CLI design",
+            "",
+            "quit",
+            "y",
+        ],
+        action_picker,
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert [project.name for project in loaded.projects] == ["JobForge"]
+    assert "Staged new project 'Portfolio Tracker'. Run 'apply' to save." in output
+
+
+def test_projects_cli_action_menu_delete_matches_delete_command(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    action_picker = FakeChoicePicker(["delete", None])
+    project_picker = FakePicker([1])
+
+    output = _run_projects_cli_with_action_picker(
+        path,
+        ["y", "quit", "y"],
+        action_picker,
+        picker=project_picker,
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert project_picker.calls == [("Choose a project to delete", ["1. JobForge [active]"])]
+    assert loaded.model_dump() == _valid_projects_payload()
+    assert "Staged deletion for 'JobForge'. Run 'apply' to save." in output
+
+
+def test_projects_cli_action_menu_quit_uses_existing_dirty_confirmation(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    action_picker = FakeChoicePicker(["create", "quit", None])
+
+    output = _run_projects_cli_with_action_picker(
+        path,
+        [
+            "Portfolio Tracker",
+            "Tracks resume-ready work samples.",
+            "Built CRUD workflows for resume evidence.",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "n",
+            "quit",
+            "y",
+        ],
+        action_picker,
+    )
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert [project.name for project in loaded.projects] == ["JobForge"]
+    assert "Quit canceled." in output
+    assert output.endswith("Goodbye.\n")
+
+
+def test_projects_cli_action_menu_cancellation_returns_to_typed_prompt(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+    action_picker = FakeChoicePicker([None, None])
+
+    output = _run_projects_cli_with_action_picker(path, ["list", "quit"], action_picker)
+
+    loaded = load_evidence_yaml(path, "projects")
+    assert loaded.model_dump() == _valid_projects_payload()
+    assert output.count("1. JobForge [active]") >= 2
+    assert output.endswith("Goodbye.\n")
+
+
+def test_projects_cli_without_action_picker_still_accepts_typed_commands(tmp_path):
+    path = _write_yaml(tmp_path, _valid_projects_payload())
+
+    output = _run_cli(path, ["list", "quit"])
+
+    assert "1. JobForge [active]" in output
+    assert output.endswith("Goodbye.\n")
 
 
 def test_cli_show_without_index_uses_project_picker(tmp_path):
