@@ -131,6 +131,8 @@ def score_skills_with_llm(
     technology: list[str],
     programming: list[str],
     concepts: list[str],
+    model: str | None = None,
+    max_output_tokens: int | None = None,
 ) -> LLMScoreResult:
     """Score every candidate skill through the OpenAI Responses API."""
     category_inputs = {
@@ -158,15 +160,22 @@ def score_skills_with_llm(
     if not api_key.strip():
         raise LLMClientError("OPENAI_API_KEY is required for LLM scoring")
 
+    effective_model = model if model is not None else settings.SKILL_LLM_MODEL
+    effective_max_output_tokens = (
+        max_output_tokens
+        if max_output_tokens is not None
+        else settings.SKILL_LLM_MAX_OUTPUT_TOKENS
+    )
+
     start = time.perf_counter()
     try:
         client = OpenAI(api_key=api_key)
         create_kwargs = build_response_create_kwargs(
-            model=settings.SKILL_LLM_MODEL,
+            model=effective_model,
             instructions=instructions,
             prompt_payload=prompt_payload,
             schema=schema,
-            max_output_tokens=settings.SKILL_LLM_MAX_OUTPUT_TOKENS,
+            max_output_tokens=effective_max_output_tokens,
         )
         response = client.responses.create(**create_kwargs)
     except Exception as exc:
@@ -175,7 +184,7 @@ def score_skills_with_llm(
             extra={
                 "event": "llm_request_failed",
                 "subsystem": "skill_selection",
-                "model": settings.SKILL_LLM_MODEL,
+                "model": effective_model,
             },
         )
         raise LLMClientError(f"LLM request failed: {exc}") from exc
@@ -191,7 +200,7 @@ def score_skills_with_llm(
         raise LLMClientError(f"LLM response was not valid JSON: {exc}") from exc
 
     metadata = {
-        "model": settings.SKILL_LLM_MODEL,
+        "model": effective_model,
         "api_calls": 1,
         "latency_ms": round(latency_ms, 3),
         **_usage_metadata(response),

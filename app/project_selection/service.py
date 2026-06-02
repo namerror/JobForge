@@ -54,6 +54,8 @@ def select_projects_service(req: ProjectSelectRequest) -> ProjectSelectionResult
     method = req.method or settings.PROJ_METHOD
     top_n = req.top_n if req.top_n is not None else settings.PROJ_TOP_N
     dev_mode = req.dev_mode if req.dev_mode is not None else settings.DEV_MODE
+    if req.llm_max_output_tokens is not None and req.llm_max_output_tokens <= 0:
+        raise ValueError("llm_max_output_tokens must be greater than 0")
 
     start = time.perf_counter()
     request_counted = False
@@ -65,6 +67,8 @@ def select_projects_service(req: ProjectSelectRequest) -> ProjectSelectionResult
             method=method,
             top_n=top_n,
             dev_mode=dev_mode,
+            llm_model=req.llm_model,
+            llm_max_output_tokens=req.llm_max_output_tokens,
         )
 
         latency_ms = (time.perf_counter() - start) * 1000.0

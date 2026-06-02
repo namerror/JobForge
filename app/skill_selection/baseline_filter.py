@@ -79,6 +79,8 @@ def _call_second_pass_scorer(
     technology: list[str],
     programming: list[str],
     concepts: list[str],
+    llm_model: str | None,
+    llm_max_output_tokens: int | None,
 ) -> tuple[dict, dict | None]:
     if method == "embeddings":
         return embedding_select_skills(
@@ -99,6 +101,8 @@ def _call_second_pass_scorer(
             concepts=concepts,
             top_n=None,
             dev_mode=True,
+            llm_model=llm_model,
+            llm_max_output_tokens=llm_max_output_tokens,
         )
 
     raise ValueError(f"Unsupported baseline filter method: {method}")
@@ -207,6 +211,8 @@ def select_with_baseline_filter(
                 technology=unrecognized_inputs["technology"],
                 programming=unrecognized_inputs["programming"],
                 concepts=unrecognized_inputs["concepts"],
+                llm_model=req.llm_model,
+                llm_max_output_tokens=req.llm_max_output_tokens,
             )
         except Exception as exc:
             logger.warning(

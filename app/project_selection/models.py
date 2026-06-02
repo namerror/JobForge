@@ -41,3 +41,5 @@ class ProjectSelectRequest(StrictSchemaModel):
     method: Literal["baseline", "llm"] | None = None
     top_n: int | None = None
     dev_mode: bool | None = None
+    llm_model: str | None = None
+    llm_max_output_tokens: int | None = None

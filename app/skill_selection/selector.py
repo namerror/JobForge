@@ -54,6 +54,8 @@ def _call_scorer(
     concepts: list[str],
     top_n: int | None,
     dev_mode: bool,
+    llm_model: str | None,
+    llm_max_output_tokens: int | None,
 ) -> tuple[dict, dict | None]:
     if method == "baseline":
         return baseline_select_skills(
@@ -84,6 +86,8 @@ def _call_scorer(
             concepts=concepts,
             top_n=top_n,
             dev_mode=True,
+            llm_model=llm_model,
+            llm_max_output_tokens=llm_max_output_tokens,
         )
 
     raise ValueError(f"Unsupported skill selection method: {method}")
@@ -96,6 +100,8 @@ def select_skills_service(req: SkillSelectRequest) -> SkillSelectResponse:
     baseline_filter = (
         req.baseline_filter if req.baseline_filter is not None else settings.SKILL_BASELINE_FILTER
     )
+    if req.llm_max_output_tokens is not None and req.llm_max_output_tokens <= 0:
+        raise ValueError("llm_max_output_tokens must be greater than 0")
 
     start = time.perf_counter()
     request_counted = False
@@ -117,6 +123,8 @@ def select_skills_service(req: SkillSelectRequest) -> SkillSelectResponse:
                 concepts=req.concepts,
                 top_n=top_n,
                 dev_mode=dev_mode,
+                llm_model=req.llm_model,
+                llm_max_output_tokens=req.llm_max_output_tokens,
             )
 
         latency_ms = (time.perf_counter() - start) * 1000.0

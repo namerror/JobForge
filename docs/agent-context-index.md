@@ -84,7 +84,15 @@ Use this file as the primary navigation index for coding agents.
 ## Resume Generation Entry Points
 
 - `resume_generation/`
-  - reserved package for evidence-to-selection orchestration, API/client adapters, and structured fill-data preparation
+  - implemented evidence-to-selection orchestration package
+- `resume_generation/selection.py`
+  - `generate_selection_context(...)` HTTP orchestration over `/select-skills` and `/select-projects`
+- `resume_generation/config.py`
+  - strict loading for `user/resume_generation/config.yaml` and `job_target.yaml`
+- `user/resume_generation/config.yaml`
+  - user-level HTTP and selection request options
+- `user/resume_generation/job_target.yaml`
+  - target job title and optional description for generation selection
 
 ## Project Selection Entry Points
 

@@ -113,6 +113,8 @@ def score_projects_with_llm(
     *,
     context: ProjectJobContext,
     candidates: list[ProjectCandidate],
+    model: str | None = None,
+    max_output_tokens: int | None = None,
 ) -> LLMProjectScoreResult:
     prompt_payload = build_project_prompt_payload(context=context, candidates=candidates)
     schema = build_project_score_schema([candidate.id for candidate in candidates])
@@ -127,15 +129,22 @@ def score_projects_with_llm(
     if not api_key.strip():
         raise ProjectLLMClientError("OPENAI_API_KEY is required for project LLM scoring")
 
+    effective_model = model if model is not None else settings.PROJ_LLM_MODEL
+    effective_max_output_tokens = (
+        max_output_tokens
+        if max_output_tokens is not None
+        else settings.PROJ_LLM_MAX_OUTPUT_TOKENS
+    )
+
     start = time.perf_counter()
     try:
         client = OpenAI(api_key=api_key)
         create_kwargs = build_project_response_create_kwargs(
-            model=settings.PROJ_LLM_MODEL,
+            model=effective_model,
             instructions=instructions,
             prompt_payload=prompt_payload,
             schema=schema,
-            max_output_tokens=settings.PROJ_LLM_MAX_OUTPUT_TOKENS,
+            max_output_tokens=effective_max_output_tokens,
         )
         response = client.responses.create(**create_kwargs)
     except Exception as exc:
@@ -144,7 +153,7 @@ def score_projects_with_llm(
             extra={
                 "event": "project_llm_request_failed",
                 "subsystem": "project_selection",
-                "model": settings.PROJ_LLM_MODEL,
+                "model": effective_model,
             },
         )
         raise ProjectLLMClientError(f"Project LLM request failed: {exc}") from exc
@@ -160,7 +169,7 @@ def score_projects_with_llm(
         raise ProjectLLMClientError(f"Project LLM response was not valid JSON: {exc}") from exc
 
     metadata = {
-        "model": settings.PROJ_LLM_MODEL,
+        "model": effective_model,
         "api_calls": 1,
         "latency_ms": round(latency_ms, 3),
         **_usage_metadata(response),

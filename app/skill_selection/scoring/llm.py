@@ -106,6 +106,8 @@ def llm_select_skills(
     job_text: str | None = None,
     top_n: int | None = None,
     dev_mode: bool = False,
+    llm_model: str | None = None,
+    llm_max_output_tokens: int | None = None,
 ) -> tuple[dict, dict | None]:
     """Select top skills per category using LLM scoring and local ranking."""
     category_inputs = {
@@ -121,6 +123,8 @@ def llm_select_skills(
             technology=technology,
             programming=programming,
             concepts=concepts,
+            model=llm_model,
+            max_output_tokens=llm_max_output_tokens,
         )
         scores, warnings = _validate_scores(llm_result.scores, category_inputs)
     except (LLMClientError, LLMValidationError) as exc:

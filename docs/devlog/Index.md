@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `06-02-2026-Codex-resume-generation-selection-orchestration.md` - 2026-06-02 - Resume generation selection orchestration
 - `06-02-2026-Codex-standalone-resume-evidence.md` - 2026-06-02 - Standalone resume evidence package
 - `05-22-2026-Codex-expand-project-action-menu.md` - 2026-05-22 - Expand project action menu
 - `05-22-2026-Codex-remove-project-menu-back-key.md` - 2026-05-22 - Remove project menu Back key

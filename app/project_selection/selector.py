@@ -46,6 +46,8 @@ def select_projects(
     method: str,
     top_n: int | None = None,
     dev_mode: bool = False,
+    llm_model: str | None = None,
+    llm_max_output_tokens: int | None = None,
 ) -> ProjectSelectionResult:
     job_context = _coerce_context(context)
     project_candidates = _coerce_candidates(candidates)
@@ -66,6 +68,8 @@ def select_projects(
             candidates=project_candidates,
             top_n=top_n,
             dev_mode=dev_mode,
+            llm_model=llm_model,
+            llm_max_output_tokens=llm_max_output_tokens,
         )
 
     raise ValueError(f"Unsupported project selection method: {method}")

@@ -89,10 +89,17 @@ def llm_select_projects(
     candidates: list[ProjectCandidate],
     top_n: int | None = None,
     dev_mode: bool = False,
+    llm_model: str | None = None,
+    llm_max_output_tokens: int | None = None,
 ) -> ProjectSelectionResult:
     llm_metadata: dict[str, Any] | None = None
     try:
-        llm_result = score_projects_with_llm(context=context, candidates=candidates)
+        llm_result = score_projects_with_llm(
+            context=context,
+            candidates=candidates,
+            model=llm_model,
+            max_output_tokens=llm_max_output_tokens,
+        )
         llm_metadata = llm_result.metadata
         scores, warnings = _validate_scores(llm_result.scores, candidates)
     except (ProjectLLMClientError, ProjectLLMValidationError) as exc:

@@ -1,0 +1,17 @@
+schema_version: 1
+app:
+  base_url: http://127.0.0.1:8000
+  timeout_seconds: 30
+skill_selection:
+  method: baseline
+  top_n: 10
+  baseline_filter: false
+  dev_mode: true
+  llm_model: gpt-5-mini
+  llm_max_output_tokens: 1200
+project_selection:
+  method: baseline
+  top_n: null
+  dev_mode: true
+  llm_model: gpt-5-mini
+  llm_max_output_tokens: 1200

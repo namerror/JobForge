@@ -19,7 +19,7 @@ This document maps the current JobForge structure so agents can move quickly acr
 - `resume_evidence/`
   - strict evidence schemas, registry loading, staged CRUD/session logic, and CLI
 - `resume_generation/`
-  - reserved top-level package for orchestration code that will load evidence, call selection services, and prepare structured fill data
+  - top-level package for orchestration code that loads evidence, calls selection services over HTTP, and prepares structured selection context
 - `app/skill_selection/selector.py`
   - API orchestration for method selection, metrics, logging, and response shaping
 - `app/models.py`, `app/scoring/*`, `app/services/*`
@@ -67,7 +67,9 @@ app.project_selection
 
 resume_generation
   -> resume_evidence
-  -> app.skill_selection / app.project_selection service contracts
+  -> app.skill_selection / app.project_selection HTTP contracts
+  -> user/resume_generation/config.yaml
+  -> user/resume_generation/job_target.yaml
 
 resume_evidence
   -> resume_evidence.loader
@@ -272,16 +274,24 @@ Validation guarantees:
 
 ## 7) Future Resume Pipeline
 
-The evidence layer and explicit-candidate project selector above are implemented. The broader resume-generation pipeline below is still planned:
+The evidence layer, explicit-candidate project selector, and first resume-generation selection orchestration are implemented. The broader resume-generation pipeline below is still planned:
 
 ```text
 user/resume_evidence/*.yaml
   -> deterministic load/validate/index
-  -> resume_generation orchestration and synthesis/extraction
+  -> resume_generation selection orchestration
+  -> future synthesis/extraction
   -> structured fill data with provenance
   -> deterministic assembly
   -> generated resume artifact
 ```
+
+Implemented now:
+
+- `user/resume_generation/config.yaml` stores user-level HTTP and selection request options.
+- `user/resume_generation/job_target.yaml` stores the target job title and optional description.
+- `resume_generation.generate_selection_context(...)` loads evidence through `resume_evidence`, adapts it into `/select-skills` and `/select-projects` JSON payloads, and posts to a running app with `httpx`.
+- The generation config becomes explicit request fields, so it takes precedence over app `.env` defaults for supported per-request options.
 
 Planned but not yet implemented:
 
@@ -291,7 +301,6 @@ Planned but not yet implemented:
 - resume format definitions owned by the generation layer
 - synthesis/extraction logic under `resume_generation/`
 - deterministic full-resume assembly
-- adapters that load evidence and call skill/project selection services
 
 Skill selection is expected to remain one prioritization signal for the future Skills section, not the whole source of truth for resume generation.
 
@@ -311,6 +320,8 @@ Skill selection is expected to remain one prioritization signal for the future S
 - User-authored source-of-truth state
   - `user/resume_evidence/projects.yaml`
   - `user/resume_evidence/skills.yaml`
+  - `user/resume_generation/config.yaml`
+  - `user/resume_generation/job_target.yaml`
 
 ## 9) Routes And Interfaces
 
@@ -325,7 +336,7 @@ Skill selection is expected to remain one prioritization signal for the future S
 - `python -m resume_evidence.cli`
   - current local interface for project evidence CRUD/session management
 - `resume_generation/`
-  - future local/API orchestration layer for evidence-to-selection-to-fill-data workflows
+  - local orchestration layer for evidence-to-selection context workflows
 
 ## 10) Agent Quick-Read Sequence
 

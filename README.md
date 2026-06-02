@@ -369,12 +369,13 @@ PYTHONPATH=. pytest tests/test_integration.py
 
 ## Planned Next
 
-The following pieces are planned but not yet implemented as a public resume-generation flow:
+The first resume-generation selection orchestration is implemented as `resume_generation.generate_selection_context(...)`: it loads evidence, reads `user/resume_generation/config.yaml` plus `job_target.yaml`, and calls the running app's selection APIs over HTTP.
+
+The following pieces are still planned for the broader public resume-generation flow:
 
 - additional evidence files under `user/resume_evidence/`
   - `profile.yaml`
   - `experience.yaml`
-- a broader runtime evidence index and downstream adapters beyond today's `projects.yaml` / `skills.yaml` loading
 - grounded synthesis/extraction under `resume_generation/` that returns structured resume fill data with provenance
 - resume format definitions owned by the generation layer
 - deterministic assembly that renders full resume artifacts from structured fill data
