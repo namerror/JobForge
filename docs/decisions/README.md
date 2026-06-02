@@ -58,3 +58,4 @@ Files are named: `NNN-short-kebab-case-title.md`
 - `005-subsystem-package-organization.md`
 - `006-scoped-selection-runtime-config.md`
 - `007-modern-cli-selection-ui.md`
+- `008-standalone-resume-evidence-and-generation-layers.md`

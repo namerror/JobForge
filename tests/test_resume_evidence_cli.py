@@ -5,11 +5,11 @@ from io import StringIO
 import pytest
 import yaml
 
-from app.resume_evidence import ProjectsEvidenceSession, SkillsEvidenceSession, load_evidence_yaml
-from app.resume_evidence.base_cli import EvidenceCLIBase
-from app.resume_evidence.cli import main as cli_main
-from app.resume_evidence.projects_cli import ProjectsEvidenceCLI
-from app.resume_evidence.session import generate_project_id
+from resume_evidence import ProjectsEvidenceSession, SkillsEvidenceSession, load_evidence_yaml
+from resume_evidence.base_cli import EvidenceCLIBase
+from resume_evidence.cli import main as cli_main
+from resume_evidence.projects_cli import ProjectsEvidenceCLI
+from resume_evidence.session import generate_project_id
 
 
 def _valid_projects_payload() -> dict:

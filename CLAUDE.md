@@ -7,7 +7,8 @@ Your goal is to help implement features safely and incrementally.
 
 ## Current project shape
 - The repo still ships a FastAPI skill-selection API through `/select-skills`.
-- The repo now also includes `app.resume_evidence`, which loads `user/resume_evidence/projects.yaml` at startup and provides a local CLI for staged CRUD/session management.
+- The repo now also includes `resume_evidence`, which loads `user/resume_evidence/projects.yaml` at startup and provides a local CLI for staged CRUD/session management.
+- The repo reserves `resume_generation/` for orchestration code that will consume evidence, call selection services, and prepare structured fill data.
 - Skill selection is now one subsystem inside a broader grounded resume-engine direction.
 
 ## Non-negotiables
@@ -28,10 +29,12 @@ For grounded resume work:
 
 ## Code organization rules
 - FastAPI wiring in `app/main.py`
-- Pydantic models in `app/models.py` and `app/resume_evidence/models.py`
-- Scorers in `app/scoring/`
-- Skill-selection orchestration in `app/services/`
-- Resume evidence loading and local CRUD workflow in `app/resume_evidence/`
+- Pydantic models in `app/models.py` and `resume_evidence/models.py`
+- Skill-selection scorers in `app/skill_selection/scoring/`
+- Skill-selection orchestration in `app/skill_selection/`
+- Project-selection orchestration in `app/project_selection/`
+- Resume evidence loading and local CRUD workflow in `resume_evidence/`
+- Future resume-generation orchestration in `resume_generation/`
 - Role expectations and config data in `app/data/`
 - User-authored evidence in `user/resume_evidence/`
 - Tests in `tests/`
@@ -53,6 +56,7 @@ For grounded resume work:
 
 ## Output contracts
 - Production skill-selection API: selected skills JSON by category
+- Production project-selection API: selected project IDs and scores
 - Dev mode may include scores, explanations, token usage, warnings, or fallback metadata
 - Evidence CLI: staged CRUD/session management for `projects.yaml`
 

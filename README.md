@@ -1,12 +1,12 @@
 # Resume Engine
 
-This project is evolving from a skill-selection microservice into a grounded resume-generation service. Today the repo ships two capability tracks:
+This project is evolving from a skill-selection microservice into a grounded resume-generation service. Today the repo ships three capability tracks:
 
 - a production FastAPI API for skill selection with deterministic baseline, embeddings, and LLM methods
 - a public project-selection API for ranking explicit user project candidates for a target job
 - an implemented first milestone of the evidence-based resume pipeline centered on `user/resume_evidence/projects.yaml`
 
-The app is now organized around peer subsystems under `app/`: `skill_selection`, `project_selection`, and `resume_evidence`.
+Selection services live under the FastAPI `app/` package, while evidence management now lives in top-level `resume_evidence/`. The top-level `resume_generation/` package is reserved for the future orchestration layer that will load evidence, call the selection services, and prepare structured resume fill data.
 
 ## Vision
 
@@ -48,22 +48,24 @@ Skill selection remains constrained by the repo invariants:
 
 ### Grounded resume evidence foundation
 
-The first implemented milestone is the `app.resume_evidence` package.
+The first implemented milestone is the `resume_evidence` package.
 
-- `app/resume_evidence/models.py`
+- `resume_evidence/models.py`
   - strict Pydantic models for `projects.yaml` and `skills.yaml`
-- `app/resume_evidence/loader.py`
+- `resume_evidence/loader.py`
   - schema registry and deterministic YAML loading
-- `app/resume_evidence/session.py`
+- `resume_evidence/session.py`
   - staged in-memory CRUD with validation-before-mutation and atomic apply-to-disk writes
-- `app/resume_evidence/cli.py`
+- `resume_evidence/cli.py`
   - CLI entrypoint and schema dispatcher
-- `app/resume_evidence/base_cli.py`
+- `resume_evidence/base_cli.py`
   - shared interactive CLI base helpers
-- `app/resume_evidence/projects_cli.py`
+- `resume_evidence/projects_cli.py`
   - project-evidence command implementation
-- `app/resume_evidence/skills_cli.py`
+- `resume_evidence/skills_cli.py`
   - skills-evidence command implementation
+- `resume_generation/`
+  - reserved boundary for future evidence-to-selection orchestration and structured fill-data preparation
 - `app/main.py`
   - loads registered evidence on startup into `app.state.resume_evidence`
 
@@ -93,13 +95,7 @@ The project-selection subsystem ranks explicit project candidates for a job targ
 Use the CLI to manage staged edits to evidence YAML without hand-editing:
 
 ```bash
-PYTHONPATH=. python -m app.resume_evidence.cli
-```
-
-If your shell does not expose `python`, run:
-
-```bash
-PYTHONPATH=. python3 -m app.resume_evidence.cli
+PYTHONPATH=. python -m resume_evidence.cli
 ```
 
 Default `projects` commands:
@@ -116,7 +112,7 @@ Default `projects` commands:
 The default schema is `projects`. For skills evidence, use:
 
 ```bash
-PYTHONPATH=. python -m app.resume_evidence.cli --schema skills
+PYTHONPATH=. python -m resume_evidence.cli --schema skills
 ```
 
 The skills CLI supports `list`, `edit`, `apply`, `reload`, and `quit`.
@@ -142,8 +138,8 @@ JobForge now has a broader resume-engine shape:
 
 - the skills API helps prioritize and rank skills for the future Skills section
 - the project-selection API helps prioritize grounded projects for a target job
-- the resume-evidence package establishes grounded source-of-truth data under `user/resume_evidence/`
-- future synthesis will combine target job context, evidence, and selected skills into structured fill data
+- the top-level resume-evidence package establishes grounded source-of-truth data under `user/resume_evidence/`
+- the future `resume_generation/` layer will combine target job context, evidence, and selected service outputs into structured fill data
 - future deterministic assembly will turn that structured fill data into resume output without inventing claims
 
 Skill selection is no longer the whole project. It is one subsystem inside the larger grounded resume pipeline.
@@ -345,13 +341,13 @@ uvicorn app.main:app --reload
 Run the evidence CLI:
 
 ```bash
-PYTHONPATH=. python -m app.resume_evidence.cli
+PYTHONPATH=. python -m resume_evidence.cli
 ```
 
 Run the skills evidence CLI:
 
 ```bash
-PYTHONPATH=. python -m app.resume_evidence.cli --schema skills
+PYTHONPATH=. python -m resume_evidence.cli --schema skills
 ```
 
 ## Tests
@@ -379,8 +375,8 @@ The following pieces are planned but not yet implemented as a public resume-gene
   - `profile.yaml`
   - `experience.yaml`
 - a broader runtime evidence index and downstream adapters beyond today's `projects.yaml` / `skills.yaml` loading
-- grounded synthesis/extraction that returns structured resume fill data with provenance
-- resume format definitions under `app/data/resume_formats/`
+- grounded synthesis/extraction under `resume_generation/` that returns structured resume fill data with provenance
+- resume format definitions owned by the generation layer
 - deterministic assembly that renders full resume artifacts from structured fill data
 
 See:
@@ -390,6 +386,7 @@ See:
 - [docs/decisions/003-grounded-resume-evidence-pipeline.md](/home/leon/Documents/proj/JobForge/docs/decisions/003-grounded-resume-evidence-pipeline.md)
 - [docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md](/home/leon/Documents/proj/JobForge/docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md)
 - [docs/decisions/005-subsystem-package-organization.md](/home/leon/Documents/proj/JobForge/docs/decisions/005-subsystem-package-organization.md)
+- [docs/decisions/008-standalone-resume-evidence-and-generation-layers.md](/home/leon/Documents/proj/JobForge/docs/decisions/008-standalone-resume-evidence-and-generation-layers.md)
 
 ## Current Limitations
 

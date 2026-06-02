@@ -1,8 +1,8 @@
 # Architecture Overview
 
-This document maps the current `app/` structure so agents can move quickly across the resume-engine subsystems: skill selection, project selection, and resume evidence.
+This document maps the current JobForge structure so agents can move quickly across the resume-engine subsystems: skill selection, project selection, standalone resume evidence, and the future resume-generation orchestration layer.
 
-## 1) High-Level Structure (`app/`)
+## 1) High-Level Structure
 
 - `app/main.py`
   - FastAPI app composition, lifespan setup, HTTP routes, startup evidence loading
@@ -16,8 +16,10 @@ This document maps the current `app/` structure so agents can move quickly acros
   - skill-selection models, service wrapper, baseline filter, model clients, scoring logic, role profiles, synonym map, and embedding caches
 - `app/project_selection/`
   - project-selection models, API service wrapper, selector, baseline/LLM rankers, and project LLM client
-- `app/resume_evidence/`
+- `resume_evidence/`
   - strict evidence schemas, registry loading, staged CRUD/session logic, and CLI
+- `resume_generation/`
+  - reserved top-level package for orchestration code that will load evidence, call selection services, and prepare structured fill data
 - `app/skill_selection/selector.py`
   - API orchestration for method selection, metrics, logging, and response shaping
 - `app/models.py`, `app/scoring/*`, `app/services/*`
@@ -32,7 +34,7 @@ app.main
   -> app.logging_config
   -> app.skill_selection
   -> app.project_selection
-  -> app.resume_evidence
+  -> resume_evidence
 
 app.skill_selection.selector
   -> app.config
@@ -59,22 +61,27 @@ app.project_selection.service
   -> app.project_selection.selector
 
 app.project_selection
-  -> app.resume_evidence.models
+  -> resume_evidence.models
   -> app.skill_selection.scoring.baseline
   -> app.project_selection.llm_client
 
-app.resume_evidence
-  -> app.resume_evidence.loader
-  -> app.resume_evidence.models
-  -> app.resume_evidence.session
+resume_generation
+  -> resume_evidence
+  -> app.skill_selection / app.project_selection service contracts
 
-app.resume_evidence.loader
-  -> app.resume_evidence.models
+resume_evidence
+  -> resume_evidence.loader
+  -> resume_evidence.models
+  -> resume_evidence.session
+
+resume_evidence.loader
+  -> resume_evidence.models
   -> user/resume_evidence/projects.yaml
+  -> user/resume_evidence/skills.yaml
 
-app.resume_evidence.session
-  -> app.resume_evidence.loader
-  -> app.resume_evidence.models
+resume_evidence.session
+  -> resume_evidence.loader
+  -> resume_evidence.models
 
 legacy compatibility shims
   -> app.skill_selection.*
@@ -96,8 +103,8 @@ flowchart TD
 ```
 
 - Startup currently loads the registered evidence set into `app.state.resume_evidence`.
-- Today that registry contains only the `projects` schema.
-- This is the first implemented runtime evidence hook for the broader resume engine direction.
+- Today that registry contains the `projects` and `skills` schemas.
+- This is the current runtime evidence hook while the standalone generation layer remains future work.
 
 ### Skill-selection request flow
 
@@ -194,7 +201,7 @@ This repo is no longer only a skill-selection codebase. It now contains an imple
   - `ProjectsEvidenceSession`
   - `SkillsEvidenceSession`
 - interactive CLI:
-  - `python -m app.resume_evidence.cli`
+  - `python -m resume_evidence.cli`
   - `cli.py` dispatches by schema
   - `projects_cli.py` and `skills_cli.py` contain schema-specific commands
   - `base_cli.py` contains shared prompt helpers
@@ -261,7 +268,7 @@ Validation guarantees:
 - `dirty` tracks whether staged data differs from the baseline file
 - `apply()` writes atomically to disk
 - `reload()` discards staged changes and reloads from disk
-- the CLI switches schemas with `python -m app.resume_evidence.cli --schema skills`
+- the CLI switches schemas with `python -m resume_evidence.cli --schema skills`
 
 ## 7) Future Resume Pipeline
 
@@ -270,7 +277,7 @@ The evidence layer and explicit-candidate project selector above are implemented
 ```text
 user/resume_evidence/*.yaml
   -> deterministic load/validate/index
-  -> synthesis/extraction
+  -> resume_generation orchestration and synthesis/extraction
   -> structured fill data with provenance
   -> deterministic assembly
   -> generated resume artifact
@@ -281,10 +288,10 @@ Planned but not yet implemented:
 - additional evidence files
   - `user/resume_evidence/profile.yaml`
   - `user/resume_evidence/experience.yaml`
-- resume format definitions under `app/data/resume_formats/`
-- synthesis/extraction logic
+- resume format definitions owned by the generation layer
+- synthesis/extraction logic under `resume_generation/`
 - deterministic full-resume assembly
-- adapters that rank projects directly from loaded `app.state.resume_evidence`
+- adapters that load evidence and call skill/project selection services
 
 Skill selection is expected to remain one prioritization signal for the future Skills section, not the whole source of truth for resume generation.
 
@@ -315,8 +322,10 @@ Skill selection is expected to remain one prioritization signal for the future S
   - current public business API for skill ranking
 - `POST /select-projects`
   - public project-ranking API for explicit project candidates
-- `python -m app.resume_evidence.cli`
+- `python -m resume_evidence.cli`
   - current local interface for project evidence CRUD/session management
+- `resume_generation/`
+  - future local/API orchestration layer for evidence-to-selection-to-fill-data workflows
 
 ## 10) Agent Quick-Read Sequence
 
@@ -329,9 +338,10 @@ Skill selection is expected to remain one prioritization signal for the future S
 7. `app/skill_selection/selector.py`
 8. `app/project_selection/service.py`
 9. `app/project_selection/selector.py`
-10. `app/resume_evidence/loader.py`
-11. `app/resume_evidence/session.py`
+10. `resume_evidence/loader.py`
+11. `resume_evidence/session.py`
 12. `docs/branch-03-grounded-resume-generation.md`
 13. `docs/decisions/003-grounded-resume-evidence-pipeline.md`
 14. `docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md`
 15. `docs/decisions/005-subsystem-package-organization.md`
+16. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`

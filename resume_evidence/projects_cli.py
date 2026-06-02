@@ -2,9 +2,9 @@ from __future__ import annotations
 import shlex
 from typing import Callable, TextIO
 
-from app.resume_evidence.base_cli import EvidenceCLIBase
-from app.resume_evidence.selection_ui import ChoiceFunc, PickerFunc, choose_index, choose_value
-from app.resume_evidence.session import ProjectsEvidenceSession, PendingProjectChanges
+from resume_evidence.base_cli import EvidenceCLIBase
+from resume_evidence.selection_ui import ChoiceFunc, PickerFunc, choose_index, choose_value
+from resume_evidence.session import ProjectsEvidenceSession, PendingProjectChanges
 
 class ProjectsEvidenceCLI(EvidenceCLIBase):
     prompt_label = "projects"

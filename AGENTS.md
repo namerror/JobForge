@@ -8,8 +8,9 @@ This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) s
 
 ## Organization
 - Tests in `tests/`
-- Scoring logic in `app/scoring/`
-- Resume evidence logic in `app/resume_evidence/`
+- Skill scoring logic in `app/skill_selection/scoring/`
+- Resume evidence logic in `resume_evidence/`
+- Future resume generation orchestration in `resume_generation/`
 - User-authored evidence files in `user/resume_evidence/`
 
 ## Repository invariants
@@ -34,8 +35,8 @@ This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) s
 
 ## Common tasks
 ### Add a new role profile
-1. Create a new profile file in `app/data/role_profiles/` with relevant keywords
-2. Ensure `app/scoring/role_profiles.py` loads it and the baseline scorer uses it deterministically
+1. Create a new profile file in `app/skill_selection/data/role_profiles/` with relevant keywords
+2. Ensure `app/skill_selection/scoring/role_profiles.py` loads it and the baseline scorer uses it deterministically
 
 ### Add tests
 1. Add test cases in `tests/test_role_profiles.py` for new profiles or edge cases

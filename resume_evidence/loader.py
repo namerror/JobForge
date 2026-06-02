@@ -6,9 +6,9 @@ from typing import Mapping
 import yaml
 from pydantic import BaseModel
 
-from app.resume_evidence.models import ProjectsFile, SkillsFile
+from resume_evidence.models import ProjectsFile, SkillsFile
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 SCHEMA_REGISTRY: dict[str, type[BaseModel]] = {
     "projects": ProjectsFile,

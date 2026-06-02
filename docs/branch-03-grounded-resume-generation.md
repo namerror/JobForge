@@ -18,7 +18,8 @@ This document explains both the current milestone and the larger future pipeline
 - `baseline_filter` can pre-handle deterministic matches before model-backed second-pass scoring.
 - Baseline remains the required fallback and deterministic safety path.
 - The project-selection subsystem is exposed through `POST /select-projects` for explicit project candidates.
-- The repo now also ships `app.resume_evidence`, which validates and loads `user/resume_evidence/projects.yaml` and `user/resume_evidence/skills.yaml`.
+- The repo now also ships `resume_evidence`, which validates and loads `user/resume_evidence/projects.yaml` and `user/resume_evidence/skills.yaml`.
+- The repo reserves `resume_generation/` for future orchestration that loads evidence, calls selection services, and prepares structured fill data.
 - Evaluation assets already exist in `data/eval_cases/` and `scripts/eval.py`.
 
 ## Shared Contract
@@ -120,7 +121,7 @@ This is the first concrete runtime evidence hook for the future resume engine.
 The CLI entrypoint is:
 
 ```bash
-python -m app.resume_evidence.cli
+python -m resume_evidence.cli
 ```
 
 The module layout now separates the entrypoint from command implementations:
@@ -166,7 +167,7 @@ Examples:
 
 ### Use case: grounded skills evidence management
 
-Use `skills.yaml` and `python -m app.resume_evidence.cli --schema skills` when you want the canonical resume skill inventory stored as validated categorized lists.
+Use `skills.yaml` and `python -m resume_evidence.cli --schema skills` when you want the canonical resume skill inventory stored as validated categorized lists.
 
 Examples:
 
@@ -191,7 +192,7 @@ The broader Branch 03 target remains:
 ```text
 user/resume_evidence/*.yaml
   -> deterministic load/validate/index
-  -> synthesis/extraction
+  -> resume_generation orchestration and synthesis/extraction
   -> structured fill data with provenance
   -> deterministic assembly
   -> generated resume artifact
@@ -203,8 +204,8 @@ Planned next layers:
   - `user/resume_evidence/profile.yaml`
   - `user/resume_evidence/experience.yaml`
 - broader runtime evidence index across multiple files
-- synthesis/extraction that uses job target, evidence, and selected skills
-- resume format definitions under `app/data/resume_formats/`
+- synthesis/extraction under `resume_generation/` that uses job target, evidence, and selected skills/projects
+- resume format definitions owned by the generation layer
 - deterministic assembly of full resume output
 
 ## Grounding Rules

@@ -25,8 +25,8 @@ Use this file as the primary navigation index for coding agents.
    - superseding decision for the `user/resume_evidence/` root and the implemented projects-evidence milestone
 7. `docs/decisions/005-subsystem-package-organization.md`
    - current subsystem layout and legacy import compatibility policy
-8. `docs/decisions/007-skills-evidence-bucketed-schema.md`
-   - implemented minimal `skills.yaml` contract and CLI editing model
+8. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
+   - current top-level evidence package and future generation-orchestration boundary
 
 ## Recommended Read Order
 
@@ -40,14 +40,14 @@ Use this file as the primary navigation index for coding agents.
 8. `app/skill_selection/scoring/role_profiles.py`
 9. `app/project_selection/service.py`
 10. `app/project_selection/selector.py`
-11. `app/resume_evidence/loader.py`
-12. `app/resume_evidence/session.py`
+11. `resume_evidence/loader.py`
+12. `resume_evidence/session.py`
 13. `docs/branch-03-grounded-resume-generation.md`
 14. `docs/project-selection-plan.md`
 15. `docs/decisions/003-grounded-resume-evidence-pipeline.md`
 16. `docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md`
 17. `docs/decisions/005-subsystem-package-organization.md`
-18. `docs/decisions/007-skills-evidence-bucketed-schema.md`
+18. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
 
 ## Skill Selection Entry Points
 
@@ -62,24 +62,29 @@ Use this file as the primary navigation index for coding agents.
 
 ## Resume Evidence Entry Points
 
-- `app/resume_evidence/models.py`
+- `resume_evidence/models.py`
   - strict runtime models for `projects.yaml` and `skills.yaml`
-- `app/resume_evidence/loader.py`
+- `resume_evidence/loader.py`
   - evidence registry and startup loading
-- `app/resume_evidence/session.py`
+- `resume_evidence/session.py`
   - staged CRUD/session logic for projects and skills
-- `app/resume_evidence/cli.py`
+- `resume_evidence/cli.py`
   - CLI entrypoint and schema dispatcher
-- `app/resume_evidence/base_cli.py`
+- `resume_evidence/base_cli.py`
   - shared interactive CLI prompt and command helpers
-- `app/resume_evidence/projects_cli.py`
+- `resume_evidence/projects_cli.py`
   - project-evidence command implementation
-- `app/resume_evidence/skills_cli.py`
+- `resume_evidence/skills_cli.py`
   - skills-evidence command implementation
 - `user/resume_evidence/projects.yaml`
   - implemented project source-of-truth evidence file
 - `user/resume_evidence/skills.yaml`
   - implemented skills source-of-truth evidence file
+
+## Resume Generation Entry Points
+
+- `resume_generation/`
+  - reserved package for evidence-to-selection orchestration, API/client adapters, and structured fill-data preparation
 
 ## Project Selection Entry Points
 

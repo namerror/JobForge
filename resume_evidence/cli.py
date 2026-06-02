@@ -4,13 +4,13 @@ import argparse
 from pathlib import Path
 from typing import Callable, TextIO
 
-from app.resume_evidence.session import (
+from resume_evidence.session import (
     ProjectsEvidenceSession,
     SkillsEvidenceSession,
 )
 
-from app.resume_evidence.skills_cli import SkillsEvidenceCLI
-from app.resume_evidence.projects_cli import ProjectsEvidenceCLI
+from resume_evidence.skills_cli import SkillsEvidenceCLI
+from resume_evidence.projects_cli import ProjectsEvidenceCLI
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

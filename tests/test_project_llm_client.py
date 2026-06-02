@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.project_selection import ProjectCandidate, ProjectJobContext
-from app.resume_evidence.models import ProjectSkills
+from resume_evidence.models import ProjectSkills
 from app.project_selection import llm_client as project_llm_client
 from app.project_selection.llm_client import ProjectLLMClientError, score_projects_with_llm
 

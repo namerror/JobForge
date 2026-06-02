@@ -1,12 +1,12 @@
-from app.resume_evidence.loader import (
+from resume_evidence.loader import (
     DEFAULT_EVIDENCE_PATHS,
     SCHEMA_REGISTRY,
     load_evidence_yaml,
     load_registered_evidence,
 )
-from app.resume_evidence.models import ProjectRecord, ProjectSkills, ProjectsFile
-from app.resume_evidence.models import SkillsFile
-from app.resume_evidence.session import (
+from resume_evidence.models import ProjectRecord, ProjectSkills, ProjectsFile
+from resume_evidence.models import SkillsFile
+from resume_evidence.session import (
     PendingProjectChanges,
     PendingSkillsChanges,
     ProjectsEvidenceSession,

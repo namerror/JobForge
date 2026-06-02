@@ -15,7 +15,7 @@ This milestone adds the first project-ranking layer for the grounded resume evid
 
 - `app/project_selection/models.py`
   - Defines `ProjectJobContext`, `ProjectCandidate`, `ProjectSelectRequest`, `RankedProject`, and `ProjectSelectionResult`.
-  - Reuses `ProjectSkills` so project skill categories remain exactly `technology`, `programming`, and `concepts`.
+  - Reuses `ProjectSkills` from `resume_evidence.models` so project skill categories remain exactly `technology`, `programming`, and `concepts`.
 - `app/project_selection/service.py`
   - Wraps project selection for the API with request defaults, metrics, logging, token extraction, and fallback-method tracking.
 - `app/project_selection/baseline.py`
@@ -57,5 +57,5 @@ LLM scoring:
 
 - Core selection uses only project `summary` and `skills`; `highlights`, `links`, and `active` are outside v1 scoring input.
 - Callers are responsible for passing the candidate set they want ranked.
-- Saved evidence adapters can be added later; v1 starts with explicit candidates for testability and reuse.
+- Saved evidence adapters should live in `resume_generation/`; v1 starts with explicit candidates for testability and reuse.
 - The API route is user-facing and is tracked in `docs/CHANGELOG.md`.

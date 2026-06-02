@@ -2,8 +2,8 @@ from __future__ import annotations
 from typing import Callable, TextIO
 import shlex
 
-from app.resume_evidence.base_cli import EvidenceCLIBase
-from app.resume_evidence.session import SkillsEvidenceSession, PendingSkillsChanges
+from resume_evidence.base_cli import EvidenceCLIBase
+from resume_evidence.session import SkillsEvidenceSession, PendingSkillsChanges
 
 class SkillsEvidenceCLI(EvidenceCLIBase):
     prompt_label = "skills"

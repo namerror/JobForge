@@ -4,7 +4,7 @@ import pytest
 
 from app.project_selection import ProjectCandidate, ProjectJobContext, select_projects
 from app.project_selection.baseline import score_project_baseline
-from app.resume_evidence.models import ProjectSkills
+from resume_evidence.models import ProjectSkills
 
 
 def _candidate(

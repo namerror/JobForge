@@ -12,7 +12,7 @@ from app.metrics import metrics
 from app.logging_config import setup_logging
 from app.project_selection.models import ProjectSelectRequest, ProjectSelectionResult
 from app.project_selection.service import record_project_selection_error, select_projects_service
-from app.resume_evidence import load_registered_evidence
+from resume_evidence import load_registered_evidence
 
 
 @asynccontextmanager

@@ -4,11 +4,12 @@ import asyncio
 from copy import deepcopy
 
 import pytest
+import resume_evidence
 import yaml
 from pydantic import ValidationError
 
 from app.main import app, lifespan
-from app.resume_evidence import (
+from resume_evidence import (
     DEFAULT_EVIDENCE_PATHS,
     ProjectRecord,
     ProjectsFile,
@@ -16,6 +17,11 @@ from app.resume_evidence import (
     load_evidence_yaml,
     load_registered_evidence,
 )
+
+
+def test_resume_evidence_package_is_top_level():
+    assert "/resume_evidence/" in str(resume_evidence.__file__)
+    assert "/app/resume_evidence/" not in str(resume_evidence.__file__)
 
 
 def _valid_projects_payload() -> dict:

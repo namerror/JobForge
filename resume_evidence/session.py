@@ -10,8 +10,8 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from app.resume_evidence.loader import DEFAULT_EVIDENCE_PATHS, load_evidence_yaml
-from app.resume_evidence.models import ProjectRecord, ProjectsFile, SkillsFile
+from resume_evidence.loader import DEFAULT_EVIDENCE_PATHS, load_evidence_yaml
+from resume_evidence.models import ProjectRecord, ProjectsFile, SkillsFile
 
 
 def _projects_file_to_data(projects_file: ProjectsFile) -> dict[str, Any]:

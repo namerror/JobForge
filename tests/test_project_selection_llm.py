@@ -4,7 +4,7 @@ import pytest
 
 from app.project_selection import ProjectCandidate, ProjectJobContext, select_projects
 from app.project_selection import llm as project_llm
-from app.resume_evidence.models import ProjectSkills
+from resume_evidence.models import ProjectSkills
 from app.project_selection.llm_client import LLMProjectScoreResult, ProjectLLMClientError
 
 
