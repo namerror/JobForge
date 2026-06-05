@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     SKILL_LLM_MAX_OUTPUT_TOKENS: int = 1200
     PROJ_LLM_MODEL: str = "gpt-5-mini"
     PROJ_LLM_MAX_OUTPUT_TOKENS: int = 1200
+    BULLETPOINTS_LLM_MODEL: str = "gpt-5-mini"
+    BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS: int = 1200
+    BULLETPOINTS_DEFAULT_COUNT: int = 3
+    BULLETPOINTS_LINK_SCANNING_ENABLED: bool = False
 
     OPENAI_API_KEY: str = "" # This should be set in the .env file or environment variable
 
@@ -41,6 +45,20 @@ class Settings(BaseSettings):
     def normalize_method(cls, value: str) -> str:
         if isinstance(value, str):
             return value.strip().lower()
+        return value
+
+    @field_validator("BULLETPOINTS_DEFAULT_COUNT")
+    @classmethod
+    def validate_bulletpoints_default_count(cls, value: int) -> int:
+        if value < 1 or value > 10:
+            raise ValueError("BULLETPOINTS_DEFAULT_COUNT must be between 1 and 10")
+        return value
+
+    @field_validator("BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS")
+    @classmethod
+    def validate_bulletpoints_llm_max_output_tokens(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS must be greater than 0")
         return value
 
 

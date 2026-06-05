@@ -12,6 +12,15 @@ from app.metrics import metrics
 from app.logging_config import setup_logging
 from app.project_selection.models import ProjectSelectRequest, ProjectSelectionResult
 from app.project_selection.service import record_project_selection_error, select_projects_service
+from app.bulletpoints_generation.models import (
+    BulletGenerationRequest,
+    BulletGenerationResponse,
+)
+from app.bulletpoints_generation.service import (
+    BulletPointGenerationError,
+    generate_bulletpoints_service,
+    record_bulletpoint_generation_error,
+)
 from resume_evidence import load_registered_evidence
 
 
@@ -45,6 +54,12 @@ async def health():
             "llm_model": settings.PROJ_LLM_MODEL,
             "llm_max_output_tokens": settings.PROJ_LLM_MAX_OUTPUT_TOKENS,
         },
+        "bulletpoints_generation": {
+            "llm_model": settings.BULLETPOINTS_LLM_MODEL,
+            "llm_max_output_tokens": settings.BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS,
+            "default_count": settings.BULLETPOINTS_DEFAULT_COUNT,
+            "link_scanning_enabled": settings.BULLETPOINTS_LINK_SCANNING_ENABLED,
+        },
     }
 
 
@@ -66,6 +81,17 @@ async def select_skills(payload: SkillSelectRequest) -> SkillSelectResponse:
         return select_skills_service(payload)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.post("/generate-bulletpoints", response_model=BulletGenerationResponse)
+async def generate_bulletpoints(payload: BulletGenerationRequest) -> BulletGenerationResponse:
+    try:
+        return generate_bulletpoints_service(payload)
+    except ValueError as ve:
+        record_bulletpoint_generation_error()
+        raise HTTPException(status_code=400, detail=str(ve))
+    except BulletPointGenerationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @app.post("/select-projects", response_model=ProjectSelectionResult)

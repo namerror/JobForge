@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `06-05-2026-Codex-bullet-point-generation-api.md` - 2026-06-05 - Bullet Point Generation API
 - `06-02-2026-Codex-resume-generation-selection-orchestration.md` - 2026-06-02 - Resume generation selection orchestration
 - `06-02-2026-Codex-standalone-resume-evidence.md` - 2026-06-02 - Standalone resume evidence package
 - `05-22-2026-Codex-expand-project-action-menu.md` - 2026-05-22 - Expand project action menu

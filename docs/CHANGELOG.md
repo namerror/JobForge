@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `POST /generate-bulletpoints` API for OpenAI-backed, grounded project bullet-point generation from a job target and `ProjectRecord`.
 - `resume_generation.generate_selection_context(...)` orchestration that loads resume evidence, reads `user/resume_generation` YAML config, and calls `/select-skills` plus `/select-projects` over HTTP.
 - Modern project and highlight picker support, including a command-complete action menu, in the resume evidence CLI.
 - `user/resume_evidence/skills.yaml` evidence support with strict loading, startup registration, and staged CLI editing via `python -m resume_evidence.cli --schema skills`

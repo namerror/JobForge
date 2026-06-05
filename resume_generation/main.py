@@ -3,17 +3,18 @@
 from resume_generation.selection import (generate_selection_context)
 
 if __name__ == "__main__":
+    context = generate_selection_context()
+    job_target = context.job_target
 
     # TODO: load basic user info (name, contact info, etc)
 
     # TODO: other info like experience, publications etc. will come in the future
 
     # selection: skills and projects
-    context = generate_selection_context()
     ranked_projects = context.project_selection.ranked_projects
     skills = context.selected_skills # already ranked
 
-    # TODO: optionally re-rank project skills (not the skills themselves), this is ranked per project, priortizing skills that are more relevant to the job target
+    # TODO: optionally re-rank project skills with LLM (not the skills themselves), this is ranked per project, priortizing skills that are more relevant to the job target. This should be done with a separate reranking API instead of the one used for regular skill ranking
 
     # TODO: Refinement: project highlight refinement, this is to be implemented
 

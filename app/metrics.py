@@ -31,6 +31,7 @@ class MetricsBucket:
 class Metrics(MetricsBucket):
     skill_selection: MetricsBucket = field(default_factory=MetricsBucket)
     project_selection: MetricsBucket = field(default_factory=MetricsBucket)
+    bulletpoints_generation: MetricsBucket = field(default_factory=MetricsBucket)
     _lock: Lock = field(default_factory=Lock, repr=False)
 
     def _subsystem_bucket(self, subsystem: str) -> MetricsBucket:
@@ -38,6 +39,8 @@ class Metrics(MetricsBucket):
             return self.skill_selection
         if subsystem == "project_selection":
             return self.project_selection
+        if subsystem == "bulletpoints_generation":
+            return self.bulletpoints_generation
         raise ValueError(f"Unsupported metrics subsystem: {subsystem}")
 
     def inc_request(self, method: str, subsystem: str = "skill_selection") -> None:
@@ -78,6 +81,7 @@ class Metrics(MetricsBucket):
             return {
                 "skill_selection": self.skill_selection.snapshot(),
                 "project_selection": self.project_selection.snapshot(),
+                "bulletpoints_generation": self.bulletpoints_generation.snapshot(),
             }
 
 
