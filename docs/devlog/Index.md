@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `06-05-2026-Codex-load-resume-evidence-in-generation-pipeline.md` - 2026-06-05 - Load resume evidence in generation pipeline
 - `06-05-2026-Codex-bullet-point-generation-api.md` - 2026-06-05 - Bullet Point Generation API
 - `06-02-2026-Codex-resume-generation-selection-orchestration.md` - 2026-06-02 - Resume generation selection orchestration
 - `06-02-2026-Codex-standalone-resume-evidence.md` - 2026-06-02 - Standalone resume evidence package

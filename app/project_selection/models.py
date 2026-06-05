@@ -30,7 +30,7 @@ class RankedProject(StrictSchemaModel):
 
 
 class ProjectSelectionResult(StrictSchemaModel):
-    selected_project_ids: list[str]
+    selected_project_ids: list[str] # ids of selected projects, also ranked by relevance
     ranked_projects: list[RankedProject]
     details: dict[str, Any] | None = None
 

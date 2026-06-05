@@ -19,6 +19,7 @@ from resume_generation import (
     load_generation_config,
     load_job_target,
 )
+from resume_evidence import load_evidence_yaml
 
 
 def _write_yaml(path: Path, payload: dict) -> Path:
@@ -108,6 +109,13 @@ def _projects_payload() -> dict:
     }
 
 
+def _loaded_evidence(projects_path: Path, skills_path: Path) -> dict:
+    return {
+        "projects": load_evidence_yaml(projects_path, "projects"),
+        "skills": load_evidence_yaml(skills_path, "skills"),
+    }
+
+
 def test_load_generation_config_returns_typed_config(tmp_path):
     path = _write_yaml(tmp_path / "config.yaml", _config_payload())
 
@@ -133,7 +141,6 @@ def test_build_skill_selection_payload_uses_evidence_and_config(tmp_path):
 
     config = load_generation_config(config_path)
     job_target = load_job_target(job_path)
-    from resume_evidence import load_evidence_yaml
 
     skills_file = load_evidence_yaml(skills_path, "skills")
 
@@ -206,8 +213,14 @@ def test_generate_selection_context_posts_evidence_payloads(monkeypatch, tmp_pat
             raise AssertionError(f"unexpected endpoint: {endpoint}")
 
     monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.selection.load_registered_evidence",
+        lambda *_args, **_kwargs: pytest.fail("selection context reloaded evidence"),
+        raising=False,
+    )
 
     result = generate_selection_context(
+        loaded_evidence=_loaded_evidence(projects_path, skills_path),
         config_path=config_path,
         job_target_path=job_path,
         evidence_paths={
@@ -247,6 +260,7 @@ def test_generate_selection_context_wraps_http_errors(monkeypatch, tmp_path):
 
     with pytest.raises(ResumeGenerationError, match="/select-skills returned 500"):
         generate_selection_context(
+            loaded_evidence=_loaded_evidence(projects_path, skills_path),
             config_path=config_path,
             job_target_path=job_path,
             evidence_paths={

@@ -6,7 +6,7 @@ from typing import Any, Mapping
 import httpx
 from pydantic import BaseModel
 
-from resume_evidence import DEFAULT_EVIDENCE_PATHS, ProjectsFile, SkillsFile, load_registered_evidence
+from resume_evidence import DEFAULT_EVIDENCE_PATHS, ProjectsFile, SkillsFile
 from resume_generation.config import (
     DEFAULT_GENERATION_CONFIG_PATH,
     DEFAULT_JOB_TARGET_PATH,
@@ -99,6 +99,7 @@ def _post_json(
 
 def generate_selection_context(
     *,
+    loaded_evidence: Mapping[str, BaseModel],
     config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
     job_target_path: Path | str = DEFAULT_JOB_TARGET_PATH,
     evidence_paths: Mapping[str, Path | str] | None = None,
@@ -110,7 +111,6 @@ def generate_selection_context(
         merged_evidence_paths.update(
             {schema_name: Path(path) for schema_name, path in evidence_paths.items()}
         )
-    loaded_evidence = load_registered_evidence(merged_evidence_paths)
 
     projects_file = loaded_evidence.get("projects")
     skills_file = loaded_evidence.get("skills")
