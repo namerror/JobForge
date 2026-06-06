@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from resume_evidence.models import ProjectRecord
 
@@ -97,11 +97,64 @@ class ProjectSelectionConfig(StrictSchemaModel):
         return value
 
 
+class BulletCountRangeConfig(StrictSchemaModel):
+    min: int
+    max: int
+
+    @field_validator("min")
+    @classmethod
+    def validate_min(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("bullet_count_range.min must be greater than or equal to 1")
+        return value
+
+    @field_validator("max")
+    @classmethod
+    def validate_max(cls, value: int) -> int:
+        if value > 10:
+            raise ValueError("bullet_count_range.max must be less than or equal to 10")
+        return value
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "BulletCountRangeConfig":
+        if self.min > self.max:
+            raise ValueError("bullet_count_range.min must be less than or equal to max")
+        return self
+
+
+class BulletPointGenerationConfig(StrictSchemaModel):
+    bullet_count_range: BulletCountRangeConfig | None = None
+    dev_mode: bool | None = None
+    llm_model: str | None = None
+    llm_max_output_tokens: int | None = None
+    link_scanning: bool | None = None
+
+    @field_validator("llm_model")
+    @classmethod
+    def validate_llm_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("llm_model must not be empty")
+        return normalized
+
+    @field_validator("llm_max_output_tokens")
+    @classmethod
+    def validate_llm_max_output_tokens(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("llm_max_output_tokens must be greater than 0")
+        return value
+
+
 class ResumeGenerationConfig(StrictSchemaModel):
     schema_version: Literal[1]
     app: GenerationAppConfig = Field(default_factory=GenerationAppConfig)
     skill_selection: SkillSelectionConfig = Field(default_factory=SkillSelectionConfig)
     project_selection: ProjectSelectionConfig = Field(default_factory=ProjectSelectionConfig)
+    bullet_point_generation: BulletPointGenerationConfig = Field(
+        default_factory=BulletPointGenerationConfig
+    )
 
 
 class JobTarget(StrictSchemaModel):
@@ -152,3 +205,9 @@ class ResumeSelectionContext(StrictSchemaModel):
     config_path: Path
     job_target_path: Path
     evidence_paths: dict[str, Path]
+
+
+class ProjectBulletPointResult(StrictSchemaModel):
+    project_id: str
+    bullet_points: list[str]
+    details: dict[str, Any] | None = None

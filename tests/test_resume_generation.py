@@ -19,6 +19,7 @@ from resume_generation import (
     load_generation_config,
     load_job_target,
 )
+from resume_generation.main import bullet_point_generation
 from resume_evidence import load_evidence_yaml
 
 
@@ -48,6 +49,13 @@ def _config_payload(**overrides) -> dict:
             "dev_mode": True,
             "llm_model": "project-model",
             "llm_max_output_tokens": 880,
+        },
+        "bullet_point_generation": {
+            "bullet_count_range": {"min": 2, "max": 4},
+            "dev_mode": True,
+            "llm_model": "bullet-model",
+            "llm_max_output_tokens": 990,
+            "link_scanning": False,
         },
     }
     payload.update(overrides)
@@ -125,6 +133,24 @@ def test_load_generation_config_returns_typed_config(tmp_path):
     assert config.app.base_url == "http://jobforge.test"
     assert config.skill_selection.llm_model == "skill-model"
     assert config.project_selection.llm_max_output_tokens == 880
+    assert config.bullet_point_generation.llm_model == "bullet-model"
+    assert config.bullet_point_generation.bullet_count_range is not None
+    assert config.bullet_point_generation.bullet_count_range.min == 2
+
+
+def test_load_generation_config_rejects_invalid_bullet_count_range(tmp_path):
+    path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            bullet_point_generation={
+                "bullet_count_range": {"min": 0, "max": 4},
+                "dev_mode": True,
+            }
+        ),
+    )
+
+    with pytest.raises(ValidationError, match="bullet_count_range.min"):
+        load_generation_config(path)
 
 
 def test_load_job_target_rejects_extra_fields(tmp_path):
@@ -235,6 +261,89 @@ def test_generate_selection_context_posts_evidence_payloads(monkeypatch, tmp_pat
     assert [candidate["id"] for candidate in requests[1][1]["candidates"]] == ["active-project"]
     assert result.selected_skills.technology == ["FastAPI"]
     assert [project.id for project in result.selected_projects] == ["active-project"]
+
+
+def test_bullet_point_generation_posts_once_per_selected_project(monkeypatch, tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    requests: list[tuple[str, dict]] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            requests.append((endpoint, json))
+            return httpx.Response(
+                200,
+                json={
+                    "bullet_points": [f"Generated bullet for {json['project']['id']}."],
+                    "details": {"method": "llm"},
+                },
+            )
+
+    monkeypatch.setattr("resume_generation.main.httpx.Client", FakeClient)
+
+    result = bullet_point_generation(
+        loaded_evidence=_loaded_evidence(projects_path, skills_path),
+        project_ids=["active-project", "missing-project"],
+        config_path=config_path,
+        job_target_path=job_path,
+    )
+
+    assert [endpoint for endpoint, _ in requests] == ["/generate-bulletpoints"]
+    payload = requests[0][1]
+    assert payload["context"] == {
+        "title": "Backend Engineer",
+        "description": "Build Python APIs with FastAPI.",
+    }
+    assert payload["project"]["id"] == "active-project"
+    assert payload["project"]["highlights"] == ["Built the service."]
+    assert payload["bullet_count_range"] == {"min": 2, "max": 4}
+    assert payload["llm_model"] == "bullet-model"
+    assert payload["llm_max_output_tokens"] == 990
+    assert payload["link_scanning"] is False
+    assert [item.project_id for item in result] == ["active-project"]
+    assert result[0].bullet_points == ["Generated bullet for active-project."]
+
+
+def test_bullet_point_generation_wraps_http_errors(monkeypatch, tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+
+    class FailingClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            return httpx.Response(502, text="llm down")
+
+    monkeypatch.setattr("resume_generation.main.httpx.Client", FailingClient)
+
+    with pytest.raises(ResumeGenerationError, match="/generate-bulletpoints returned 502"):
+        bullet_point_generation(
+            loaded_evidence=_loaded_evidence(projects_path, skills_path),
+            project_ids=["active-project"],
+            config_path=config_path,
+            job_target_path=job_path,
+        )
 
 
 def test_generate_selection_context_wraps_http_errors(monkeypatch, tmp_path):

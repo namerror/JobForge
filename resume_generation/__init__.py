@@ -11,8 +11,11 @@ from resume_generation.config import (
     load_job_target,
 )
 from resume_generation.models import (
+    BulletCountRangeConfig,
+    BulletPointGenerationConfig,
     GenerationAppConfig,
     JobTarget,
+    ProjectBulletPointResult,
     ProjectSelectionConfig,
     ProjectSelectionResult,
     ResumeGenerationConfig,
@@ -29,8 +32,11 @@ from resume_generation.selection import (
 __all__ = [
     "DEFAULT_GENERATION_CONFIG_PATH",
     "DEFAULT_JOB_TARGET_PATH",
+    "BulletCountRangeConfig",
+    "BulletPointGenerationConfig",
     "GenerationAppConfig",
     "JobTarget",
+    "ProjectBulletPointResult",
     "ProjectSelectionConfig",
     "ProjectSelectionResult",
     "ResumeGenerationConfig",

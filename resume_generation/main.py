@@ -1,11 +1,74 @@
 # entry point for resume generation
 
+from pathlib import Path
+from typing import Mapping
+
+import httpx
+from pydantic import BaseModel
+
 from resume_evidence import load_registered_evidence
-from resume_generation.selection import generate_selection_context
+from resume_evidence.models import ProjectsFile
+from resume_generation.config import (
+    DEFAULT_GENERATION_CONFIG_PATH,
+    DEFAULT_JOB_TARGET_PATH,
+    load_generation_config,
+    load_job_target,
+)
+from resume_generation.models import ProjectBulletPointResult
+from resume_generation.selection import (
+    ResumeGenerationError,
+    _exclude_none,
+    _post_json,
+    generate_selection_context,
+)
 
 
-def bullet_point_generation(loaded_evidence, project_ids):
-    pass
+def bullet_point_generation(
+    *,
+    loaded_evidence: Mapping[str, BaseModel],
+    project_ids: list[str],
+    config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
+    job_target_path: Path | str = DEFAULT_JOB_TARGET_PATH,
+) -> list[ProjectBulletPointResult]:
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_target_path)
+
+    projects_file = loaded_evidence.get("projects")
+    if not isinstance(projects_file, ProjectsFile):
+        raise ResumeGenerationError("Loaded evidence did not include a valid projects file")
+
+    projects_by_id = projects_file.projects_by_id()
+    selected_projects = [
+        projects_by_id[project_id]
+        for project_id in project_ids
+        if project_id in projects_by_id
+    ]
+    bullet_config = _exclude_none(config.bullet_point_generation)
+
+    results: list[ProjectBulletPointResult] = []
+    with httpx.Client(
+        base_url=config.app.base_url,
+        timeout=config.app.timeout_seconds,
+    ) as client:
+        for project in selected_projects:
+            payload = {
+                "context": {
+                    "title": job_target.title,
+                    "description": job_target.description,
+                },
+                "project": project.model_dump(),
+                **bullet_config,
+            }
+            response = _post_json(client, "/generate-bulletpoints", payload)
+            results.append(
+                ProjectBulletPointResult(
+                    project_id=project.id,
+                    bullet_points=response["bullet_points"],
+                    details=response.get("details"),
+                )
+            )
+
+    return results
 
 
 if __name__ == "__main__":
