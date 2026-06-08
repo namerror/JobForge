@@ -23,6 +23,7 @@ from resume_generation.models import (
     SkillSelectionConfig,
     SkillSelectionResult,
 )
+from resume_generation.bullet_points import generate_project_bullet_points
 from resume_generation.selection import (
     ResumeGenerationError,
     build_skill_selection_payload,
@@ -45,6 +46,7 @@ __all__ = [
     "SkillSelectionConfig",
     "SkillSelectionResult",
     "build_skill_selection_payload",
+    "generate_project_bullet_points",
     "generate_selection_context",
     "load_generation_config",
     "load_job_target",

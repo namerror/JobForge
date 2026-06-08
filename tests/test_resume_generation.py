@@ -15,11 +15,12 @@ from resume_generation import (
     ResumeGenerationConfig,
     ResumeGenerationError,
     build_skill_selection_payload,
+    generate_project_bullet_points,
     generate_selection_context,
     load_generation_config,
     load_job_target,
 )
-from resume_generation.main import bullet_point_generation
+from resume_generation.main import run_resume_generation_pipeline
 from resume_evidence import load_evidence_yaml
 
 
@@ -196,6 +197,8 @@ def test_generate_selection_context_posts_evidence_payloads(monkeypatch, tmp_pat
     job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
     projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
     skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_path)
     requests: list[tuple[str, dict]] = []
 
     class FakeClient:
@@ -239,14 +242,11 @@ def test_generate_selection_context_posts_evidence_payloads(monkeypatch, tmp_pat
             raise AssertionError(f"unexpected endpoint: {endpoint}")
 
     monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
-    monkeypatch.setattr(
-        "resume_generation.selection.load_registered_evidence",
-        lambda *_args, **_kwargs: pytest.fail("selection context reloaded evidence"),
-        raising=False,
-    )
 
     result = generate_selection_context(
         loaded_evidence=_loaded_evidence(projects_path, skills_path),
+        config=config,
+        job_target=job_target,
         config_path=config_path,
         job_target_path=job_path,
         evidence_paths={
@@ -263,11 +263,15 @@ def test_generate_selection_context_posts_evidence_payloads(monkeypatch, tmp_pat
     assert [project.id for project in result.selected_projects] == ["active-project"]
 
 
-def test_bullet_point_generation_posts_once_per_selected_project(monkeypatch, tmp_path):
+def test_generate_project_bullet_points_posts_once_per_selected_project(monkeypatch, tmp_path):
     config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
     job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
     projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
     skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_path)
+    projects_file = _loaded_evidence(projects_path, skills_path)["projects"]
+    selected_project = projects_file.projects_by_id()["active-project"]
     requests: list[tuple[str, dict]] = []
 
     class FakeClient:
@@ -291,13 +295,12 @@ def test_bullet_point_generation_posts_once_per_selected_project(monkeypatch, tm
                 },
             )
 
-    monkeypatch.setattr("resume_generation.main.httpx.Client", FakeClient)
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
 
-    result = bullet_point_generation(
-        loaded_evidence=_loaded_evidence(projects_path, skills_path),
-        project_ids=["active-project", "missing-project"],
-        config_path=config_path,
-        job_target_path=job_path,
+    result = generate_project_bullet_points(
+        selected_projects=[selected_project],
+        config=config,
+        job_target=job_target,
     )
 
     assert [endpoint for endpoint, _ in requests] == ["/generate-bulletpoints"]
@@ -316,11 +319,15 @@ def test_bullet_point_generation_posts_once_per_selected_project(monkeypatch, tm
     assert result[0].bullet_points == ["Generated bullet for active-project."]
 
 
-def test_bullet_point_generation_wraps_http_errors(monkeypatch, tmp_path):
+def test_generate_project_bullet_points_wraps_http_errors(monkeypatch, tmp_path):
     config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
     job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
     projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
     skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_path)
+    projects_file = _loaded_evidence(projects_path, skills_path)["projects"]
+    selected_project = projects_file.projects_by_id()["active-project"]
 
     class FailingClient:
         def __init__(self, **_kwargs):
@@ -335,14 +342,13 @@ def test_bullet_point_generation_wraps_http_errors(monkeypatch, tmp_path):
         def post(self, endpoint: str, json: dict):
             return httpx.Response(502, text="llm down")
 
-    monkeypatch.setattr("resume_generation.main.httpx.Client", FailingClient)
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FailingClient)
 
     with pytest.raises(ResumeGenerationError, match="/generate-bulletpoints returned 502"):
-        bullet_point_generation(
-            loaded_evidence=_loaded_evidence(projects_path, skills_path),
-            project_ids=["active-project"],
-            config_path=config_path,
-            job_target_path=job_path,
+        generate_project_bullet_points(
+            selected_projects=[selected_project],
+            config=config,
+            job_target=job_target,
         )
 
 
@@ -351,6 +357,8 @@ def test_generate_selection_context_wraps_http_errors(monkeypatch, tmp_path):
     job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
     projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
     skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_path)
 
     class FailingClient:
         def __init__(self, **_kwargs):
@@ -370,6 +378,8 @@ def test_generate_selection_context_wraps_http_errors(monkeypatch, tmp_path):
     with pytest.raises(ResumeGenerationError, match="/select-skills returned 500"):
         generate_selection_context(
             loaded_evidence=_loaded_evidence(projects_path, skills_path),
+            config=config,
+            job_target=job_target,
             config_path=config_path,
             job_target_path=job_path,
             evidence_paths={
@@ -377,6 +387,80 @@ def test_generate_selection_context_wraps_http_errors(monkeypatch, tmp_path):
                 "skills": skills_path,
             },
         )
+
+
+def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypatch, tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            if endpoint == "/select-skills":
+                return httpx.Response(
+                    200,
+                    json={
+                        "technology": ["FastAPI"],
+                        "programming": ["Python"],
+                        "concepts": ["API"],
+                        "details": {"method": "llm"},
+                    },
+                )
+            if endpoint == "/select-projects":
+                return httpx.Response(
+                    200,
+                    json={
+                        "selected_project_ids": ["active-project"],
+                        "ranked_projects": [
+                            {
+                                "project_id": "active-project",
+                                "score": 1.0,
+                                "method": "llm",
+                            }
+                        ],
+                    },
+                )
+            if endpoint == "/generate-bulletpoints":
+                return httpx.Response(
+                    200,
+                    json={
+                        "bullet_points": ["Generated bullet for active-project."],
+                    },
+                )
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    result = run_resume_generation_pipeline(
+        config_path=config_path,
+        job_target_path=job_path,
+        evidence_paths={
+            "projects": projects_path,
+            "skills": skills_path,
+        },
+    )
+
+    assert calls == ["/select-skills", "/select-projects", "/generate-bulletpoints"]
+    assert [item.project_id for item in result] == ["active-project"]
 
 
 def api_request(method: str, path: str, **kwargs):

@@ -10,8 +10,6 @@ from resume_evidence import DEFAULT_EVIDENCE_PATHS, ProjectsFile, SkillsFile
 from resume_generation.config import (
     DEFAULT_GENERATION_CONFIG_PATH,
     DEFAULT_JOB_TARGET_PATH,
-    load_generation_config,
-    load_job_target,
 )
 from resume_generation.models import (
     JobTarget,
@@ -100,12 +98,12 @@ def _post_json(
 def generate_selection_context(
     *,
     loaded_evidence: Mapping[str, BaseModel],
+    config: ResumeGenerationConfig,
+    job_target: JobTarget,
     config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
     job_target_path: Path | str = DEFAULT_JOB_TARGET_PATH,
     evidence_paths: Mapping[str, Path | str] | None = None,
 ) -> ResumeSelectionContext:
-    config = load_generation_config(config_path)
-    job_target = load_job_target(job_target_path)
     merged_evidence_paths = dict(DEFAULT_EVIDENCE_PATHS)
     if evidence_paths is not None:
         merged_evidence_paths.update(

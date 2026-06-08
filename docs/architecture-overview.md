@@ -290,7 +290,9 @@ Implemented now:
 
 - `user/resume_generation/config.yaml` stores user-level HTTP and selection request options.
 - `user/resume_generation/job_target.yaml` stores the target job title and optional description.
-- `resume_generation.generate_selection_context(...)` loads evidence through `resume_evidence`, adapts it into `/select-skills` and `/select-projects` JSON payloads, and posts to a running app with `httpx`.
+- `resume_generation/main.py` owns the pipeline-level loading of config, job target, and evidence.
+- `resume_generation.generate_selection_context(...)` adapts already-loaded evidence into `/select-skills` and `/select-projects` JSON payloads, and posts to a running app with `httpx`.
+- `resume_generation.generate_project_bullet_points(...)` posts selected project records to `/generate-bulletpoints`.
 - The generation config becomes explicit request fields, so it takes precedence over app `.env` defaults for supported per-request options.
 
 Planned but not yet implemented:

@@ -369,7 +369,7 @@ PYTHONPATH=. pytest tests/test_integration.py
 
 ## Planned Next
 
-The first resume-generation selection orchestration is implemented as `resume_generation.generate_selection_context(...)`: it loads evidence, reads `user/resume_generation/config.yaml` plus `job_target.yaml`, and calls the running app's selection APIs over HTTP.
+The resume-generation pipeline is implemented from `resume_generation/main.py`: it loads evidence, reads `user/resume_generation/config.yaml` plus `job_target.yaml`, calls the running app's selection APIs over HTTP, and hands selected projects to bullet-point generation.
 
 The following pieces are still planned for the broader public resume-generation flow:
 

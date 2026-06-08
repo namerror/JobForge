@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `06-08-2026-Codex-resume-generation-pipeline-modularization.md` - 2026-06-08 - Resume generation pipeline modularization
 - `06-06-2026-Codex-bullet-point-generation-orchestration.md` - 2026-06-06 - Bullet point generation orchestration
 - `06-05-2026-Codex-load-resume-evidence-in-generation-pipeline.md` - 2026-06-05 - Load resume evidence in generation pipeline
 - `06-05-2026-Codex-bullet-point-generation-api.md` - 2026-06-05 - Bullet Point Generation API

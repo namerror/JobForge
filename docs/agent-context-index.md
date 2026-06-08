@@ -84,9 +84,13 @@ Use this file as the primary navigation index for coding agents.
 ## Resume Generation Entry Points
 
 - `resume_generation/`
-  - implemented evidence-to-selection orchestration package
+  - implemented resume generation orchestration package
+- `resume_generation/main.py`
+  - pipeline owner for config, job target, evidence loading, selection, and bullet-point generation stages
 - `resume_generation/selection.py`
-  - `generate_selection_context(...)` HTTP orchestration over `/select-skills` and `/select-projects`
+  - `generate_selection_context(...)` HTTP selection stage over `/select-skills` and `/select-projects`
+- `resume_generation/bullet_points.py`
+  - `generate_project_bullet_points(...)` HTTP bullet generation stage over `/generate-bulletpoints`
 - `resume_generation/config.py`
   - strict loading for `user/resume_generation/config.yaml` and `job_target.yaml`
 - `user/resume_generation/config.yaml`
