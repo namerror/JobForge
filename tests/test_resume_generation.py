@@ -16,6 +16,7 @@ from resume_generation import (
     ResumeGenerationError,
     build_skill_selection_payload,
     generate_project_bullet_points,
+    enrich_projects_with_link_scanning,
     generate_selection_context,
     load_generation_config,
     load_job_target,
@@ -51,12 +52,15 @@ def _config_payload(**overrides) -> dict:
             "llm_model": "project-model",
             "llm_max_output_tokens": 880,
         },
+        "link_scanning": {
+            "enabled": False,
+            "dev_mode": True,
+        },
         "bullet_point_generation": {
             "bullet_count_range": {"min": 2, "max": 4},
             "dev_mode": True,
             "llm_model": "bullet-model",
             "llm_max_output_tokens": 990,
-            "link_scanning": False,
         },
     }
     payload.update(overrides)
@@ -134,6 +138,8 @@ def test_load_generation_config_returns_typed_config(tmp_path):
     assert config.app.base_url == "http://jobforge.test"
     assert config.skill_selection.llm_model == "skill-model"
     assert config.project_selection.llm_max_output_tokens == 880
+    assert config.link_scanning.enabled is False
+    assert config.link_scanning.dev_mode is True
     assert config.bullet_point_generation.llm_model == "bullet-model"
     assert config.bullet_point_generation.bullet_count_range is not None
     assert config.bullet_point_generation.bullet_count_range.min == 2
@@ -314,9 +320,86 @@ def test_generate_project_bullet_points_posts_once_per_selected_project(monkeypa
     assert payload["bullet_count_range"] == {"min": 2, "max": 4}
     assert payload["llm_model"] == "bullet-model"
     assert payload["llm_max_output_tokens"] == 990
-    assert payload["link_scanning"] is False
     assert [item.project_id for item in result] == ["active-project"]
     assert result[0].bullet_points == ["Generated bullet for active-project."]
+
+
+def test_enrich_projects_with_link_scanning_posts_linked_projects_and_merges_patch(
+    monkeypatch,
+    tmp_path,
+):
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(link_scanning={"enabled": True, "dev_mode": True}),
+    )
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_path)
+    projects_file = _loaded_evidence(projects_path, skills_path)["projects"]
+    linked_project = projects_file.projects_by_id()["active-project"]
+    unlinked_project = projects_file.projects_by_id()["inactive-project"]
+    requests: list[tuple[str, dict]] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            requests.append((endpoint, json))
+            return httpx.Response(
+                200,
+                json={
+                    "project_id": json["project"]["id"],
+                    "added_highlights": [
+                        {
+                            "text": "Scanned README confirms API orchestration.",
+                            "source_url": "https://example.com/active",
+                        }
+                    ],
+                    "added_skills": [
+                        {
+                            "name": "OpenAI",
+                            "category": "technology",
+                            "source_url": "https://example.com/active",
+                        },
+                        {
+                            "name": "Python",
+                            "category": "programming",
+                            "source_url": "https://example.com/active",
+                        },
+                    ],
+                    "details": {"method": "placeholder"},
+                },
+            )
+
+    monkeypatch.setattr("resume_generation.link_scanning.httpx.Client", FakeClient)
+
+    result = enrich_projects_with_link_scanning(
+        selected_projects=[linked_project, unlinked_project],
+        config=config,
+        job_target=job_target,
+    )
+
+    assert [endpoint for endpoint, _ in requests] == ["/scan-link"]
+    payload = requests[0][1]
+    assert payload["project"]["id"] == "active-project"
+    assert payload["dev_mode"] is True
+    assert result[0].highlights == [
+        "Built the service.",
+        "Scanned README confirms API orchestration.",
+    ]
+    assert result[0].skills.technology == ["FastAPI", "OpenAI"]
+    assert result[0].skills.programming == ["Python"]
+    assert result[1].id == "inactive-project"
 
 
 def test_generate_project_bullet_points_wraps_http_errors(monkeypatch, tmp_path):
@@ -460,6 +543,113 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
     )
 
     assert calls == ["/select-skills", "/select-projects", "/generate-bulletpoints"]
+    assert [item.project_id for item in result] == ["active-project"]
+
+
+def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generation(
+    monkeypatch,
+    tmp_path,
+):
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(link_scanning={"enabled": True, "dev_mode": True}),
+    )
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[str] = []
+    bullet_payloads: list[dict] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            if endpoint == "/select-skills":
+                return httpx.Response(
+                    200,
+                    json={
+                        "technology": ["FastAPI"],
+                        "programming": ["Python"],
+                        "concepts": ["API"],
+                    },
+                )
+            if endpoint == "/select-projects":
+                return httpx.Response(
+                    200,
+                    json={
+                        "selected_project_ids": ["active-project"],
+                        "ranked_projects": [
+                            {
+                                "project_id": "active-project",
+                                "score": 1.0,
+                                "method": "llm",
+                            }
+                        ],
+                    },
+                )
+            if endpoint == "/scan-link":
+                return httpx.Response(
+                    200,
+                    json={
+                        "project_id": json["project"]["id"],
+                        "added_highlights": [
+                            {
+                                "text": "Scanned link confirms project context.",
+                                "source_url": "https://example.com/active",
+                            }
+                        ],
+                        "added_skills": [
+                            {
+                                "name": "OpenAI",
+                                "category": "technology",
+                                "source_url": "https://example.com/active",
+                            }
+                        ],
+                    },
+                )
+            if endpoint == "/generate-bulletpoints":
+                bullet_payloads.append(json)
+                return httpx.Response(
+                    200,
+                    json={
+                        "bullet_points": ["Generated bullet for active-project."],
+                    },
+                )
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr("resume_generation.link_scanning.httpx.Client", FakeClient)
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    result = run_resume_generation_pipeline(
+        config_path=config_path,
+        job_target_path=job_path,
+        evidence_paths={
+            "projects": projects_path,
+            "skills": skills_path,
+        },
+    )
+
+    assert calls == ["/select-skills", "/select-projects", "/scan-link", "/generate-bulletpoints"]
+    assert bullet_payloads[0]["project"]["highlights"] == [
+        "Built the service.",
+        "Scanned link confirms project context.",
+    ]
+    assert bullet_payloads[0]["project"]["skills"]["technology"] == ["FastAPI", "OpenAI"]
     assert [item.project_id for item in result] == ["active-project"]
 
 

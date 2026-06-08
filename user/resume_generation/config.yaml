@@ -15,9 +15,11 @@ project_selection:
   dev_mode: true
   llm_model: gpt-5-mini
   llm_max_output_tokens: 1200
+link_scanning:
+  enabled: false
+  dev_mode: true
 bullet_point_generation:
   bullet_count_range: null
   dev_mode: true
   llm_model: gpt-5-mini
   llm_max_output_tokens: 1200
-  link_scanning: false

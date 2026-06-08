@@ -48,14 +48,6 @@ def record_bulletpoint_generation_error(method: str = "llm") -> None:
 
 def generate_bulletpoints_service(req: BulletGenerationRequest) -> BulletGenerationResponse:
     dev_mode = req.dev_mode if req.dev_mode is not None else settings.DEV_MODE
-    effective_link_scanning = (
-        req.link_scanning
-        if req.link_scanning is not None
-        else settings.BULLETPOINTS_LINK_SCANNING_ENABLED
-    )
-    if effective_link_scanning:
-        raise ValueError("link_scanning is not implemented for bullet-point generation v1")
-
     count_range = effective_bullet_count_range(req.bullet_count_range)
     start = time.perf_counter()
     request_counted = False
@@ -100,7 +92,6 @@ def generate_bulletpoints_service(req: BulletGenerationRequest) -> BulletGenerat
                     else None
                 ),
                 "effective_count_range": count_range.model_dump(),
-                "link_scanning": effective_link_scanning,
                 "_bulletpoints_llm": llm_metadata,
             }
 

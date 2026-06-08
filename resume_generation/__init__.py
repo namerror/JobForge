@@ -15,7 +15,9 @@ from resume_generation.models import (
     BulletPointGenerationConfig,
     GenerationAppConfig,
     JobTarget,
+    LinkScanningConfig,
     ProjectBulletPointResult,
+    ProjectLinkScanResult,
     ProjectSelectionConfig,
     ProjectSelectionResult,
     ResumeGenerationConfig,
@@ -24,6 +26,7 @@ from resume_generation.models import (
     SkillSelectionResult,
 )
 from resume_generation.bullet_points import generate_project_bullet_points
+from resume_generation.link_scanning import enrich_projects_with_link_scanning
 from resume_generation.selection import (
     ResumeGenerationError,
     build_skill_selection_payload,
@@ -37,7 +40,9 @@ __all__ = [
     "BulletPointGenerationConfig",
     "GenerationAppConfig",
     "JobTarget",
+    "LinkScanningConfig",
     "ProjectBulletPointResult",
+    "ProjectLinkScanResult",
     "ProjectSelectionConfig",
     "ProjectSelectionResult",
     "ResumeGenerationConfig",
@@ -46,6 +51,7 @@ __all__ = [
     "SkillSelectionConfig",
     "SkillSelectionResult",
     "build_skill_selection_payload",
+    "enrich_projects_with_link_scanning",
     "generate_project_bullet_points",
     "generate_selection_context",
     "load_generation_config",

@@ -127,7 +127,6 @@ class BulletPointGenerationConfig(StrictSchemaModel):
     dev_mode: bool | None = None
     llm_model: str | None = None
     llm_max_output_tokens: int | None = None
-    link_scanning: bool | None = None
 
     @field_validator("llm_model")
     @classmethod
@@ -147,11 +146,17 @@ class BulletPointGenerationConfig(StrictSchemaModel):
         return value
 
 
+class LinkScanningConfig(StrictSchemaModel):
+    enabled: bool = False
+    dev_mode: bool | None = None
+
+
 class ResumeGenerationConfig(StrictSchemaModel):
     schema_version: Literal[1]
     app: GenerationAppConfig = Field(default_factory=GenerationAppConfig)
     skill_selection: SkillSelectionConfig = Field(default_factory=SkillSelectionConfig)
     project_selection: ProjectSelectionConfig = Field(default_factory=ProjectSelectionConfig)
+    link_scanning: LinkScanningConfig = Field(default_factory=LinkScanningConfig)
     bullet_point_generation: BulletPointGenerationConfig = Field(
         default_factory=BulletPointGenerationConfig
     )
@@ -210,4 +215,22 @@ class ResumeSelectionContext(StrictSchemaModel):
 class ProjectBulletPointResult(StrictSchemaModel):
     project_id: str
     bullet_points: list[str]
+    details: dict[str, Any] | None = None
+
+
+class LinkScanHighlight(StrictSchemaModel):
+    text: str
+    source_url: str
+
+
+class LinkScanSkill(StrictSchemaModel):
+    name: str
+    category: Literal["technology", "programming", "concepts"]
+    source_url: str
+
+
+class ProjectLinkScanResult(StrictSchemaModel):
+    project_id: str
+    added_highlights: list[LinkScanHighlight]
+    added_skills: list[LinkScanSkill]
     details: dict[str, Any] | None = None

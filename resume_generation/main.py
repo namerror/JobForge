@@ -10,6 +10,7 @@ from resume_generation.config import (
     load_job_target,
 )
 from resume_generation.bullet_points import generate_project_bullet_points
+from resume_generation.link_scanning import enrich_projects_with_link_scanning
 from resume_generation.models import ProjectBulletPointResult
 from resume_generation.selection import generate_selection_context
 
@@ -41,9 +42,15 @@ def run_resume_generation_pipeline(
 
     # TODO: optionally re-rank project skills with LLM (not the skills themselves), this is ranked per project, priortizing skills that are more relevant to the job target. This should be done with a separate reranking API instead of the one used for regular skill ranking
 
+    enriched_projects = enrich_projects_with_link_scanning(
+        selected_projects=context.selected_projects,
+        config=config,
+        job_target=job_target,
+    )
+
     # TODO: bullet point generation. Call the "/generate-bulletpoints" API with the project records
     bullet_points = generate_project_bullet_points(
-        selected_projects=context.selected_projects,
+        selected_projects=enriched_projects,
         config=config,
         job_target=job_target,
     )

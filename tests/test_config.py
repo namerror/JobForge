@@ -17,7 +17,7 @@ SCOPED_ENV_VARS = [
     "BULLETPOINTS_LLM_MODEL",
     "BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS",
     "BULLETPOINTS_DEFAULT_COUNT",
-    "BULLETPOINTS_LINK_SCANNING_ENABLED",
+    "LINK_SCANNING_ENABLED",
 ]
 LEGACY_ENV_VARS = [
     "METHOD",
@@ -50,7 +50,7 @@ def test_settings_scoped_defaults(monkeypatch):
     assert settings.BULLETPOINTS_LLM_MODEL == "gpt-5-mini"
     assert settings.BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS == 1200
     assert settings.BULLETPOINTS_DEFAULT_COUNT == 3
-    assert settings.BULLETPOINTS_LINK_SCANNING_ENABLED is False
+    assert settings.LINK_SCANNING_ENABLED is False
 
 
 def test_settings_bulletpoints_env_overrides(monkeypatch):
@@ -58,14 +58,14 @@ def test_settings_bulletpoints_env_overrides(monkeypatch):
     monkeypatch.setenv("BULLETPOINTS_LLM_MODEL", "writer-model")
     monkeypatch.setenv("BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS", "777")
     monkeypatch.setenv("BULLETPOINTS_DEFAULT_COUNT", "4")
-    monkeypatch.setenv("BULLETPOINTS_LINK_SCANNING_ENABLED", "true")
+    monkeypatch.setenv("LINK_SCANNING_ENABLED", "true")
 
     settings = Settings(_env_file=None)
 
     assert settings.BULLETPOINTS_LLM_MODEL == "writer-model"
     assert settings.BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS == 777
     assert settings.BULLETPOINTS_DEFAULT_COUNT == 4
-    assert settings.BULLETPOINTS_LINK_SCANNING_ENABLED is True
+    assert settings.LINK_SCANNING_ENABLED is True
 
 
 def test_settings_validates_bulletpoints_defaults(monkeypatch):

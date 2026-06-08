@@ -87,7 +87,6 @@ def test_generate_bulletpoints_api_success_with_default_count_and_details(monkey
     assert data["details"]["method"] == "llm"
     assert data["details"]["requested_count_range"] is None
     assert data["details"]["effective_count_range"] == {"min": 3, "max": 3}
-    assert data["details"]["link_scanning"] is False
     assert data["details"]["_bulletpoints_llm"]["total_tokens"] == 42
 
     after = api_request("GET", "/metrics-lite").json()
@@ -135,15 +134,15 @@ def test_generate_bulletpoints_api_returns_502_on_llm_failure(monkeypatch):
     assert "network down" in response.json()["detail"]
 
 
-def test_generate_bulletpoints_api_rejects_link_scanning():
+def test_generate_bulletpoints_api_rejects_link_scanning_field():
     response = api_request(
         "POST",
         "/generate-bulletpoints",
         json=_request_payload(link_scanning=True),
     )
 
-    assert response.status_code == 400
-    assert "link_scanning is not implemented" in response.json()["detail"]
+    assert response.status_code == 422
+    assert "link_scanning" in response.text
 
 
 def test_generate_bulletpoints_api_rejects_invalid_count_range():

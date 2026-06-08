@@ -53,7 +53,6 @@ class BulletGenerationRequest(StrictSchemaModel):
     dev_mode: bool | None = None
     llm_model: str | None = None
     llm_max_output_tokens: int | None = None
-    link_scanning: bool | None = None
 
     @field_validator("llm_model")
     @classmethod
