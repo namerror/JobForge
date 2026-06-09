@@ -90,6 +90,17 @@ def _skills_payload() -> dict:
     }
 
 
+def _user_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "name": "Example Candidate",
+        "email": "candidate@example.com",
+        "phone": "+1 555-0100",
+        "linkedin": "https://www.linkedin.com/in/example-candidate",
+        "github": "https://github.com/example-candidate",
+    }
+
+
 def _projects_payload() -> dict:
     return {
         "schema_version": 1,
@@ -124,10 +135,17 @@ def _projects_payload() -> dict:
     }
 
 
-def _loaded_evidence(projects_path: Path, skills_path: Path) -> dict:
+def _loaded_evidence(
+    projects_path: Path,
+    skills_path: Path,
+    user_path: Path | None = None,
+) -> dict:
+    if user_path is None:
+        user_path = _write_yaml(projects_path.parent / "user.yaml", _user_payload())
     return {
         "projects": load_evidence_yaml(projects_path, "projects"),
         "skills": load_evidence_yaml(skills_path, "skills"),
+        "user": load_evidence_yaml(user_path, "user"),
     }
 
 

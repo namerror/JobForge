@@ -51,7 +51,7 @@ Skill selection remains constrained by the repo invariants:
 The first implemented milestone is the `resume_evidence` package.
 
 - `resume_evidence/models.py`
-  - strict Pydantic models for `projects.yaml` and `skills.yaml`
+  - strict Pydantic models for `user.yaml`, `projects.yaml`, and `skills.yaml`
 - `resume_evidence/loader.py`
   - schema registry and deterministic YAML loading
 - `resume_evidence/session.py`
@@ -77,8 +77,11 @@ The currently implemented evidence schemas are:
 - `user/resume_evidence/skills.yaml`
   - `schema_version: 1`
   - strict categorized skill lists under `technology`, `programming`, and `concepts`
+- `user/resume_evidence/user.yaml`
+  - `schema_version: 1`
+  - strict basic contact info with required `name`, `email`, and `phone`, plus optional `linkedin` and `github`
 
-These schemas should be managed by users via the CLI or by other tools that write to the `user/resume_evidence/` directory. Hand-editing is possible but not recommended, as the CLI provides validation and preserves stable hidden IDs for projects.
+Projects and skills evidence should be managed by users via the CLI or by other tools that write to the `user/resume_evidence/` directory. Basic user contact info is loaded from `user.yaml`; no CLI editing flow is implemented for it yet.
 
 ### Project selection API
 
@@ -383,7 +386,6 @@ The resume-generation pipeline is implemented from `resume_generation/main.py`: 
 The following pieces are still planned for the broader public resume-generation flow:
 
 - additional evidence files under `user/resume_evidence/`
-  - `profile.yaml`
   - `experience.yaml`
 - grounded synthesis/extraction under `resume_generation/` that returns structured resume fill data with provenance
 - resume format definitions owned by the generation layer
@@ -401,5 +403,5 @@ See:
 ## Current Limitations
 
 - JobForge does not yet ship a public full-resume generation API.
-- The evidence layer currently stops at `projects.yaml` and `skills.yaml`.
+- The evidence layer currently stops at `user.yaml`, `projects.yaml`, and `skills.yaml`.
 - Resume synthesis, assembly, and additional evidence files are still future work.

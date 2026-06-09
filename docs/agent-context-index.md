@@ -63,7 +63,7 @@ Use this file as the primary navigation index for coding agents.
 ## Resume Evidence Entry Points
 
 - `resume_evidence/models.py`
-  - strict runtime models for `projects.yaml` and `skills.yaml`
+  - strict runtime models for `user.yaml`, `projects.yaml`, and `skills.yaml`
 - `resume_evidence/loader.py`
   - evidence registry and startup loading
 - `resume_evidence/session.py`
@@ -80,6 +80,8 @@ Use this file as the primary navigation index for coding agents.
   - implemented project source-of-truth evidence file
 - `user/resume_evidence/skills.yaml`
   - implemented skills source-of-truth evidence file
+- `user/resume_evidence/user.yaml`
+  - implemented basic user contact source-of-truth evidence file
 
 ## Resume Generation Entry Points
 

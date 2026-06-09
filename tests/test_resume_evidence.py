@@ -14,6 +14,7 @@ from resume_evidence import (
     ProjectRecord,
     ProjectsFile,
     SkillsFile,
+    UserInfoFile,
     load_evidence_yaml,
     load_registered_evidence,
 )
@@ -68,6 +69,17 @@ def _valid_skills_payload() -> dict:
     }
 
 
+def _valid_user_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "name": "Example Candidate",
+        "email": "candidate@example.com",
+        "phone": "+1 555-0100",
+        "linkedin": "https://www.linkedin.com/in/example-candidate",
+        "github": "https://github.com/example-candidate",
+    }
+
+
 def test_load_projects_yaml_returns_typed_runtime_object(tmp_path):
     path = _write_yaml(tmp_path, _valid_projects_payload())
 
@@ -88,6 +100,17 @@ def test_load_skills_yaml_returns_typed_runtime_object(tmp_path):
     assert isinstance(parsed, SkillsFile)
     assert parsed.schema_version == 1
     assert parsed.skills.technology == ["FastAPI", "OpenAI"]
+
+
+def test_load_user_yaml_returns_typed_runtime_object(tmp_path):
+    path = _write_yaml(tmp_path, _valid_user_payload(), filename="user.yaml")
+
+    parsed = load_evidence_yaml(path, "user")
+
+    assert isinstance(parsed, UserInfoFile)
+    assert parsed.schema_version == 1
+    assert parsed.name == "Example Candidate"
+    assert parsed.linkedin == "https://www.linkedin.com/in/example-candidate"
 
 
 def test_load_projects_yaml_rejects_missing_required_field(tmp_path):
@@ -112,6 +135,17 @@ def test_load_skills_yaml_rejects_missing_required_field(tmp_path):
     assert "concepts" in str(exc_info.value)
 
 
+def test_load_user_yaml_rejects_missing_required_field(tmp_path):
+    payload = _valid_user_payload()
+    del payload["email"]
+    path = _write_yaml(tmp_path, payload, filename="user.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "user")
+
+    assert "email" in str(exc_info.value)
+
+
 def test_load_projects_yaml_rejects_extra_top_level_field(tmp_path):
     payload = _valid_projects_payload()
     payload["unexpected"] = "nope"
@@ -130,6 +164,17 @@ def test_load_skills_yaml_rejects_extra_top_level_field(tmp_path):
 
     with pytest.raises(ValidationError) as exc_info:
         load_evidence_yaml(path, "skills")
+
+    assert "unexpected" in str(exc_info.value)
+
+
+def test_load_user_yaml_rejects_extra_top_level_field(tmp_path):
+    payload = _valid_user_payload()
+    payload["unexpected"] = "nope"
+    path = _write_yaml(tmp_path, payload, filename="user.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "user")
 
     assert "unexpected" in str(exc_info.value)
 
@@ -253,6 +298,41 @@ def test_load_skills_yaml_rejects_unsupported_schema_version(tmp_path):
     assert "schema_version" in str(exc_info.value)
 
 
+def test_load_user_yaml_rejects_unsupported_schema_version(tmp_path):
+    payload = _valid_user_payload()
+    payload["schema_version"] = 2
+    path = _write_yaml(tmp_path, payload, filename="user.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "user")
+
+    assert "schema_version" in str(exc_info.value)
+
+
+@pytest.mark.parametrize("field_name", ["name", "email", "phone"])
+def test_load_user_yaml_rejects_empty_required_strings(tmp_path, field_name):
+    payload = _valid_user_payload()
+    payload[field_name] = "   "
+    path = _write_yaml(tmp_path, payload, filename="user.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "user")
+
+    assert field_name in str(exc_info.value)
+
+
+@pytest.mark.parametrize("field_name", ["linkedin", "github"])
+def test_load_user_yaml_rejects_empty_optional_links_when_provided(tmp_path, field_name):
+    payload = _valid_user_payload()
+    payload[field_name] = "   "
+    path = _write_yaml(tmp_path, payload, filename="user.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "user")
+
+    assert field_name in str(exc_info.value)
+
+
 def test_load_projects_yaml_rejects_duplicate_project_ids(tmp_path):
     payload = _valid_projects_payload()
     duplicate = deepcopy(payload["projects"][0])
@@ -287,24 +367,31 @@ def test_load_projects_yaml_is_deterministic_across_repeated_parses(tmp_path):
 def test_load_registered_evidence_loads_registered_schemas(tmp_path):
     projects_path = _write_yaml(tmp_path, _valid_projects_payload())
     skills_path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
+    user_path = _write_yaml(tmp_path, _valid_user_payload(), filename="user.yaml")
 
-    loaded = load_registered_evidence({"projects": projects_path, "skills": skills_path})
+    loaded = load_registered_evidence(
+        {"projects": projects_path, "skills": skills_path, "user": user_path}
+    )
 
     assert isinstance(loaded["projects"], ProjectsFile)
     assert isinstance(loaded["skills"], SkillsFile)
+    assert isinstance(loaded["user"], UserInfoFile)
     assert loaded["projects"].projects_by_id()["jobforge"].summary.startswith("Grounded resume")
     assert loaded["skills"].skills.programming == ["Python"]
+    assert loaded["user"].email == "candidate@example.com"
 
 
 def test_default_evidence_path_points_to_user_directory():
     assert str(DEFAULT_EVIDENCE_PATHS["projects"]).endswith("user/resume_evidence/projects.yaml")
     assert str(DEFAULT_EVIDENCE_PATHS["skills"]).endswith("user/resume_evidence/skills.yaml")
+    assert str(DEFAULT_EVIDENCE_PATHS["user"]).endswith("user/resume_evidence/user.yaml")
 
 
 def test_app_startup_loads_resume_evidence(monkeypatch):
     loaded = {
         "projects": ProjectsFile.model_validate(_valid_projects_payload()),
         "skills": SkillsFile.model_validate(_valid_skills_payload()),
+        "user": UserInfoFile.model_validate(_valid_user_payload()),
     }
 
     monkeypatch.setattr("app.main.load_registered_evidence", lambda: loaded)
