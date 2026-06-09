@@ -329,6 +329,7 @@ LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS=1200
 ```
 
 `OPENAI_API_KEY` is only required for skill-selection `embeddings`, skill-selection `llm`, project-selection `llm`, bullet-point generation, and enabled link-scanning requests.
+Link scanning treats normal URLs as single-page sources; `github.com/{owner}/{repo}` links allow repository-scoped exploration for technical project evidence.
 Legacy generic selection variables such as `METHOD`, `TOP_N`, `BASELINE_FILTER`, `LLM_MODEL`, and `LLM_MAX_OUTPUT_TOKENS` are no longer read.
 Baseline filtering is skill-selection-only; project selection does not define a baseline pre-filter pass yet.
 

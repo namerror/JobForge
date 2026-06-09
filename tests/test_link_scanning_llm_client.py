@@ -12,6 +12,7 @@ from app.link_scanning.llm_client import (
     build_link_scan_prompt_payload,
     build_link_scan_response_create_kwargs,
     build_link_scan_schema,
+    classify_link_scan_target,
     scan_project_links_with_llm,
 )
 from app.link_scanning.models import LinkScanJobContext
@@ -32,6 +33,54 @@ def _project() -> ProjectRecord:
         ),
         links=["https://example.com/jobforge", "https://docs.example.com/jobforge"],
     )
+
+
+def _github_project() -> ProjectRecord:
+    return ProjectRecord(
+        id="jobforge",
+        name="JobForge",
+        summary="FastAPI resume engine for grounded resume generation.",
+        highlights=["Built project and skill selection APIs."],
+        active=True,
+        skills=ProjectSkills(
+            technology=["FastAPI"],
+            programming=["Python"],
+            concepts=["API"],
+        ),
+        links=[
+            "https://github.com/openai/jobforge",
+            "https://example.com/jobforge",
+        ],
+    )
+
+
+def test_classify_link_scan_target_detects_github_repo_roots_and_subpaths():
+    root = classify_link_scan_target("https://github.com/openai/jobforge")
+    blob = classify_link_scan_target(
+        "https://github.com/openai/jobforge/blob/main/README.md"
+    )
+    tree = classify_link_scan_target("https://www.github.com/openai/jobforge/tree/main/app")
+
+    assert root.mode == "github_repo"
+    assert root.repo_scope == "https://github.com/openai/jobforge"
+    assert blob.mode == "github_repo"
+    assert blob.repo_scope == "https://github.com/openai/jobforge"
+    assert tree.mode == "github_repo"
+    assert tree.repo_scope == "https://github.com/openai/jobforge"
+
+
+def test_classify_link_scan_target_keeps_non_repo_github_urls_single_page():
+    owner_only = classify_link_scan_target("https://github.com/openai")
+    topics = classify_link_scan_target("https://github.com/topics/python")
+    gist = classify_link_scan_target("https://gist.github.com/openai/abc123")
+    raw = classify_link_scan_target(
+        "https://raw.githubusercontent.com/openai/jobforge/main/README.md"
+    )
+
+    assert owner_only.mode == "single_page"
+    assert topics.mode == "single_page"
+    assert gist.mode == "single_page"
+    assert raw.mode == "single_page"
 
 
 def test_build_link_scan_schema_returns_highlight_only_contract():
@@ -57,8 +106,35 @@ def test_build_link_scan_prompt_payload_includes_links_and_grounding_rules():
         "https://example.com/jobforge",
         "https://docs.example.com/jobforge",
     ]
+    assert [target["mode"] for target in payload["scan_targets"]] == [
+        "single_page",
+        "single_page",
+    ]
     assert any("single page" in rule for rule in payload["grounding_rules"])
     assert any("Do not add skills" in rule for rule in payload["grounding_rules"])
+
+
+def test_build_link_scan_prompt_payload_marks_github_repo_targets():
+    payload = json.loads(
+        build_link_scan_prompt_payload(
+            context=LinkScanJobContext(title="Backend Engineer", description="Build APIs."),
+            project=_github_project(),
+        )
+    )
+
+    assert payload["scan_targets"][0] == {
+        "url": "https://github.com/openai/jobforge",
+        "mode": "github_repo",
+        "repo_scope": "https://github.com/openai/jobforge",
+        "instructions": (
+            "Inspect the GitHub repository under repo_scope. You may move between "
+            "repository pages such as README, source tree, docs, manifests, tests, "
+            "and CI/config files, but do not leave this repository."
+        ),
+    }
+    assert payload["scan_targets"][1]["mode"] == "single_page"
+    assert any("github_repo targets" in rule for rule in payload["grounding_rules"])
+    assert any("architecture" in rule for rule in payload["grounding_rules"])
 
 
 def test_build_link_scan_instructions_forbids_skill_addition():
@@ -66,6 +142,8 @@ def test_build_link_scan_instructions_forbids_skill_addition():
 
     assert "Use web search" in instructions
     assert "do not crawl additional pages" in instructions
+    assert "github_repo targets" in instructions
+    assert "same repository" in instructions
     assert "Do not include skills" in instructions
 
 
@@ -143,6 +221,55 @@ def test_scan_project_links_with_llm_sends_web_search_request(monkeypatch):
     assert result.metadata["total_tokens"] == 30
 
 
+def test_scan_project_links_with_llm_accepts_same_github_repo_source(monkeypatch):
+    class DummyResponses:
+        def create(self, **_kwargs):
+            return SimpleNamespace(
+                output_text=json.dumps(
+                    {
+                        "highlights": [
+                            {
+                                "text": "README and tests show a FastAPI orchestration layer with deterministic evidence validation.",
+                                "source_url": "https://github.com/openai/jobforge/blob/main/README.md",
+                            }
+                        ]
+                    }
+                ),
+                output=[
+                    SimpleNamespace(
+                        action=SimpleNamespace(
+                            sources=[
+                                SimpleNamespace(
+                                    url="https://github.com/openai/other-repo/blob/main/README.md"
+                                )
+                            ]
+                        )
+                    )
+                ],
+                usage=None,
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            self.responses = DummyResponses()
+
+    monkeypatch.setattr(link_llm_client, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "test-key")
+
+    result = scan_project_links_with_llm(
+        context=LinkScanJobContext(title="Backend Engineer"),
+        project=_github_project(),
+    )
+
+    assert result.highlights[0].source_url == (
+        "https://github.com/openai/jobforge/blob/main/README.md"
+    )
+    assert result.metadata["scan_targets"][0]["mode"] == "github_repo"
+    assert result.metadata["scan_targets"][0]["repo_scope"] == (
+        "https://github.com/openai/jobforge"
+    )
+
+
 def test_scan_project_links_with_llm_omits_temperature_for_gpt_5_mini(monkeypatch):
     captured = {}
 
@@ -204,7 +331,17 @@ def test_scan_project_links_with_llm_rejects_unknown_source_url(monkeypatch):
                         ]
                     }
                 ),
-                output=[],
+                output=[
+                    SimpleNamespace(
+                        action=SimpleNamespace(
+                            sources=[
+                                SimpleNamespace(
+                                    url="https://github.com/openai/other-repo/blob/main/README.md"
+                                )
+                            ]
+                        )
+                    )
+                ],
                 usage=None,
             )
 
@@ -219,6 +356,48 @@ def test_scan_project_links_with_llm_rejects_unknown_source_url(monkeypatch):
         scan_project_links_with_llm(
             context=LinkScanJobContext(title="Backend Engineer"),
             project=_project(),
+        )
+
+
+def test_scan_project_links_with_llm_rejects_other_github_repo_source(monkeypatch):
+    class DummyResponses:
+        def create(self, **_kwargs):
+            return SimpleNamespace(
+                output_text=json.dumps(
+                    {
+                        "highlights": [
+                            {
+                                "text": "Unsupported cross-repo source.",
+                                "source_url": "https://github.com/openai/other-repo/blob/main/README.md",
+                            }
+                        ]
+                    }
+                ),
+                output=[
+                    SimpleNamespace(
+                        action=SimpleNamespace(
+                            sources=[
+                                SimpleNamespace(
+                                    url="https://github.com/openai/other-repo/blob/main/README.md"
+                                )
+                            ]
+                        )
+                    )
+                ],
+                usage=None,
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            self.responses = DummyResponses()
+
+    monkeypatch.setattr(link_llm_client, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "test-key")
+
+    with pytest.raises(LinkScanningLLMClientError, match="source_url"):
+        scan_project_links_with_llm(
+            context=LinkScanJobContext(title="Backend Engineer"),
+            project=_github_project(),
         )
 
 

@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- LLM-backed `POST /scan-link` link scanning that uses OpenAI web search to collect grounded project highlights from configured project links.
+- LLM-backed `POST /scan-link` link scanning that uses OpenAI web search to collect grounded project highlights from configured project links, with GitHub repository exploration constrained to the linked repo.
 - `POST /generate-bulletpoints` API for OpenAI-backed, grounded project bullet-point generation from a job target and `ProjectRecord`.
 - `resume_generation` orchestration that loads resume evidence, reads `user/resume_generation` YAML config, and calls selection plus bullet-point generation APIs over HTTP.
 - Modern project and highlight picker support, including a command-complete action menu, in the resume evidence CLI.

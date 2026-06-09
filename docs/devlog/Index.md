@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `06-09-2026-Codex-add-github-repo-link-scanning.md` - 2026-06-09 - Add GitHub repository link scanning mode
 - `06-09-2026-Codex-implement-link-scanning-llm.md` - 2026-06-09 - Implement LLM-backed link scanning
 - `06-08-2026-Codex-link-scanning-scaffold.md` - 2026-06-08 - Link scanning scaffold
 - `06-08-2026-Codex-resume-generation-pipeline-modularization.md` - 2026-06-08 - Resume generation pipeline modularization
