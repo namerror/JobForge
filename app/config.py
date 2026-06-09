@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS: int = 1200
     BULLETPOINTS_DEFAULT_COUNT: int = 3
     LINK_SCANNING_ENABLED: bool = False
+    LINK_SCANNING_LLM_MODEL: str = "gpt-5-mini"
+    LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS: int = 1200
 
     OPENAI_API_KEY: str = "" # This should be set in the .env file or environment variable
 
@@ -54,11 +56,11 @@ class Settings(BaseSettings):
             raise ValueError("BULLETPOINTS_DEFAULT_COUNT must be between 1 and 10")
         return value
 
-    @field_validator("BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS")
+    @field_validator("BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS", "LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS")
     @classmethod
-    def validate_bulletpoints_llm_max_output_tokens(cls, value: int) -> int:
+    def validate_llm_max_output_tokens(cls, value: int) -> int:
         if value <= 0:
-            raise ValueError("BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS must be greater than 0")
+            raise ValueError("LLM max output tokens must be greater than 0")
         return value
 
 

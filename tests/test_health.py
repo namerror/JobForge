@@ -34,6 +34,8 @@ def test_health():
     assert data["bulletpoints_generation"]["llm_max_output_tokens"] == 1200
     assert data["bulletpoints_generation"]["default_count"] == 3
     assert data["link_scanning"]["enabled"] is False
+    assert data["link_scanning"]["llm_model"] == "gpt-5-mini"
+    assert data["link_scanning"]["llm_max_output_tokens"] == 1200
 
 
 def test_health_method_not_allowed():

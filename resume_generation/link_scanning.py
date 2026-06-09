@@ -4,7 +4,7 @@ from typing import Iterable
 
 import httpx
 
-from resume_evidence.models import ProjectRecord, ProjectSkills
+from resume_evidence.models import ProjectRecord
 from resume_generation.models import (
     JobTarget,
     ProjectLinkScanResult,
@@ -40,6 +40,8 @@ def enrich_projects_with_link_scanning(
                 },
                 "project": project.model_dump(),
                 "dev_mode": config.link_scanning.dev_mode,
+                "llm_model": config.link_scanning.llm_model,
+                "llm_max_output_tokens": config.link_scanning.llm_max_output_tokens,
             }
             response = _post_json(
                 client,
@@ -57,16 +59,9 @@ def _apply_link_scan_result(
     scan_result: ProjectLinkScanResult,
 ) -> ProjectRecord:
     highlights = [*project.highlights, *[item.text for item in scan_result.added_highlights]]
-    skills_payload = project.skills.model_dump()
-
-    for skill in scan_result.added_skills:
-        category_skills = skills_payload[skill.category]
-        if skill.name not in category_skills:
-            category_skills.append(skill.name)
 
     return project.model_copy(
         update={
             "highlights": highlights,
-            "skills": ProjectSkills.model_validate(skills_payload),
         }
     )

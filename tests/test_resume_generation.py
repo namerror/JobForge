@@ -55,6 +55,8 @@ def _config_payload(**overrides) -> dict:
         "link_scanning": {
             "enabled": False,
             "dev_mode": True,
+            "llm_model": "link-model",
+            "llm_max_output_tokens": 660,
         },
         "bullet_point_generation": {
             "bullet_count_range": {"min": 2, "max": 4},
@@ -140,6 +142,8 @@ def test_load_generation_config_returns_typed_config(tmp_path):
     assert config.project_selection.llm_max_output_tokens == 880
     assert config.link_scanning.enabled is False
     assert config.link_scanning.dev_mode is True
+    assert config.link_scanning.llm_model == "link-model"
+    assert config.link_scanning.llm_max_output_tokens == 660
     assert config.bullet_point_generation.llm_model == "bullet-model"
     assert config.bullet_point_generation.bullet_count_range is not None
     assert config.bullet_point_generation.bullet_count_range.min == 2
@@ -330,7 +334,14 @@ def test_enrich_projects_with_link_scanning_posts_linked_projects_and_merges_pat
 ):
     config_path = _write_yaml(
         tmp_path / "config.yaml",
-        _config_payload(link_scanning={"enabled": True, "dev_mode": True}),
+        _config_payload(
+            link_scanning={
+                "enabled": True,
+                "dev_mode": True,
+                "llm_model": "link-model",
+                "llm_max_output_tokens": 660,
+            }
+        ),
     )
     job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
     projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
@@ -365,19 +376,7 @@ def test_enrich_projects_with_link_scanning_posts_linked_projects_and_merges_pat
                             "source_url": "https://example.com/active",
                         }
                     ],
-                    "added_skills": [
-                        {
-                            "name": "OpenAI",
-                            "category": "technology",
-                            "source_url": "https://example.com/active",
-                        },
-                        {
-                            "name": "Python",
-                            "category": "programming",
-                            "source_url": "https://example.com/active",
-                        },
-                    ],
-                    "details": {"method": "placeholder"},
+                    "details": {"method": "llm"},
                 },
             )
 
@@ -393,11 +392,13 @@ def test_enrich_projects_with_link_scanning_posts_linked_projects_and_merges_pat
     payload = requests[0][1]
     assert payload["project"]["id"] == "active-project"
     assert payload["dev_mode"] is True
+    assert payload["llm_model"] == "link-model"
+    assert payload["llm_max_output_tokens"] == 660
     assert result[0].highlights == [
         "Built the service.",
         "Scanned README confirms API orchestration.",
     ]
-    assert result[0].skills.technology == ["FastAPI", "OpenAI"]
+    assert result[0].skills.technology == ["FastAPI"]
     assert result[0].skills.programming == ["Python"]
     assert result[1].id == "inactive-project"
 
@@ -552,7 +553,14 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
 ):
     config_path = _write_yaml(
         tmp_path / "config.yaml",
-        _config_payload(link_scanning={"enabled": True, "dev_mode": True}),
+        _config_payload(
+            link_scanning={
+                "enabled": True,
+                "dev_mode": True,
+                "llm_model": "link-model",
+                "llm_max_output_tokens": 660,
+            }
+        ),
     )
     job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
     projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
@@ -608,13 +616,6 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
                                 "source_url": "https://example.com/active",
                             }
                         ],
-                        "added_skills": [
-                            {
-                                "name": "OpenAI",
-                                "category": "technology",
-                                "source_url": "https://example.com/active",
-                            }
-                        ],
                     },
                 )
             if endpoint == "/generate-bulletpoints":
@@ -649,7 +650,7 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
         "Built the service.",
         "Scanned link confirms project context.",
     ]
-    assert bullet_payloads[0]["project"]["skills"]["technology"] == ["FastAPI", "OpenAI"]
+    assert bullet_payloads[0]["project"]["skills"]["technology"] == ["FastAPI"]
     assert [item.project_id for item in result] == ["active-project"]
 
 

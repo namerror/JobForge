@@ -82,7 +82,7 @@ def build_bulletpoint_instructions(count_range: BulletCountRange) -> str:
         )
     )
     return (
-        "You are a deterministic resume bullet refinement writer. Return JSON only. "
+        "You are a deterministic resume bullet writer. Return JSON only. "
         f"{count_instruction} Tailor the project evidence to the target job while staying "
         "grounded in the supplied project summary, highlights, and skills. Maximize the user's chances of getting an interview by creating strong, ATS-friendly resume bullets. "
         "Use strong action verbs + task + impact (prioritize measurable results) and follow best practices for resume bullet writing. "

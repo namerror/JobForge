@@ -22,7 +22,7 @@ from app.bulletpoints_generation.service import (
     record_bulletpoint_generation_error,
 )
 from app.link_scanning.models import LinkScanRequest, LinkScanResponse
-from app.link_scanning.service import scan_project_links_service
+from app.link_scanning.service import LinkScanningError, scan_project_links_service
 from resume_evidence import load_registered_evidence
 
 
@@ -63,6 +63,8 @@ async def health():
         },
         "link_scanning": {
             "enabled": settings.LINK_SCANNING_ENABLED,
+            "llm_model": settings.LINK_SCANNING_LLM_MODEL,
+            "llm_max_output_tokens": settings.LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS,
         },
     }
 
@@ -100,7 +102,10 @@ async def generate_bulletpoints(payload: BulletGenerationRequest) -> BulletGener
 
 @app.post("/scan-link", response_model=LinkScanResponse)
 async def scan_link(payload: LinkScanRequest) -> LinkScanResponse:
-    return scan_project_links_service(payload)
+    try:
+        return scan_project_links_service(payload)
+    except LinkScanningError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @app.post("/select-projects", response_model=ProjectSelectionResult)

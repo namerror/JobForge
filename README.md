@@ -170,6 +170,11 @@ Example response:
     "top_n": null,
     "llm_model": "gpt-5-mini",
     "llm_max_output_tokens": 1200
+  },
+  "link_scanning": {
+    "enabled": false,
+    "llm_model": "gpt-5-mini",
+    "llm_max_output_tokens": 1200
   }
 }
 ```
@@ -318,9 +323,12 @@ SKILL_LLM_MODEL=gpt-5-mini
 SKILL_LLM_MAX_OUTPUT_TOKENS=1200
 PROJ_LLM_MODEL=gpt-5-mini
 PROJ_LLM_MAX_OUTPUT_TOKENS=1200
+LINK_SCANNING_ENABLED=false
+LINK_SCANNING_LLM_MODEL=gpt-5-mini
+LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS=1200
 ```
 
-`OPENAI_API_KEY` is only required for skill-selection `embeddings`, skill-selection `llm`, and project-selection `llm` requests.
+`OPENAI_API_KEY` is only required for skill-selection `embeddings`, skill-selection `llm`, project-selection `llm`, bullet-point generation, and enabled link-scanning requests.
 Legacy generic selection variables such as `METHOD`, `TOP_N`, `BASELINE_FILTER`, `LLM_MODEL`, and `LLM_MAX_OUTPUT_TOKENS` are no longer read.
 Baseline filtering is skill-selection-only; project selection does not define a baseline pre-filter pass yet.
 
