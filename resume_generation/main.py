@@ -2,7 +2,12 @@
 
 from pathlib import Path
 
-from resume_evidence import EducationFile, UserInfoFile, load_registered_evidence
+from resume_evidence import (
+    EducationFile,
+    ExperienceFile,
+    UserInfoFile,
+    load_registered_evidence,
+)
 from resume_generation.config import (
     DEFAULT_GENERATION_CONFIG_PATH,
     DEFAULT_JOB_TARGET_PATH,
@@ -33,6 +38,11 @@ def run_resume_generation_pipeline(
     if not isinstance(_education, EducationFile):
         raise TypeError("Loaded evidence did not include a valid education file")
 
+    _experience = loaded_evidence.get("experience")
+    if not isinstance(_experience, ExperienceFile):
+        raise TypeError("Loaded evidence did not include a valid experience file")
+
+    # selection context includes skills and projects ranked by relevance to the job target.
     context = generate_selection_context(
         loaded_evidence=loaded_evidence,
         config=config,
@@ -42,9 +52,7 @@ def run_resume_generation_pipeline(
         evidence_paths=evidence_paths,
     )
 
-    # TODO: other info like experience, publications etc. will come in the future
-
-    # selection context includes skills and projects ranked by relevance to the job target.
+    # TODO: other info like publications etc. will come in the future
 
     # TODO: optionally re-rank project skills with LLM (not the skills themselves), this is ranked per project, priortizing skills that are more relevant to the job target. This should be done with a separate reranking API instead of the one used for regular skill ranking
 
@@ -54,7 +62,6 @@ def run_resume_generation_pipeline(
         job_target=job_target,
     )
 
-    # TODO: bullet point generation. Call the "/generate-bulletpoints" API with the project records
     bullet_points = generate_project_bullet_points(
         selected_projects=enriched_projects,
         config=config,
@@ -64,7 +71,7 @@ def run_resume_generation_pipeline(
     # TODO: optionally overall content validation
 
     # TODO: generation step, using the results to generate a working resume draft schema, this will be used to generate the actual resume content in the future
-
+    
     # TODO: output LaTeX format resume, this is the final output for now, but in the future we can also output other formats like PDF, Word, etc.
 
     return bullet_points

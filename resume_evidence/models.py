@@ -53,6 +53,46 @@ class ProjectsFile(StrictSchemaModel):
         return {project.id: project for project in self.projects}
 
 
+class ExperienceRecord(StrictSchemaModel):
+    id: str
+    name: str
+    summary: str
+    highlights: list[str] = Field(min_length=1)
+    active: bool
+    skills: ProjectSkills
+    location: str
+    start: str
+    end: str | None = None
+    links: list[str] | None = None
+
+
+class ExperienceFile(StrictSchemaModel):
+    schema_version: Literal[1]
+    experience: list[ExperienceRecord]
+
+    @model_validator(mode="after")
+    def validate_unique_experience_ids(self) -> "ExperienceFile":
+        seen_ids: set[str] = set()
+        duplicate_ids: set[str] = set()
+
+        for experience in self.experience:
+            if experience.id in seen_ids:
+                duplicate_ids.add(experience.id)
+            seen_ids.add(experience.id)
+
+        if duplicate_ids:
+            duplicates = ", ".join(sorted(duplicate_ids))
+            raise ValueError(f"Duplicate experience ids are not allowed: {duplicates}")
+
+        return self
+
+    def iter_experience(self) -> Iterator[ExperienceRecord]:
+        return iter(self.experience)
+
+    def experience_by_id(self) -> dict[str, ExperienceRecord]:
+        return {experience.id: experience for experience in self.experience}
+
+
 class SkillsFile(StrictSchemaModel):
     schema_version: Literal[1]
     skills: ProjectSkills

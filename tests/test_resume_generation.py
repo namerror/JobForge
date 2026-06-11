@@ -118,6 +118,30 @@ def _education_payload() -> dict:
     }
 
 
+def _experience_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "experience": [
+            {
+                "id": "backend-engineer",
+                "name": "Example Company",
+                "summary": "Built backend services for internal platforms.",
+                "highlights": ["Designed schema-validated APIs."],
+                "active": True,
+                "skills": {
+                    "technology": ["FastAPI"],
+                    "programming": ["Python"],
+                    "concepts": ["API"],
+                },
+                "location": "Example City, ST",
+                "start": "2024",
+                "end": None,
+                "links": ["https://example.com/company"],
+            }
+        ],
+    }
+
+
 def _projects_payload() -> dict:
     return {
         "schema_version": 1,
@@ -157,6 +181,7 @@ def _loaded_evidence(
     skills_path: Path,
     user_path: Path | None = None,
     education_path: Path | None = None,
+    experience_path: Path | None = None,
 ) -> dict:
     if user_path is None:
         user_path = _write_yaml(projects_path.parent / "user.yaml", _user_payload())
@@ -165,8 +190,14 @@ def _loaded_evidence(
             projects_path.parent / "education.yaml",
             _education_payload(),
         )
+    if experience_path is None:
+        experience_path = _write_yaml(
+            projects_path.parent / "experience.yaml",
+            _experience_payload(),
+        )
     return {
         "education": load_evidence_yaml(education_path, "education"),
+        "experience": load_evidence_yaml(experience_path, "experience"),
         "projects": load_evidence_yaml(projects_path, "projects"),
         "skills": load_evidence_yaml(skills_path, "skills"),
         "user": load_evidence_yaml(user_path, "user"),
@@ -588,6 +619,91 @@ def test_resume_generation_pipeline_rejects_invalid_loaded_education(monkeypatch
     )
 
     with pytest.raises(TypeError, match="valid education file"):
+        run_resume_generation_pipeline(
+            config_path=config_path,
+            job_target_path=job_path,
+            evidence_paths={
+                "projects": projects_path,
+                "skills": skills_path,
+            },
+        )
+
+    assert calls == []
+
+
+def test_resume_generation_pipeline_requires_loaded_experience(monkeypatch, tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    del loaded_evidence["experience"]
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    with pytest.raises(TypeError, match="valid experience file"):
+        run_resume_generation_pipeline(
+            config_path=config_path,
+            job_target_path=job_path,
+            evidence_paths={
+                "projects": projects_path,
+                "skills": skills_path,
+            },
+        )
+
+    assert calls == []
+
+
+def test_resume_generation_pipeline_rejects_invalid_loaded_experience(monkeypatch, tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    user_path = _write_yaml(tmp_path / "user.yaml", _user_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path, user_path=user_path)
+    loaded_evidence["experience"] = load_evidence_yaml(user_path, "user")
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    with pytest.raises(TypeError, match="valid experience file"):
         run_resume_generation_pipeline(
             config_path=config_path,
             job_target_path=job_path,

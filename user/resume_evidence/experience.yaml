@@ -1,0 +1,22 @@
+schema_version: 1
+experience:
+- id: example-role
+  name: Example Company
+  summary: Example work experience focused on building reliable software systems.
+  highlights:
+  - Built and maintained backend services with typed schemas and automated tests.
+  active: true
+  skills:
+    technology:
+    - FastAPI
+    - pydantic
+    programming:
+    - Python
+    concepts:
+    - API
+    - data validation
+    - testing
+  location: Example City, ST
+  start: "2024"
+  end: null
+  links: null
