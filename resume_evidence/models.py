@@ -58,6 +58,21 @@ class SkillsFile(StrictSchemaModel):
     skills: ProjectSkills
 
 
+class EducationRecord(StrictSchemaModel):
+    name: str
+    degree: str
+    grade: str
+    start: str
+    end: str | None = None
+    location: str
+    relevant_coursework: list[str]
+
+
+class EducationFile(StrictSchemaModel):
+    schema_version: Literal[1]
+    education: list[EducationRecord]
+
+
 class UserInfoFile(StrictSchemaModel):
     schema_version: Literal[1]
     name: str

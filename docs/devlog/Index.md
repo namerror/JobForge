@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `06-11-2026-Codex-add-education-evidence.md` - 2026-06-11 - Add education evidence
 - `06-09-2026-Codex-add-user-info-evidence.md` - 2026-06-09 - Add basic user info evidence
 - `06-09-2026-Codex-add-github-repo-link-scanning.md` - 2026-06-09 - Add GitHub repository link scanning mode
 - `06-09-2026-Codex-implement-link-scanning-llm.md` - 2026-06-09 - Implement LLM-backed link scanning

@@ -4,6 +4,7 @@ from resume_evidence.loader import (
     load_evidence_yaml,
     load_registered_evidence,
 )
+from resume_evidence.models import EducationFile, EducationRecord
 from resume_evidence.models import ProjectRecord, ProjectSkills, ProjectsFile
 from resume_evidence.models import SkillsFile, UserInfoFile
 from resume_evidence.session import (
@@ -16,6 +17,8 @@ from resume_evidence.session import (
 
 __all__ = [
     "DEFAULT_EVIDENCE_PATHS",
+    "EducationFile",
+    "EducationRecord",
     "PendingProjectChanges",
     "PendingSkillsChanges",
     "ProjectRecord",

@@ -101,6 +101,23 @@ def _user_payload() -> dict:
     }
 
 
+def _education_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "education": [
+            {
+                "name": "Example University",
+                "degree": "Bachelor of Science in Computer Science",
+                "grade": "3.8 GPA",
+                "start": "2020",
+                "end": "2024",
+                "location": "Example City, ST",
+                "relevant_coursework": ["Data Structures", "Algorithms"],
+            }
+        ],
+    }
+
+
 def _projects_payload() -> dict:
     return {
         "schema_version": 1,
@@ -139,10 +156,17 @@ def _loaded_evidence(
     projects_path: Path,
     skills_path: Path,
     user_path: Path | None = None,
+    education_path: Path | None = None,
 ) -> dict:
     if user_path is None:
         user_path = _write_yaml(projects_path.parent / "user.yaml", _user_payload())
+    if education_path is None:
+        education_path = _write_yaml(
+            projects_path.parent / "education.yaml",
+            _education_payload(),
+        )
     return {
+        "education": load_evidence_yaml(education_path, "education"),
         "projects": load_evidence_yaml(projects_path, "projects"),
         "skills": load_evidence_yaml(skills_path, "skills"),
         "user": load_evidence_yaml(user_path, "user"),
@@ -489,6 +513,91 @@ def test_generate_selection_context_wraps_http_errors(monkeypatch, tmp_path):
                 "skills": skills_path,
             },
         )
+
+
+def test_resume_generation_pipeline_requires_loaded_education(monkeypatch, tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    del loaded_evidence["education"]
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    with pytest.raises(TypeError, match="valid education file"):
+        run_resume_generation_pipeline(
+            config_path=config_path,
+            job_target_path=job_path,
+            evidence_paths={
+                "projects": projects_path,
+                "skills": skills_path,
+            },
+        )
+
+    assert calls == []
+
+
+def test_resume_generation_pipeline_rejects_invalid_loaded_education(monkeypatch, tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    user_path = _write_yaml(tmp_path / "user.yaml", _user_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path, user_path=user_path)
+    loaded_evidence["education"] = load_evidence_yaml(user_path, "user")
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    with pytest.raises(TypeError, match="valid education file"):
+        run_resume_generation_pipeline(
+            config_path=config_path,
+            job_target_path=job_path,
+            evidence_paths={
+                "projects": projects_path,
+                "skills": skills_path,
+            },
+        )
+
+    assert calls == []
 
 
 def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypatch, tmp_path):

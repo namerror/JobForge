@@ -11,6 +11,8 @@ from pydantic import ValidationError
 from app.main import app, lifespan
 from resume_evidence import (
     DEFAULT_EVIDENCE_PATHS,
+    EducationFile,
+    EducationRecord,
     ProjectRecord,
     ProjectsFile,
     SkillsFile,
@@ -80,6 +82,27 @@ def _valid_user_payload() -> dict:
     }
 
 
+def _valid_education_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "education": [
+            {
+                "name": "Example University",
+                "degree": "Bachelor of Science in Computer Science",
+                "grade": "3.8 GPA",
+                "start": "2020",
+                "end": "2024",
+                "location": "Example City, ST",
+                "relevant_coursework": [
+                    "Data Structures",
+                    "Algorithms",
+                    "Software Engineering",
+                ],
+            }
+        ],
+    }
+
+
 def test_load_projects_yaml_returns_typed_runtime_object(tmp_path):
     path = _write_yaml(tmp_path, _valid_projects_payload())
 
@@ -111,6 +134,22 @@ def test_load_user_yaml_returns_typed_runtime_object(tmp_path):
     assert parsed.schema_version == 1
     assert parsed.name == "Example Candidate"
     assert parsed.linkedin == "https://www.linkedin.com/in/example-candidate"
+
+
+def test_load_education_yaml_returns_typed_runtime_object(tmp_path):
+    path = _write_yaml(tmp_path, _valid_education_payload(), filename="education.yaml")
+
+    parsed = load_evidence_yaml(path, "education")
+
+    assert isinstance(parsed, EducationFile)
+    assert isinstance(parsed.education[0], EducationRecord)
+    assert parsed.schema_version == 1
+    assert parsed.education[0].name == "Example University"
+    assert parsed.education[0].relevant_coursework == [
+        "Data Structures",
+        "Algorithms",
+        "Software Engineering",
+    ]
 
 
 def test_load_projects_yaml_rejects_missing_required_field(tmp_path):
@@ -146,6 +185,32 @@ def test_load_user_yaml_rejects_missing_required_field(tmp_path):
     assert "email" in str(exc_info.value)
 
 
+@pytest.mark.parametrize(
+    "field_name",
+    ["name", "degree", "grade", "start", "location", "relevant_coursework"],
+)
+def test_load_education_yaml_rejects_missing_required_field(tmp_path, field_name):
+    payload = _valid_education_payload()
+    del payload["education"][0][field_name]
+    path = _write_yaml(tmp_path, payload, filename="education.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "education")
+
+    assert field_name in str(exc_info.value)
+
+
+def test_load_education_yaml_accepts_missing_optional_end(tmp_path):
+    payload = _valid_education_payload()
+    del payload["education"][0]["end"]
+    path = _write_yaml(tmp_path, payload, filename="education.yaml")
+
+    parsed = load_evidence_yaml(path, "education")
+
+    assert isinstance(parsed, EducationFile)
+    assert parsed.education[0].end is None
+
+
 def test_load_projects_yaml_rejects_extra_top_level_field(tmp_path):
     payload = _valid_projects_payload()
     payload["unexpected"] = "nope"
@@ -179,6 +244,17 @@ def test_load_user_yaml_rejects_extra_top_level_field(tmp_path):
     assert "unexpected" in str(exc_info.value)
 
 
+def test_load_education_yaml_rejects_extra_top_level_field(tmp_path):
+    payload = _valid_education_payload()
+    payload["unexpected"] = "nope"
+    path = _write_yaml(tmp_path, payload, filename="education.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "education")
+
+    assert "unexpected" in str(exc_info.value)
+
+
 def test_load_projects_yaml_rejects_extra_project_field(tmp_path):
     payload = _valid_projects_payload()
     payload["projects"][0]["extra_field"] = "nope"
@@ -186,6 +262,17 @@ def test_load_projects_yaml_rejects_extra_project_field(tmp_path):
 
     with pytest.raises(ValidationError) as exc_info:
         load_evidence_yaml(path, "projects")
+
+    assert "extra_field" in str(exc_info.value)
+
+
+def test_load_education_yaml_rejects_extra_record_field(tmp_path):
+    payload = _valid_education_payload()
+    payload["education"][0]["extra_field"] = "nope"
+    path = _write_yaml(tmp_path, payload, filename="education.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "education")
 
     assert "extra_field" in str(exc_info.value)
 
@@ -309,6 +396,17 @@ def test_load_user_yaml_rejects_unsupported_schema_version(tmp_path):
     assert "schema_version" in str(exc_info.value)
 
 
+def test_load_education_yaml_rejects_unsupported_schema_version(tmp_path):
+    payload = _valid_education_payload()
+    payload["schema_version"] = 2
+    path = _write_yaml(tmp_path, payload, filename="education.yaml")
+
+    with pytest.raises(ValidationError) as exc_info:
+        load_evidence_yaml(path, "education")
+
+    assert "schema_version" in str(exc_info.value)
+
+
 @pytest.mark.parametrize("field_name", ["name", "email", "phone"])
 def test_load_user_yaml_rejects_empty_required_strings(tmp_path, field_name):
     payload = _valid_user_payload()
@@ -368,20 +466,31 @@ def test_load_registered_evidence_loads_registered_schemas(tmp_path):
     projects_path = _write_yaml(tmp_path, _valid_projects_payload())
     skills_path = _write_yaml(tmp_path, _valid_skills_payload(), filename="skills.yaml")
     user_path = _write_yaml(tmp_path, _valid_user_payload(), filename="user.yaml")
+    education_path = _write_yaml(tmp_path, _valid_education_payload(), filename="education.yaml")
 
     loaded = load_registered_evidence(
-        {"projects": projects_path, "skills": skills_path, "user": user_path}
+        {
+            "education": education_path,
+            "projects": projects_path,
+            "skills": skills_path,
+            "user": user_path,
+        }
     )
 
+    assert isinstance(loaded["education"], EducationFile)
     assert isinstance(loaded["projects"], ProjectsFile)
     assert isinstance(loaded["skills"], SkillsFile)
     assert isinstance(loaded["user"], UserInfoFile)
+    assert loaded["education"].education[0].degree.startswith("Bachelor")
     assert loaded["projects"].projects_by_id()["jobforge"].summary.startswith("Grounded resume")
     assert loaded["skills"].skills.programming == ["Python"]
     assert loaded["user"].email == "candidate@example.com"
 
 
 def test_default_evidence_path_points_to_user_directory():
+    assert str(DEFAULT_EVIDENCE_PATHS["education"]).endswith(
+        "user/resume_evidence/education.yaml"
+    )
     assert str(DEFAULT_EVIDENCE_PATHS["projects"]).endswith("user/resume_evidence/projects.yaml")
     assert str(DEFAULT_EVIDENCE_PATHS["skills"]).endswith("user/resume_evidence/skills.yaml")
     assert str(DEFAULT_EVIDENCE_PATHS["user"]).endswith("user/resume_evidence/user.yaml")
@@ -389,6 +498,7 @@ def test_default_evidence_path_points_to_user_directory():
 
 def test_app_startup_loads_resume_evidence(monkeypatch):
     loaded = {
+        "education": EducationFile.model_validate(_valid_education_payload()),
         "projects": ProjectsFile.model_validate(_valid_projects_payload()),
         "skills": SkillsFile.model_validate(_valid_skills_payload()),
         "user": UserInfoFile.model_validate(_valid_user_payload()),

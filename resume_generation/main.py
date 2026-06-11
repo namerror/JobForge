@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from resume_evidence import UserInfoFile, load_registered_evidence
+from resume_evidence import EducationFile, UserInfoFile, load_registered_evidence
 from resume_generation.config import (
     DEFAULT_GENERATION_CONFIG_PATH,
     DEFAULT_JOB_TARGET_PATH,
@@ -24,10 +24,14 @@ def run_resume_generation_pipeline(
     config = load_generation_config(config_path)
     job_target = load_job_target(job_target_path)
     loaded_evidence = load_registered_evidence(evidence_paths)
-    
+
     _user_info = loaded_evidence.get("user")
     if not isinstance(_user_info, UserInfoFile):
         raise TypeError("Loaded evidence did not include a valid user info file")
+
+    _education = loaded_evidence.get("education")
+    if not isinstance(_education, EducationFile):
+        raise TypeError("Loaded evidence did not include a valid education file")
 
     context = generate_selection_context(
         loaded_evidence=loaded_evidence,
