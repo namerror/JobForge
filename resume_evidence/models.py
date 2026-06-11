@@ -80,6 +80,7 @@ class UserInfoFile(StrictSchemaModel):
     phone: str
     linkedin: str | None = None
     github: str | None = None
+    website: str | None = None
 
     @field_validator("name", "email", "phone")
     @classmethod
@@ -89,7 +90,7 @@ class UserInfoFile(StrictSchemaModel):
             raise ValueError("required contact fields must not be empty")
         return normalized
 
-    @field_validator("linkedin", "github")
+    @field_validator("linkedin", "github", "website")
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
