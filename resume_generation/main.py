@@ -14,9 +14,9 @@ from resume_generation.config import (
     load_generation_config,
     load_job_target,
 )
+from resume_generation.assembly import assemble_intermediate_resume_result
 from resume_generation.bullet_points import generate_project_bullet_points
 from resume_generation.link_scanning import enrich_projects_with_link_scanning
-from resume_generation.models import ProjectBulletPointResult
 from resume_generation.selection import generate_selection_context
 
 
@@ -25,7 +25,7 @@ def run_resume_generation_pipeline(
     config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
     job_target_path: Path | str = DEFAULT_JOB_TARGET_PATH,
     evidence_paths: dict[str, Path | str] | None = None,
-) -> list[ProjectBulletPointResult]:
+) -> None:
     config = load_generation_config(config_path)
     job_target = load_job_target(job_target_path)
     loaded_evidence = load_registered_evidence(evidence_paths)
@@ -70,11 +70,18 @@ def run_resume_generation_pipeline(
 
     # TODO: optionally overall content validation
 
-    # TODO: generation step, using the results to generate a working resume draft schema, this will be used to generate the actual resume content in the future
-    
+    resume_result = assemble_intermediate_resume_result(
+        user_info=_user_info,
+        education=_education,
+        experience=_experience,
+        selection_context=context,
+        selected_projects=enriched_projects,
+        project_bullet_points=bullet_points,
+    )
+
     # TODO: output LaTeX format resume, this is the final output for now, but in the future we can also output other formats like PDF, Word, etc.
 
-    return bullet_points
+    return None
 
 
 if __name__ == "__main__":

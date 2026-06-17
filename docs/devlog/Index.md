@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `06-17-2026-Codex-add-intermediate-resume-result.md` - 2026-06-17 - Add intermediate resume result assembly
 - `06-11-2026-Codex-add-experience-evidence.md` - 2026-06-11 - Add experience evidence
 - `06-11-2026-Codex-add-education-evidence.md` - 2026-06-11 - Add education evidence
 - `06-09-2026-Codex-add-user-info-evidence.md` - 2026-06-09 - Add basic user info evidence

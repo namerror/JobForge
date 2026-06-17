@@ -237,6 +237,55 @@ class ProjectBulletPointResult(StrictSchemaModel):
     details: dict[str, Any] | None = None
 
 
+class ResumeTopSection(StrictSchemaModel):
+    name: str
+    phone: str
+    email: str
+    github: str | None = None
+    website: str | None = None
+    linkedin: str | None = None
+
+
+class ResumeEducationItem(StrictSchemaModel):
+    name: str
+    degree: str
+    grade: str
+    start: str
+    end: str | None = None
+    location: str
+    relevant_coursework: list[str]
+
+
+class ResumeExperienceItem(StrictSchemaModel):
+    name: str
+    bullet_points: list[str]
+    skills: list[str]
+    location: str
+    start: str
+    end: str | None = None
+
+
+class ResumeProjectItem(StrictSchemaModel):
+    name: str
+    bullet_points: list[str]
+    skills: list[str]
+    links: list[str]
+
+
+class ResumeSkillsSection(StrictSchemaModel):
+    technology: list[str]
+    programming: list[str]
+    concepts: list[str]
+
+
+class IntermediateResumeResult(StrictSchemaModel):
+    top: ResumeTopSection
+    education: list[ResumeEducationItem]
+    experience: list[ResumeExperienceItem]
+    projects: list[ResumeProjectItem]
+    skills: ResumeSkillsSection
+
+
 class LinkScanHighlight(StrictSchemaModel):
     text: str
     source_url: str

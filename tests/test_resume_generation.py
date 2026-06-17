@@ -12,8 +12,13 @@ from app.main import app
 from app.project_selection.llm_client import LLMProjectScoreResult
 from app.skill_selection.llm_client import LLMScoreResult
 from resume_generation import (
+    ProjectBulletPointResult,
+    ProjectSelectionResult,
     ResumeGenerationConfig,
     ResumeGenerationError,
+    ResumeSelectionContext,
+    SkillSelectionResult,
+    assemble_intermediate_resume_result,
     build_skill_selection_payload,
     generate_project_bullet_points,
     enrich_projects_with_link_scanning,
@@ -476,6 +481,133 @@ def test_enrich_projects_with_link_scanning_posts_linked_projects_and_merges_pat
     assert result[1].id == "inactive-project"
 
 
+def test_assemble_intermediate_resume_result_builds_deterministic_schema(tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    user_path = _write_yaml(
+        tmp_path / "user.yaml",
+        {
+            **_user_payload(),
+            "website": "https://example.com",
+        },
+    )
+    experience_payload = _experience_payload()
+    experience_payload["experience"][0]["skills"] = {
+        "technology": ["FastAPI", "Docker"],
+        "programming": ["Python", "SQL"],
+        "concepts": ["API", "Testing"],
+    }
+    experience_payload["experience"].append(
+        {
+            "id": "inactive-role",
+            "name": "Inactive Company",
+            "summary": "Older inactive experience.",
+            "highlights": ["This should not appear."],
+            "active": False,
+            "skills": {
+                "technology": ["Angular"],
+                "programming": ["JavaScript"],
+                "concepts": ["UI"],
+            },
+            "location": "Remote",
+            "start": "2022",
+            "end": "2023",
+            "links": None,
+        }
+    )
+    education_path = _write_yaml(tmp_path / "education.yaml", _education_payload())
+    experience_path = _write_yaml(tmp_path / "experience.yaml", experience_payload)
+    loaded_evidence = _loaded_evidence(
+        projects_path,
+        skills_path,
+        user_path=user_path,
+        education_path=education_path,
+        experience_path=experience_path,
+    )
+    projects_file = loaded_evidence["projects"]
+    unlinked_project = projects_file.projects_by_id()["inactive-project"]
+    linked_project = projects_file.projects_by_id()["active-project"]
+    selection_context = ResumeSelectionContext(
+        job_target=load_job_target(job_path),
+        selected_skills=SkillSelectionResult(
+            technology=["FastAPI", "Django"],
+            programming=["Python"],
+            concepts=["API"],
+        ),
+        project_selection=ProjectSelectionResult(
+            selected_project_ids=["inactive-project", "active-project"],
+            ranked_projects=[
+                {"project_id": "inactive-project", "score": 1.0, "method": "baseline"},
+                {"project_id": "active-project", "score": 0.9, "method": "baseline"},
+            ],
+        ),
+        selected_projects=[unlinked_project, linked_project],
+        config_path=config_path,
+        job_target_path=job_path,
+        evidence_paths={
+            "projects": projects_path,
+            "skills": skills_path,
+            "user": user_path,
+            "education": education_path,
+            "experience": experience_path,
+        },
+    )
+
+    result = assemble_intermediate_resume_result(
+        user_info=loaded_evidence["user"],
+        education=loaded_evidence["education"],
+        experience=loaded_evidence["experience"],
+        selection_context=selection_context,
+        selected_projects=[unlinked_project, linked_project],
+        project_bullet_points=[
+            ProjectBulletPointResult(
+                project_id="inactive-project",
+                bullet_points=["Generated bullet for inactive-project."],
+            ),
+            ProjectBulletPointResult(
+                project_id="active-project",
+                bullet_points=["Generated bullet for active-project."],
+            ),
+        ],
+    )
+
+    assert result.top.model_dump() == {
+        "name": "Example Candidate",
+        "phone": "+1 555-0100",
+        "email": "candidate@example.com",
+        "github": "https://github.com/example-candidate",
+        "website": "https://example.com",
+        "linkedin": "https://www.linkedin.com/in/example-candidate",
+    }
+    assert [item.name for item in result.education] == ["Example University"]
+    assert result.education[0].relevant_coursework == ["Data Structures", "Algorithms"]
+    assert [item.name for item in result.experience] == ["Example Company"]
+    assert result.experience[0].bullet_points == ["Designed schema-validated APIs."]
+    assert result.experience[0].skills == [
+        "FastAPI",
+        "Docker",
+        "Python",
+        "SQL",
+        "API",
+        "Testing",
+    ]
+    assert [project.name for project in result.projects] == [
+        "Inactive Project",
+        "Active Project",
+    ]
+    assert result.projects[0].bullet_points == ["Generated bullet for inactive-project."]
+    assert result.projects[0].skills == ["Angular", "JavaScript", "UI"]
+    assert result.projects[0].links == []
+    assert result.projects[1].links == ["https://example.com/active"]
+    assert result.skills.model_dump() == {
+        "technology": ["FastAPI", "Django"],
+        "programming": ["Python"],
+        "concepts": ["API"],
+    }
+
+
 def test_generate_project_bullet_points_wraps_http_errors(monkeypatch, tmp_path):
     config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
     job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
@@ -776,6 +908,17 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
         "resume_generation.main.load_registered_evidence",
         lambda paths=None: loaded_evidence,
     )
+    assembly_calls: list[dict] = []
+
+    def fake_assemble_intermediate_resume_result(**kwargs):
+        calls.append("assemble")
+        assembly_calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        "resume_generation.main.assemble_intermediate_resume_result",
+        fake_assemble_intermediate_resume_result,
+    )
 
     result = run_resume_generation_pipeline(
         config_path=config_path,
@@ -786,8 +929,21 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
         },
     )
 
-    assert calls == ["/select-skills", "/select-projects", "/generate-bulletpoints"]
-    assert [item.project_id for item in result] == ["active-project"]
+    assert calls == ["/select-skills", "/select-projects", "/generate-bulletpoints", "assemble"]
+    assert result is None
+    assert assembly_calls[0]["user_info"].name == "Example Candidate"
+    assert assembly_calls[0]["education"].education[0].name == "Example University"
+    assert assembly_calls[0]["experience"].experience[0].name == "Example Company"
+    assert assembly_calls[0]["selection_context"].selected_skills.technology == ["FastAPI"]
+    assert [project.id for project in assembly_calls[0]["selected_projects"]] == [
+        "active-project"
+    ]
+    assert [item.project_id for item in assembly_calls[0]["project_bullet_points"]] == [
+        "active-project"
+    ]
+    assert assembly_calls[0]["project_bullet_points"][0].bullet_points == [
+        "Generated bullet for active-project."
+    ]
 
 
 def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generation(
@@ -894,7 +1050,7 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
         "Scanned link confirms project context.",
     ]
     assert bullet_payloads[0]["project"]["skills"]["technology"] == ["FastAPI"]
-    assert [item.project_id for item in result] == ["active-project"]
+    assert result is None
 
 
 def api_request(method: str, path: str, **kwargs):
