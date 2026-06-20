@@ -170,6 +170,22 @@ class LinkScanningConfig(StrictSchemaModel):
         return value
 
 
+class ResumeGenerationCacheConfig(StrictSchemaModel):
+    enabled: bool = False
+    path: str | None = None
+    force_refresh: bool = False
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("cache.path must not be empty when provided")
+        return normalized
+
+
 class ResumeGenerationConfig(StrictSchemaModel):
     schema_version: Literal[1]
     app: GenerationAppConfig = Field(default_factory=GenerationAppConfig)
@@ -179,6 +195,7 @@ class ResumeGenerationConfig(StrictSchemaModel):
     bullet_point_generation: BulletPointGenerationConfig = Field(
         default_factory=BulletPointGenerationConfig
     )
+    cache: ResumeGenerationCacheConfig = Field(default_factory=ResumeGenerationCacheConfig)
 
 
 class JobTarget(StrictSchemaModel):

@@ -5,12 +5,13 @@ from typing import Iterable
 import httpx
 
 from resume_evidence.models import ProjectRecord
+from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.models import (
     JobTarget,
     ProjectLinkScanResult,
     ResumeGenerationConfig,
 )
-from resume_generation.selection import _post_json
+from resume_generation.selection import _cached_post_json
 
 
 def enrich_projects_with_link_scanning(
@@ -18,6 +19,7 @@ def enrich_projects_with_link_scanning(
     selected_projects: Iterable[ProjectRecord],
     config: ResumeGenerationConfig,
     job_target: JobTarget,
+    cache: ResumeGenerationStageCache | None = None,
 ) -> list[ProjectRecord]:
     projects = list(selected_projects)
     if not config.link_scanning.enabled:
@@ -43,10 +45,13 @@ def enrich_projects_with_link_scanning(
                 "llm_model": config.link_scanning.llm_model,
                 "llm_max_output_tokens": config.link_scanning.llm_max_output_tokens,
             }
-            response = _post_json(
-                client,
-                "/scan-link",
-                {key: value for key, value in payload.items() if value is not None},
+            response = _cached_post_json(
+                cache=cache,
+                stage="link_scanning",
+                client=client,
+                endpoint="/scan-link",
+                payload={key: value for key, value in payload.items() if value is not None},
+                namespace=project.id,
             )
             scan_result = ProjectLinkScanResult.model_validate(response)
             enriched_projects.append(_apply_link_scan_result(project, scan_result))

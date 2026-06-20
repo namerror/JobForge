@@ -11,6 +11,7 @@ from resume_generation.config import (
     DEFAULT_GENERATION_CONFIG_PATH,
     DEFAULT_JOB_TARGET_PATH,
 )
+from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.models import (
     JobTarget,
     ProjectSelectionResult,
@@ -95,6 +96,26 @@ def _post_json(
     return data
 
 
+def _cached_post_json(
+    *,
+    cache: ResumeGenerationStageCache | None,
+    stage: str,
+    client: httpx.Client,
+    endpoint: str,
+    payload: dict[str, Any],
+    namespace: str | None = None,
+) -> dict[str, Any]:
+    if cache is None:
+        return _post_json(client, endpoint, payload)
+
+    return cache.get_or_store(
+        stage=stage,
+        payload=payload,
+        namespace=namespace,
+        fetch=lambda: _post_json(client, endpoint, payload),
+    )
+
+
 def generate_selection_context(
     *,
     loaded_evidence: Mapping[str, BaseModel],
@@ -103,6 +124,7 @@ def generate_selection_context(
     config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
     job_target_path: Path | str = DEFAULT_JOB_TARGET_PATH,
     evidence_paths: Mapping[str, Path | str] | None = None,
+    cache: ResumeGenerationStageCache | None = None,
 ) -> ResumeSelectionContext:
     merged_evidence_paths = dict(DEFAULT_EVIDENCE_PATHS)
     if evidence_paths is not None:
@@ -121,19 +143,23 @@ def generate_selection_context(
         base_url=config.app.base_url,
         timeout=config.app.timeout_seconds,
     ) as client:
-        skill_response = _post_json(
-            client,
-            "/select-skills",
-            build_skill_selection_payload(
+        skill_response = _cached_post_json(
+            cache=cache,
+            stage="skill_selection",
+            client=client,
+            endpoint="/select-skills",
+            payload=build_skill_selection_payload(
                 job_target=job_target,
                 skills_file=skills_file,
                 config=config,
             ),
         )
-        project_response = _post_json(
-            client,
-            "/select-projects",
-            _project_selection_payload(
+        project_response = _cached_post_json(
+            cache=cache,
+            stage="project_selection",
+            client=client,
+            endpoint="/select-projects",
+            payload=_project_selection_payload(
                 job_target=job_target,
                 projects_file=projects_file,
                 config=config,

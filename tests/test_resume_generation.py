@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 import httpx
@@ -26,6 +27,7 @@ from resume_generation import (
     load_generation_config,
     load_job_target,
 )
+from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.main import run_resume_generation_pipeline
 from resume_evidence import load_evidence_yaml
 
@@ -225,6 +227,112 @@ def test_load_generation_config_returns_typed_config(tmp_path):
     assert config.bullet_point_generation.llm_model == "bullet-model"
     assert config.bullet_point_generation.bullet_count_range is not None
     assert config.bullet_point_generation.bullet_count_range.min == 2
+    assert config.cache.enabled is False
+    assert config.cache.force_refresh is False
+
+
+def test_load_generation_config_accepts_cache_config(tmp_path):
+    path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            cache={
+                "enabled": True,
+                "path": str(tmp_path / "cache"),
+                "force_refresh": True,
+            }
+        ),
+    )
+
+    config = load_generation_config(path)
+
+    assert config.cache.enabled is True
+    assert config.cache.path == str(tmp_path / "cache")
+    assert config.cache.force_refresh is True
+
+
+def test_resume_generation_stage_cache_reuses_exact_payload(tmp_path):
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    calls: list[str] = []
+
+    first = cache.get_or_store(
+        stage="skill_selection",
+        payload={"job_role": "Backend Engineer", "top_n": 3},
+        fetch=lambda: calls.append("fetch") or {"technology": ["FastAPI"]},
+    )
+    second = cache.get_or_store(
+        stage="skill_selection",
+        payload={"top_n": 3, "job_role": "Backend Engineer"},
+        fetch=lambda: calls.append("fetch") or {"technology": ["Django"]},
+    )
+
+    assert first == {"technology": ["FastAPI"]}
+    assert second == {"technology": ["FastAPI"]}
+    assert calls == ["fetch"]
+
+
+def test_resume_generation_stage_cache_invalidates_changed_payload(tmp_path):
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    calls: list[str] = []
+
+    cache.get_or_store(
+        stage="skill_selection",
+        payload={"job_role": "Backend Engineer"},
+        fetch=lambda: calls.append("first") or {"technology": ["FastAPI"]},
+    )
+    result = cache.get_or_store(
+        stage="skill_selection",
+        payload={"job_role": "ML Engineer"},
+        fetch=lambda: calls.append("second") or {"technology": ["PyTorch"]},
+    )
+
+    assert result == {"technology": ["PyTorch"]}
+    assert calls == ["first", "second"]
+
+
+def test_resume_generation_stage_cache_force_refresh_bypasses_read(tmp_path):
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    payload = {"project": {"id": "active-project"}}
+
+    cache.get_or_store(
+        stage="bullet_points",
+        payload=payload,
+        fetch=lambda: {"bullet_points": ["Original bullet."]},
+        namespace="active-project",
+    )
+
+    refreshing_cache = ResumeGenerationStageCache(tmp_path / "cache", force_refresh=True)
+    result = refreshing_cache.get_or_store(
+        stage="bullet_points",
+        payload=payload,
+        fetch=lambda: {"bullet_points": ["Refreshed bullet."]},
+        namespace="active-project",
+    )
+
+    assert result == {"bullet_points": ["Refreshed bullet."]}
+
+
+def test_resume_generation_stage_cache_treats_malformed_entry_as_miss(tmp_path):
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    payload = {"project": {"id": "active-project"}}
+    cache_key = cache.cache_key(stage="bullet_points", payload=payload)
+    entry_path = cache._entry_path(
+        stage="bullet_points",
+        cache_key=cache_key,
+        namespace="active-project",
+    )
+    entry_path.parent.mkdir(parents=True)
+    entry_path.write_text("{not valid json", encoding="utf-8")
+
+    result = cache.get_or_store(
+        stage="bullet_points",
+        payload=payload,
+        fetch=lambda: {"bullet_points": ["Recovered bullet."]},
+        namespace="active-project",
+    )
+
+    assert result == {"bullet_points": ["Recovered bullet."]}
+    payload_on_disk = json.loads(entry_path.read_text(encoding="utf-8"))
+    assert payload_on_disk["data"] == {"bullet_points": ["Recovered bullet."]}
 
 
 def test_load_generation_config_rejects_invalid_bullet_count_range(tmp_path):
@@ -943,6 +1051,317 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
     ]
     assert assembly_calls[0]["project_bullet_points"][0].bullet_points == [
         "Generated bullet for active-project."
+    ]
+
+
+def test_resume_generation_pipeline_reuses_cached_stage_results(monkeypatch, tmp_path):
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            cache={
+                "enabled": True,
+                "path": str(tmp_path / "cache"),
+                "force_refresh": False,
+            }
+        ),
+    )
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            if endpoint == "/select-skills":
+                return httpx.Response(
+                    200,
+                    json={
+                        "technology": ["FastAPI"],
+                        "programming": ["Python"],
+                        "concepts": ["API"],
+                    },
+                )
+            if endpoint == "/select-projects":
+                return httpx.Response(
+                    200,
+                    json={
+                        "selected_project_ids": ["active-project"],
+                        "ranked_projects": [
+                            {
+                                "project_id": "active-project",
+                                "score": 1.0,
+                                "method": "llm",
+                            }
+                        ],
+                    },
+                )
+            if endpoint == "/generate-bulletpoints":
+                return httpx.Response(
+                    200,
+                    json={
+                        "bullet_points": ["Cached generated bullet."],
+                    },
+                )
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    for _ in range(2):
+        run_resume_generation_pipeline(
+            config_path=config_path,
+            job_target_path=job_path,
+            evidence_paths={
+                "projects": projects_path,
+                "skills": skills_path,
+            },
+        )
+
+    assert calls == ["/select-skills", "/select-projects", "/generate-bulletpoints"]
+
+
+def test_resume_generation_pipeline_cache_misses_when_job_target_changes(
+    monkeypatch,
+    tmp_path,
+):
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            cache={
+                "enabled": True,
+                "path": str(tmp_path / "cache"),
+                "force_refresh": False,
+            }
+        ),
+    )
+    first_job_path = _write_yaml(tmp_path / "first-job.yaml", _job_target_payload())
+    second_job_path = _write_yaml(
+        tmp_path / "second-job.yaml",
+        _job_target_payload(title="ML Engineer"),
+    )
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            if endpoint == "/select-skills":
+                return httpx.Response(
+                    200,
+                    json={
+                        "technology": ["FastAPI"],
+                        "programming": ["Python"],
+                        "concepts": ["API"],
+                    },
+                )
+            if endpoint == "/select-projects":
+                return httpx.Response(
+                    200,
+                    json={
+                        "selected_project_ids": ["active-project"],
+                        "ranked_projects": [
+                            {
+                                "project_id": "active-project",
+                                "score": 1.0,
+                                "method": "llm",
+                            }
+                        ],
+                    },
+                )
+            if endpoint == "/generate-bulletpoints":
+                return httpx.Response(
+                    200,
+                    json={"bullet_points": ["Generated bullet."]},
+                )
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    run_resume_generation_pipeline(
+        config_path=config_path,
+        job_target_path=first_job_path,
+        evidence_paths={
+            "projects": projects_path,
+            "skills": skills_path,
+        },
+    )
+    run_resume_generation_pipeline(
+        config_path=config_path,
+        job_target_path=second_job_path,
+        evidence_paths={
+            "projects": projects_path,
+            "skills": skills_path,
+        },
+    )
+
+    assert calls == [
+        "/select-skills",
+        "/select-projects",
+        "/generate-bulletpoints",
+        "/select-skills",
+        "/select-projects",
+        "/generate-bulletpoints",
+    ]
+
+
+def test_resume_generation_pipeline_resumes_after_project_bullet_failure(
+    monkeypatch,
+    tmp_path,
+):
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            cache={
+                "enabled": True,
+                "path": str(tmp_path / "cache"),
+                "force_refresh": False,
+            }
+        ),
+    )
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_payload = _projects_payload()
+    projects_payload["projects"].append(
+        {
+            "id": "second-project",
+            "name": "Second Project",
+            "summary": "Second FastAPI backend service.",
+            "highlights": ["Built another service."],
+            "active": True,
+            "skills": {
+                "technology": ["FastAPI"],
+                "programming": ["Python"],
+                "concepts": ["API"],
+            },
+            "links": None,
+        }
+    )
+    projects_path = _write_yaml(tmp_path / "projects.yaml", projects_payload)
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[tuple[str, str | None]] = []
+    fail_second_project = True
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            nonlocal fail_second_project
+            project_id = json.get("project", {}).get("id")
+            calls.append((endpoint, project_id))
+            if endpoint == "/select-skills":
+                return httpx.Response(
+                    200,
+                    json={
+                        "technology": ["FastAPI"],
+                        "programming": ["Python"],
+                        "concepts": ["API"],
+                    },
+                )
+            if endpoint == "/select-projects":
+                return httpx.Response(
+                    200,
+                    json={
+                        "selected_project_ids": ["active-project", "second-project"],
+                        "ranked_projects": [
+                            {
+                                "project_id": "active-project",
+                                "score": 1.0,
+                                "method": "llm",
+                            },
+                            {
+                                "project_id": "second-project",
+                                "score": 0.9,
+                                "method": "llm",
+                            },
+                        ],
+                    },
+                )
+            if endpoint == "/generate-bulletpoints":
+                if project_id == "second-project" and fail_second_project:
+                    raise httpx.ConnectError("simulated failure")
+                return httpx.Response(
+                    200,
+                    json={
+                        "bullet_points": [f"Generated bullet for {project_id}."],
+                    },
+                )
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    with pytest.raises(
+        ResumeGenerationError,
+        match="HTTP request to /generate-bulletpoints failed",
+    ):
+        run_resume_generation_pipeline(
+            config_path=config_path,
+            job_target_path=job_path,
+            evidence_paths={
+                "projects": projects_path,
+                "skills": skills_path,
+            },
+        )
+
+    fail_second_project = False
+    run_resume_generation_pipeline(
+        config_path=config_path,
+        job_target_path=job_path,
+        evidence_paths={
+            "projects": projects_path,
+            "skills": skills_path,
+        },
+    )
+
+    assert calls == [
+        ("/select-skills", None),
+        ("/select-projects", None),
+        ("/generate-bulletpoints", "active-project"),
+        ("/generate-bulletpoints", "second-project"),
+        ("/generate-bulletpoints", "second-project"),
     ]
 
 

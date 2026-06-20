@@ -60,3 +60,4 @@ Files are named: `NNN-short-kebab-case-title.md`
 - `007-modern-cli-selection-ui.md`
 - `008-standalone-resume-evidence-and-generation-layers.md`
 - `009-bullet-point-generation-api-boundary.md`
+- `010-resume-generation-stage-cache.md`

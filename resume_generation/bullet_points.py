@@ -5,12 +5,13 @@ from typing import Iterable
 import httpx
 
 from resume_evidence.models import ProjectRecord
+from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.models import (
     JobTarget,
     ProjectBulletPointResult,
     ResumeGenerationConfig,
 )
-from resume_generation.selection import _exclude_none, _post_json
+from resume_generation.selection import _cached_post_json, _exclude_none
 
 
 def generate_project_bullet_points(
@@ -18,6 +19,7 @@ def generate_project_bullet_points(
     selected_projects: Iterable[ProjectRecord],
     config: ResumeGenerationConfig,
     job_target: JobTarget,
+    cache: ResumeGenerationStageCache | None = None,
 ) -> list[ProjectBulletPointResult]:
     bullet_config = _exclude_none(config.bullet_point_generation)
 
@@ -35,7 +37,14 @@ def generate_project_bullet_points(
                 "project": project.model_dump(),
                 **bullet_config,
             }
-            response = _post_json(client, "/generate-bulletpoints", payload)
+            response = _cached_post_json(
+                cache=cache,
+                stage="bullet_points",
+                client=client,
+                endpoint="/generate-bulletpoints",
+                payload=payload,
+                namespace=project.id,
+            )
             results.append(
                 ProjectBulletPointResult(
                     project_id=project.id,

@@ -16,6 +16,7 @@ from resume_generation.config import (
 )
 from resume_generation.assembly import assemble_intermediate_resume_result
 from resume_generation.bullet_points import generate_project_bullet_points
+from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.link_scanning import enrich_projects_with_link_scanning
 from resume_generation.selection import generate_selection_context
 
@@ -29,6 +30,10 @@ def run_resume_generation_pipeline(
     config = load_generation_config(config_path)
     job_target = load_job_target(job_target_path)
     loaded_evidence = load_registered_evidence(evidence_paths)
+    cache = ResumeGenerationStageCache.from_config(
+        config.cache,
+        config_path=config_path,
+    )
 
     _user_info = loaded_evidence.get("user")
     if not isinstance(_user_info, UserInfoFile):
@@ -50,6 +55,7 @@ def run_resume_generation_pipeline(
         config_path=config_path,
         job_target_path=job_target_path,
         evidence_paths=evidence_paths,
+        cache=cache,
     )
 
     # TODO: other info like publications etc. will come in the future
@@ -60,12 +66,14 @@ def run_resume_generation_pipeline(
         selected_projects=context.selected_projects,
         config=config,
         job_target=job_target,
+        cache=cache,
     )
 
     bullet_points = generate_project_bullet_points(
         selected_projects=enriched_projects,
         config=config,
         job_target=job_target,
+        cache=cache,
     )
 
     # TODO: optionally overall content validation

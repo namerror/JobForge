@@ -25,3 +25,7 @@ bullet_point_generation:
   dev_mode: true
   llm_model: gpt-5-mini
   llm_max_output_tokens: 1200
+cache:
+  enabled: true
+  path: null
+  force_refresh: false
