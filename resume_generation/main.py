@@ -1,5 +1,6 @@
 # entry point for resume generation
 
+import os
 from pathlib import Path
 
 from resume_evidence import (
@@ -18,7 +19,28 @@ from resume_generation.assembly import assemble_intermediate_resume_result
 from resume_generation.bullet_points import generate_project_bullet_points
 from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.link_scanning import enrich_projects_with_link_scanning
+from resume_generation.models import IntermediateResumeResult
 from resume_generation.selection import generate_selection_context
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_RESUME_RESULT_ARTIFACT_PATH = (
+    _REPO_ROOT / "user" / "resume_generation" / "resume_result.json"
+)
+
+
+def write_resume_result_artifact(
+    resume_result: IntermediateResumeResult,
+    path: Path | str = DEFAULT_RESUME_RESULT_ARTIFACT_PATH,
+) -> Path:
+    artifact_path = Path(path)
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = artifact_path.with_suffix(artifact_path.suffix + ".tmp")
+    tmp_path.write_text(
+        resume_result.model_dump_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(tmp_path, artifact_path)
+    return artifact_path
 
 
 def run_resume_generation_pipeline(
@@ -26,6 +48,7 @@ def run_resume_generation_pipeline(
     config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
     job_target_path: Path | str = DEFAULT_JOB_TARGET_PATH,
     evidence_paths: dict[str, Path | str] | None = None,
+    resume_result_artifact_path: Path | str = DEFAULT_RESUME_RESULT_ARTIFACT_PATH,
 ) -> None:
     config = load_generation_config(config_path)
     job_target = load_job_target(job_target_path)
@@ -86,6 +109,8 @@ def run_resume_generation_pipeline(
         selected_projects=enriched_projects,
         project_bullet_points=bullet_points,
     )
+
+    write_resume_result_artifact(resume_result, resume_result_artifact_path)
 
     # TODO: output LaTeX format resume, this is the final output for now, but in the future we can also output other formats like PDF, Word, etc.
 

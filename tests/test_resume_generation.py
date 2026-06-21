@@ -13,6 +13,7 @@ from app.main import app
 from app.project_selection.llm_client import LLMProjectScoreResult
 from app.skill_selection.llm_client import LLMScoreResult
 from resume_generation import (
+    IntermediateResumeResult,
     ProjectBulletPointResult,
     ProjectSelectionResult,
     ResumeGenerationConfig,
@@ -28,7 +29,7 @@ from resume_generation import (
     load_job_target,
 )
 from resume_generation.cache import ResumeGenerationStageCache
-from resume_generation.main import run_resume_generation_pipeline
+from resume_generation.main import run_resume_generation_pipeline, write_resume_result_artifact
 from resume_evidence import load_evidence_yaml
 
 
@@ -716,6 +717,66 @@ def test_assemble_intermediate_resume_result_builds_deterministic_schema(tmp_pat
     }
 
 
+def test_write_resume_result_artifact_writes_human_readable_json(tmp_path):
+    resume_result = IntermediateResumeResult.model_validate(
+        {
+            "top": {
+                "name": "Example Candidate",
+                "phone": "+1 555-0100",
+                "email": "candidate@example.com",
+                "github": "https://github.com/example-candidate",
+            },
+            "education": [
+                {
+                    "name": "Example University",
+                    "degree": "Bachelor of Science in Computer Science",
+                    "grade": "3.8 GPA",
+                    "start": "2020",
+                    "end": "2024",
+                    "location": "Example City, ST",
+                    "relevant_coursework": ["Data Structures"],
+                }
+            ],
+            "experience": [
+                {
+                    "name": "Example Company",
+                    "bullet_points": ["Designed schema-validated APIs."],
+                    "skills": ["FastAPI", "Python"],
+                    "location": "Example City, ST",
+                    "start": "2024",
+                }
+            ],
+            "projects": [
+                {
+                    "name": "Active Project",
+                    "bullet_points": ["Generated bullet for active-project."],
+                    "skills": ["FastAPI", "Python", "API"],
+                    "links": ["https://example.com/active"],
+                }
+            ],
+            "skills": {
+                "technology": ["FastAPI"],
+                "programming": ["Python"],
+                "concepts": ["API"],
+            },
+        }
+    )
+    artifact_path = tmp_path / "artifacts" / "resume_result.json"
+
+    written_path = write_resume_result_artifact(resume_result, artifact_path)
+
+    assert written_path == artifact_path
+    raw_json = artifact_path.read_text(encoding="utf-8")
+    assert raw_json.endswith("\n")
+    assert '\n  "top": {' in raw_json
+    payload = json.loads(raw_json)
+    assert list(payload) == ["top", "education", "experience", "projects", "skills"]
+    assert payload["top"]["name"] == "Example Candidate"
+    assert payload["projects"][0]["bullet_points"] == [
+        "Generated bullet for active-project."
+    ]
+
+
 def test_generate_project_bullet_points_wraps_http_errors(monkeypatch, tmp_path):
     config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
     job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
@@ -1021,12 +1082,54 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
     def fake_assemble_intermediate_resume_result(**kwargs):
         calls.append("assemble")
         assembly_calls.append(kwargs)
-        return object()
+        return IntermediateResumeResult.model_validate(
+            {
+                "top": {
+                    "name": "Example Candidate",
+                    "phone": "+1 555-0100",
+                    "email": "candidate@example.com",
+                },
+                "education": [
+                    {
+                        "name": "Example University",
+                        "degree": "Bachelor of Science in Computer Science",
+                        "grade": "3.8 GPA",
+                        "start": "2020",
+                        "end": "2024",
+                        "location": "Example City, ST",
+                        "relevant_coursework": ["Data Structures"],
+                    }
+                ],
+                "experience": [
+                    {
+                        "name": "Example Company",
+                        "bullet_points": ["Designed schema-validated APIs."],
+                        "skills": ["FastAPI", "Python"],
+                        "location": "Example City, ST",
+                        "start": "2024",
+                    }
+                ],
+                "projects": [
+                    {
+                        "name": "Active Project",
+                        "bullet_points": ["Generated bullet for active-project."],
+                        "skills": ["FastAPI", "Python", "API"],
+                        "links": ["https://example.com/active"],
+                    }
+                ],
+                "skills": {
+                    "technology": ["FastAPI"],
+                    "programming": ["Python"],
+                    "concepts": ["API"],
+                },
+            }
+        )
 
     monkeypatch.setattr(
         "resume_generation.main.assemble_intermediate_resume_result",
         fake_assemble_intermediate_resume_result,
     )
+    artifact_path = tmp_path / "artifacts" / "resume_result.json"
 
     result = run_resume_generation_pipeline(
         config_path=config_path,
@@ -1035,10 +1138,16 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
             "projects": projects_path,
             "skills": skills_path,
         },
+        resume_result_artifact_path=artifact_path,
     )
 
     assert calls == ["/select-skills", "/select-projects", "/generate-bulletpoints", "assemble"]
     assert result is None
+    artifact_payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert artifact_payload["top"]["name"] == "Example Candidate"
+    assert artifact_payload["projects"][0]["bullet_points"] == [
+        "Generated bullet for active-project."
+    ]
     assert assembly_calls[0]["user_info"].name == "Example Candidate"
     assert assembly_calls[0]["education"].education[0].name == "Example University"
     assert assembly_calls[0]["experience"].experience[0].name == "Example Company"
