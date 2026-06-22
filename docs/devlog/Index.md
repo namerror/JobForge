@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `06-22-2026-Codex-add-experience-role-field.md` - 2026-06-22 - Add experience role field
 - `06-22-2026-Codex-expand-resume-evidence-cli-schemas.md` - 2026-06-22 - Expand resume evidence CLI schemas
 - `06-21-2026-Codex-resume-result-json-artifact.md` - 2026-06-21 - Add resume result JSON artifact
 - `06-20-2026-Codex-resume-generation-stage-cache.md` - 2026-06-20 - Add resume generation stage cache

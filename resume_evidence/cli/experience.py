@@ -81,6 +81,7 @@ class ExperienceEvidenceCLI(EvidenceCLIBase):
     def _show_experience(self, index: int) -> None:
         item = self.session.get_experience(index)
         self._println(f"{index}. {item.name}")
+        self._println(f"Role: {item.role}")
         self._println(f"Summary: {item.summary}")
         self._println(f"Active: {'yes' if item.active else 'no'}")
         self._println(f"Location: {item.location}")
@@ -95,6 +96,7 @@ class ExperienceEvidenceCLI(EvidenceCLIBase):
     def _create_experience(self) -> None:
         item = self.session.create_experience(
             name=self._prompt_required_text("Name"),
+            role=self._prompt_required_text("Role"),
             summary=self._prompt_required_text("Summary"),
             highlights=self._prompt_list("Highlights", required=True),
             active=self._prompt_bool("Active", default=True),
@@ -113,6 +115,7 @@ class ExperienceEvidenceCLI(EvidenceCLIBase):
         updated = self.session.update_experience(
             index,
             name=self._prompt_required_text("Name", default=item.name),
+            role=self._prompt_required_text("Role", default=item.role),
             summary=self._prompt_required_text("Summary", default=item.summary),
             highlights=self._prompt_editable_list("Highlights", item.highlights, required=True),
             active=self._prompt_bool("Active", default=item.active),

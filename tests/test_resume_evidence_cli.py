@@ -90,6 +90,7 @@ def _valid_experience_payload() -> dict:
             {
                 "id": "backend-engineer",
                 "name": "Example Company",
+                "role": "Backend Engineer",
                 "summary": "Built reliable backend services for internal platforms.",
                 "highlights": [
                     "Designed schema-validated APIs.",
@@ -484,6 +485,7 @@ def test_experience_session_create_stages_changes_without_writing_file(tmp_path)
 
     created = session.create_experience(
         name="Example Company",
+        role="Platform Engineer",
         summary="Built platform tools.",
         highlights=["Shipped internal tools."],
         active=True,
@@ -497,6 +499,7 @@ def test_experience_session_create_stages_changes_without_writing_file(tmp_path)
     )
 
     assert created.id == "example-company"
+    assert created.role == "Platform Engineer"
     assert session.dirty is True
     loaded = load_evidence_yaml(path, "experience")
     assert loaded.model_dump() == _valid_experience_payload()
@@ -509,6 +512,7 @@ def test_experience_session_update_keeps_original_id_on_rename(tmp_path):
     updated = session.update_experience(
         1,
         name="Renamed Company",
+        role="Senior Backend Engineer",
         summary="Updated summary",
         highlights=["Designed schema-validated APIs."],
         active=True,
@@ -523,6 +527,7 @@ def test_experience_session_update_keeps_original_id_on_rename(tmp_path):
 
     assert updated.id == "backend-engineer"
     assert updated.name == "Renamed Company"
+    assert updated.role == "Senior Backend Engineer"
 
 
 def test_experience_session_apply_writes_schema_valid_yaml_and_clears_dirty_flag(tmp_path):
@@ -1459,6 +1464,7 @@ def test_experience_cli_list_and_show(tmp_path):
     output = _run_schema_cli("experience", path, ["list", "show 1", "quit"])
 
     assert "1. Example Company [active]" in output
+    assert "Role: Backend Engineer" in output
     assert "Location: Example City, ST" in output
     assert "Technology: FastAPI, PostgreSQL" in output
 
@@ -1472,6 +1478,7 @@ def test_experience_cli_create_edit_delete_and_apply(tmp_path):
         [
             "create",
             "Second Company",
+            "Platform Engineer",
             "Built platform tools.",
             "Shipped internal tools.",
             "",
@@ -1485,6 +1492,7 @@ def test_experience_cli_create_edit_delete_and_apply(tmp_path):
             "",
             "edit 1",
             "",
+            "Senior Backend Engineer",
             "Updated backend summary.",
             "y",
             "",
@@ -1505,6 +1513,7 @@ def test_experience_cli_create_edit_delete_and_apply(tmp_path):
 
     loaded = load_evidence_yaml(path, "experience")
     assert loaded.experience[0].summary == "Updated backend summary."
+    assert loaded.experience[0].role == "Senior Backend Engineer"
     assert loaded.experience[0].id == "backend-engineer"
     assert len(loaded.experience) == 1
     assert "Staged new experience entry 'Second Company'. Run 'apply' to save." in output

@@ -460,6 +460,7 @@ class ExperienceEvidenceSession:
         self,
         *,
         name: str,
+        role: str,
         summary: str,
         highlights: list[str],
         active: bool,
@@ -476,6 +477,7 @@ class ExperienceEvidenceSession:
         experience_data = {
             "id": generate_experience_id(name, existing_ids),
             "name": name,
+            "role": role,
             "summary": summary,
             "highlights": highlights,
             "active": active,
@@ -499,6 +501,7 @@ class ExperienceEvidenceSession:
         index: int,
         *,
         name: str,
+        role: str,
         summary: str,
         highlights: list[str],
         active: bool,
@@ -516,6 +519,7 @@ class ExperienceEvidenceSession:
         staged_data["experience"][resolved_index] = {
             "id": original_experience["id"],
             "name": name,
+            "role": role,
             "summary": summary,
             "highlights": highlights,
             "active": active,

@@ -56,6 +56,7 @@ class ProjectsFile(StrictSchemaModel):
 class ExperienceRecord(StrictSchemaModel):
     id: str
     name: str
+    role: str
     summary: str
     highlights: list[str] = Field(min_length=1)
     active: bool

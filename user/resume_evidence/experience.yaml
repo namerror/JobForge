@@ -2,6 +2,7 @@ schema_version: 1
 experience:
 - id: example-role
   name: Example Company
+  role: Example Role
   summary: Example work experience focused on building reliable software systems.
   highlights:
   - Built and maintained backend services with typed schemas and automated tests.

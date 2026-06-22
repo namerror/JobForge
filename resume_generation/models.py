@@ -275,6 +275,7 @@ class ResumeEducationItem(StrictSchemaModel):
 
 class ResumeExperienceItem(StrictSchemaModel):
     name: str
+    role: str
     bullet_points: list[str]
     skills: list[str]
     location: str

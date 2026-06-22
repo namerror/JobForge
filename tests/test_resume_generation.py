@@ -133,6 +133,7 @@ def _experience_payload() -> dict:
             {
                 "id": "backend-engineer",
                 "name": "Example Company",
+                "role": "Backend Engineer",
                 "summary": "Built backend services for internal platforms.",
                 "highlights": ["Designed schema-validated APIs."],
                 "active": True,
@@ -612,6 +613,7 @@ def test_assemble_intermediate_resume_result_builds_deterministic_schema(tmp_pat
         {
             "id": "inactive-role",
             "name": "Inactive Company",
+            "role": "Frontend Engineer",
             "summary": "Older inactive experience.",
             "highlights": ["This should not appear."],
             "active": False,
@@ -693,6 +695,7 @@ def test_assemble_intermediate_resume_result_builds_deterministic_schema(tmp_pat
     assert [item.name for item in result.education] == ["Example University"]
     assert result.education[0].relevant_coursework == ["Data Structures", "Algorithms"]
     assert [item.name for item in result.experience] == ["Example Company"]
+    assert result.experience[0].role == "Backend Engineer"
     assert result.experience[0].bullet_points == ["Designed schema-validated APIs."]
     assert result.experience[0].skills == [
         "FastAPI",
@@ -740,6 +743,7 @@ def test_write_resume_result_artifact_writes_human_readable_json(tmp_path):
             "experience": [
                 {
                     "name": "Example Company",
+                    "role": "Backend Engineer",
                     "bullet_points": ["Designed schema-validated APIs."],
                     "skills": ["FastAPI", "Python"],
                     "location": "Example City, ST",
@@ -1103,6 +1107,7 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
                 "experience": [
                     {
                         "name": "Example Company",
+                        "role": "Backend Engineer",
                         "bullet_points": ["Designed schema-validated APIs."],
                         "skills": ["FastAPI", "Python"],
                         "location": "Example City, ST",

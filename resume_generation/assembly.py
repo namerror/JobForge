@@ -58,6 +58,7 @@ def assemble_intermediate_resume_result(
         experience=[
             ResumeExperienceItem(
                 name=item.name,
+                role=item.role,
                 bullet_points=item.highlights,
                 skills=_flatten_skills(item.skills),
                 location=item.location,

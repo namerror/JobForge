@@ -63,6 +63,7 @@ def _valid_experience_payload() -> dict:
             {
                 "id": "backend-engineer",
                 "name": "Example Company",
+                "role": "Backend Engineer",
                 "summary": "Built reliable backend services for internal platforms.",
                 "highlights": [
                     "Designed schema-validated APIs.",
@@ -153,6 +154,7 @@ def test_load_experience_yaml_returns_typed_runtime_object(tmp_path):
     assert isinstance(parsed.experience[0], ExperienceRecord)
     assert parsed.schema_version == 1
     assert [item.id for item in parsed.iter_experience()] == ["backend-engineer"]
+    assert parsed.experience[0].role == "Backend Engineer"
     assert parsed.experience_by_id()["backend-engineer"].location == "Example City, ST"
 
 
@@ -206,7 +208,7 @@ def test_load_projects_yaml_rejects_missing_required_field(tmp_path):
 
 @pytest.mark.parametrize(
     "field_name",
-    ["id", "name", "summary", "highlights", "active", "skills", "location", "start"],
+    ["id", "name", "role", "summary", "highlights", "active", "skills", "location", "start"],
 )
 def test_load_experience_yaml_rejects_missing_required_field(tmp_path, field_name):
     payload = _valid_experience_payload()
@@ -370,6 +372,7 @@ def test_load_education_yaml_rejects_extra_record_field(tmp_path):
     ("field_name", "value"),
     [
         ("active", "true"),
+        ("role", 123),
         ("highlights", "not-a-list"),
         ("skills", ["not", "a", "mapping"]),
         ("links", [123]),
