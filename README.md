@@ -51,19 +51,17 @@ Skill selection remains constrained by the repo invariants:
 The first implemented milestone is the `resume_evidence` package.
 
 - `resume_evidence/models.py`
-  - strict Pydantic models for `user.yaml`, `projects.yaml`, and `skills.yaml`
+  - strict Pydantic models for all registered evidence YAML schemas
 - `resume_evidence/loader.py`
   - schema registry and deterministic YAML loading
 - `resume_evidence/session.py`
   - staged in-memory CRUD with validation-before-mutation and atomic apply-to-disk writes
-- `resume_evidence/cli.py`
+- `resume_evidence/cli/`
   - CLI entrypoint and schema dispatcher
-- `resume_evidence/base_cli.py`
+- `resume_evidence/cli/base.py`
   - shared interactive CLI base helpers
-- `resume_evidence/projects_cli.py`
-  - project-evidence command implementation
-- `resume_evidence/skills_cli.py`
-  - skills-evidence command implementation
+- `resume_evidence/cli/{projects,skills,education,experience,user}.py`
+  - schema-specific command implementations
 - `resume_generation/`
   - reserved boundary for future evidence-to-selection orchestration and structured fill-data preparation
 - `app/main.py`
@@ -79,9 +77,9 @@ The currently implemented evidence schemas are:
   - strict categorized skill lists under `technology`, `programming`, and `concepts`
 - `user/resume_evidence/user.yaml`
   - `schema_version: 1`
-  - strict basic contact info with required `name`, `email`, and `phone`, plus optional `linkedin` and `github`
+  - strict basic contact info with required `name`, `email`, and `phone`, plus optional `linkedin`, `github`, and `website`
 
-Projects and skills evidence should be managed by users via the CLI or by other tools that write to the `user/resume_evidence/` directory. Basic user contact info is loaded from `user.yaml`; no CLI editing flow is implemented for it yet.
+Resume evidence should be managed by users via the CLI or by other tools that write to the `user/resume_evidence/` directory.
 
 ### Project selection API
 
@@ -112,15 +110,18 @@ Default `projects` commands:
 - `reload`
 - `quit`
 
-The default schema is `projects`. For skills evidence, use:
+The default schema is `projects`. Use `--schema` to manage any registered evidence file:
 
 ```bash
 PYTHONPATH=. python -m resume_evidence.cli --schema skills
+PYTHONPATH=. python -m resume_evidence.cli --schema education
+PYTHONPATH=. python -m resume_evidence.cli --schema experience
+PYTHONPATH=. python -m resume_evidence.cli --schema user
 ```
 
-The skills CLI supports `list`, `edit`, `apply`, `reload`, and `quit`.
+Projects, education, and experience support list/show/create/edit/delete/apply/reload/quit workflows. Skills and user info support list/show-style inspection, edit, apply, reload, and quit.
 
-The CLI keeps edits staged in memory until `apply` is confirmed, preserves stable hidden IDs for projects, and writes atomically to disk.
+The CLI keeps edits staged in memory until `apply` is confirmed, preserves stable hidden IDs for projects and experience entries, and writes atomically to disk.
 
 ### Evaluation and support scripts
 
@@ -356,10 +357,13 @@ Run the evidence CLI:
 PYTHONPATH=. python -m resume_evidence.cli
 ```
 
-Run the skills evidence CLI:
+Run a specific evidence schema CLI:
 
 ```bash
 PYTHONPATH=. python -m resume_evidence.cli --schema skills
+PYTHONPATH=. python -m resume_evidence.cli --schema education
+PYTHONPATH=. python -m resume_evidence.cli --schema experience
+PYTHONPATH=. python -m resume_evidence.cli --schema user
 ```
 
 ## Tests

@@ -63,19 +63,17 @@ Use this file as the primary navigation index for coding agents.
 ## Resume Evidence Entry Points
 
 - `resume_evidence/models.py`
-  - strict runtime models for `user.yaml`, `projects.yaml`, and `skills.yaml`
+  - strict runtime models for all registered evidence YAML schemas
 - `resume_evidence/loader.py`
   - evidence registry and startup loading
 - `resume_evidence/session.py`
-  - staged CRUD/session logic for projects and skills
-- `resume_evidence/cli.py`
+  - staged CRUD/session logic for resume evidence schemas
+- `resume_evidence/cli/`
   - CLI entrypoint and schema dispatcher
-- `resume_evidence/base_cli.py`
+- `resume_evidence/cli/base.py`
   - shared interactive CLI prompt and command helpers
-- `resume_evidence/projects_cli.py`
-  - project-evidence command implementation
-- `resume_evidence/skills_cli.py`
-  - skills-evidence command implementation
+- `resume_evidence/cli/{projects,skills,education,experience,user}.py`
+  - schema-specific command implementations
 - `user/resume_evidence/projects.yaml`
   - implemented project source-of-truth evidence file
 - `user/resume_evidence/skills.yaml`

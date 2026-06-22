@@ -5,11 +5,18 @@ from io import StringIO
 import pytest
 import yaml
 
-from resume_evidence import ProjectsEvidenceSession, SkillsEvidenceSession, load_evidence_yaml
-from resume_evidence.base_cli import EvidenceCLIBase
+from resume_evidence import (
+    EducationEvidenceSession,
+    ExperienceEvidenceSession,
+    ProjectsEvidenceSession,
+    SkillsEvidenceSession,
+    UserInfoEvidenceSession,
+    load_evidence_yaml,
+)
+from resume_evidence.cli.base import EvidenceCLIBase
 from resume_evidence.cli import main as cli_main
-from resume_evidence.projects_cli import ProjectsEvidenceCLI
-from resume_evidence.session import generate_project_id
+from resume_evidence.cli.projects import ProjectsEvidenceCLI
+from resume_evidence.session import generate_experience_id, generate_project_id
 
 
 def _valid_projects_payload() -> dict:
@@ -52,6 +59,66 @@ def _valid_skills_payload() -> dict:
             "programming": ["Python"],
             "concepts": ["Schema validation"],
         },
+    }
+
+
+def _valid_education_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "education": [
+            {
+                "name": "Example University",
+                "degree": "Bachelor of Science in Computer Science",
+                "grade": "3.8 GPA",
+                "start": "2020",
+                "end": "2024",
+                "location": "Example City, ST",
+                "relevant_coursework": [
+                    "Data Structures",
+                    "Algorithms",
+                    "Software Engineering",
+                ],
+            }
+        ],
+    }
+
+
+def _valid_experience_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "experience": [
+            {
+                "id": "backend-engineer",
+                "name": "Example Company",
+                "summary": "Built reliable backend services for internal platforms.",
+                "highlights": [
+                    "Designed schema-validated APIs.",
+                    "Improved test coverage for core services.",
+                ],
+                "active": True,
+                "skills": {
+                    "technology": ["FastAPI", "PostgreSQL"],
+                    "programming": ["Python"],
+                    "concepts": ["API", "Data validation"],
+                },
+                "location": "Example City, ST",
+                "start": "2024",
+                "end": None,
+                "links": ["https://example.com/company"],
+            }
+        ],
+    }
+
+
+def _valid_user_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "name": "Example Candidate",
+        "email": "candidate@example.com",
+        "phone": "+1 555-0100",
+        "linkedin": "https://www.linkedin.com/in/example-candidate",
+        "github": "https://github.com/example-candidate",
+        "website": "https://www.example-candidate.com",
     }
 
 
@@ -102,6 +169,17 @@ def _run_skills_cli(path, responses: list[str]) -> str:
     output = StringIO()
     exit_code = cli_main(
         ["--schema", "skills", "--path", str(path)],
+        input_func=InputFeeder(responses),
+        output=output,
+    )
+    assert exit_code == 0
+    return output.getvalue()
+
+
+def _run_schema_cli(schema: str, path, responses: list[str]) -> str:
+    output = StringIO()
+    exit_code = cli_main(
+        ["--schema", schema, "--path", str(path)],
         input_func=InputFeeder(responses),
         output=output,
     )
@@ -172,6 +250,12 @@ def test_generate_project_id_adds_numeric_suffix_for_duplicates():
     existing_ids = {"jobforge", "jobforge-2"}
 
     assert generate_project_id("JobForge", existing_ids) == "jobforge-3"
+
+
+def test_generate_experience_id_adds_numeric_suffix_for_duplicates():
+    existing_ids = {"example-company", "example-company-2"}
+
+    assert generate_experience_id("Example Company", existing_ids) == "example-company-3"
 
 
 def test_session_create_stages_changes_without_writing_file(tmp_path):
@@ -331,6 +415,184 @@ def test_skills_session_reload_restores_baseline_state(tmp_path):
     session.reload()
 
     assert session.staged.model_dump() == _valid_skills_payload()
+
+
+def test_education_session_create_stages_changes_without_writing_file(tmp_path):
+    path = _write_yaml(tmp_path, _valid_education_payload(), filename="education.yaml")
+    session = EducationEvidenceSession.load(path)
+
+    created = session.create_education(
+        name="Example College",
+        degree="Master of Science in Software Engineering",
+        grade="4.0 GPA",
+        start="2025",
+        end=None,
+        location="Remote",
+        relevant_coursework=["Distributed Systems"],
+    )
+
+    assert created.name == "Example College"
+    assert session.dirty is True
+    loaded = load_evidence_yaml(path, "education")
+    assert loaded.model_dump() == _valid_education_payload()
+
+
+def test_education_session_apply_writes_schema_valid_yaml_and_clears_dirty_flag(tmp_path):
+    path = _write_yaml(tmp_path, _valid_education_payload(), filename="education.yaml")
+    session = EducationEvidenceSession.load(path)
+
+    session.update_education(
+        1,
+        name="Example University",
+        degree="Bachelor of Science in Computer Science",
+        grade="3.9 GPA",
+        start="2020",
+        end="2024",
+        location="Example City, ST",
+        relevant_coursework=["Data Structures"],
+    )
+    session.apply()
+
+    reloaded = load_evidence_yaml(path, "education")
+    assert reloaded.education[0].grade == "3.9 GPA"
+    assert session.dirty is False
+
+
+def test_education_session_rejects_invalid_edit_without_mutating_staged_state(tmp_path):
+    path = _write_yaml(tmp_path, _valid_education_payload(), filename="education.yaml")
+    session = EducationEvidenceSession.load(path)
+    before = session.staged.model_dump()
+
+    with pytest.raises(ValueError):
+        session.update_education(
+            1,
+            name="Example University",
+            degree="Bachelor of Science in Computer Science",
+            grade="3.8 GPA",
+            start="2020",
+            end="2024",
+            location="Example City, ST",
+            relevant_coursework="Algorithms",  # type: ignore[arg-type]
+        )
+
+    assert session.staged.model_dump() == before
+
+
+def test_experience_session_create_stages_changes_without_writing_file(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+    session = ExperienceEvidenceSession.load(path)
+
+    created = session.create_experience(
+        name="Example Company",
+        summary="Built platform tools.",
+        highlights=["Shipped internal tools."],
+        active=True,
+        technology=["FastAPI"],
+        programming=["Python"],
+        concepts=["APIs"],
+        location="Remote",
+        start="2025",
+        end=None,
+        links=None,
+    )
+
+    assert created.id == "example-company"
+    assert session.dirty is True
+    loaded = load_evidence_yaml(path, "experience")
+    assert loaded.model_dump() == _valid_experience_payload()
+
+
+def test_experience_session_update_keeps_original_id_on_rename(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+    session = ExperienceEvidenceSession.load(path)
+
+    updated = session.update_experience(
+        1,
+        name="Renamed Company",
+        summary="Updated summary",
+        highlights=["Designed schema-validated APIs."],
+        active=True,
+        technology=["FastAPI"],
+        programming=["Python"],
+        concepts=["API"],
+        location="Example City, ST",
+        start="2024",
+        end=None,
+        links=None,
+    )
+
+    assert updated.id == "backend-engineer"
+    assert updated.name == "Renamed Company"
+
+
+def test_experience_session_apply_writes_schema_valid_yaml_and_clears_dirty_flag(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+    session = ExperienceEvidenceSession.load(path)
+
+    session.delete_experience(1)
+    session.apply()
+
+    reloaded = load_evidence_yaml(path, "experience")
+    assert reloaded.experience == []
+    assert session.dirty is False
+
+
+def test_user_info_session_update_stages_changes_without_writing_file(tmp_path):
+    path = _write_yaml(tmp_path, _valid_user_payload(), filename="user.yaml")
+    session = UserInfoEvidenceSession.load(path)
+
+    updated = session.update_user_info(
+        name="Updated Candidate",
+        email="candidate@example.com",
+        phone="+1 555-0100",
+        linkedin="https://www.linkedin.com/in/example-candidate",
+        github="https://github.com/example-candidate",
+        website=None,
+    )
+
+    assert updated.name == "Updated Candidate"
+    assert updated.website is None
+    assert session.dirty is True
+    loaded = load_evidence_yaml(path, "user")
+    assert loaded.model_dump() == _valid_user_payload()
+
+
+def test_user_info_session_apply_writes_schema_valid_yaml_and_clears_dirty_flag(tmp_path):
+    path = _write_yaml(tmp_path, _valid_user_payload(), filename="user.yaml")
+    session = UserInfoEvidenceSession.load(path)
+
+    session.update_user_info(
+        name="Updated Candidate",
+        email="updated@example.com",
+        phone="+1 555-0199",
+        linkedin=None,
+        github=None,
+        website=None,
+    )
+    session.apply()
+
+    reloaded = load_evidence_yaml(path, "user")
+    assert reloaded.email == "updated@example.com"
+    assert reloaded.linkedin is None
+    assert session.dirty is False
+
+
+def test_user_info_session_rejects_invalid_edit_without_mutating_staged_state(tmp_path):
+    path = _write_yaml(tmp_path, _valid_user_payload(), filename="user.yaml")
+    session = UserInfoEvidenceSession.load(path)
+    before = session.staged.model_dump()
+
+    with pytest.raises(ValueError):
+        session.update_user_info(
+            name=" ",
+            email="candidate@example.com",
+            phone="+1 555-0100",
+            linkedin=None,
+            github=None,
+            website=None,
+        )
+
+    assert session.staged.model_dump() == before
 
 
 def test_cli_list_shows_numbered_projects(tmp_path):
@@ -1080,6 +1342,294 @@ def test_skills_cli_quit_warns_about_unapplied_changes(tmp_path):
             "Docker",
             "",
             "",
+            "quit",
+            "n",
+            "quit",
+            "y",
+        ],
+    )
+
+    assert "Quit canceled." in output
+
+
+def test_cli_help_includes_all_resume_evidence_schemas():
+    parser = cli_main.__globals__["build_arg_parser"]()
+
+    help_text = parser.format_help()
+
+    assert "education" in help_text
+    assert "experience" in help_text
+    assert "projects" in help_text
+    assert "skills" in help_text
+    assert "user" in help_text
+
+
+def test_education_cli_list_and_show(tmp_path):
+    path = _write_yaml(tmp_path, _valid_education_payload(), filename="education.yaml")
+
+    output = _run_schema_cli("education", path, ["list", "show 1", "quit"])
+
+    assert "1. Example University - Bachelor of Science in Computer Science" in output
+    assert "Relevant coursework: Data Structures, Algorithms, Software Engineering" in output
+
+
+def test_education_cli_create_edit_delete_and_apply(tmp_path):
+    path = _write_yaml(tmp_path, _valid_education_payload(), filename="education.yaml")
+
+    output = _run_schema_cli(
+        "education",
+        path,
+        [
+            "create",
+            "Example College",
+            "Master of Science in Software Engineering",
+            "4.0 GPA",
+            "2025",
+            "",
+            "Remote",
+            "Distributed Systems",
+            "",
+            "edit 1",
+            "",
+            "",
+            "3.9 GPA",
+            "",
+            "y",
+            "",
+            "y",
+            "delete 2",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "education")
+    assert loaded.education[0].grade == "3.9 GPA"
+    assert len(loaded.education) == 1
+    assert "Staged new education entry 'Example College'. Run 'apply' to save." in output
+    assert "Staged deletion for 'Example College'. Run 'apply' to save." in output
+
+
+def test_education_cli_reload_discards_dirty_changes_only_after_confirmation(tmp_path):
+    path = _write_yaml(tmp_path, _valid_education_payload(), filename="education.yaml")
+
+    output = _run_schema_cli(
+        "education",
+        path,
+        [
+            "delete 1",
+            "y",
+            "reload",
+            "y",
+            "list",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "education")
+    assert len(loaded.education) == 1
+    assert "Reloaded education evidence from disk." in output
+    assert "1. Example University" in output.split("Reloaded education evidence from disk.")[-1]
+
+
+def test_education_cli_quit_warns_about_unapplied_changes(tmp_path):
+    path = _write_yaml(tmp_path, _valid_education_payload(), filename="education.yaml")
+
+    output = _run_schema_cli(
+        "education",
+        path,
+        [
+            "delete 1",
+            "y",
+            "quit",
+            "n",
+            "quit",
+            "y",
+        ],
+    )
+
+    assert "Quit canceled." in output
+
+
+def test_experience_cli_list_and_show(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+
+    output = _run_schema_cli("experience", path, ["list", "show 1", "quit"])
+
+    assert "1. Example Company [active]" in output
+    assert "Location: Example City, ST" in output
+    assert "Technology: FastAPI, PostgreSQL" in output
+
+
+def test_experience_cli_create_edit_delete_and_apply(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+
+    output = _run_schema_cli(
+        "experience",
+        path,
+        [
+            "create",
+            "Second Company",
+            "Built platform tools.",
+            "Shipped internal tools.",
+            "",
+            "",
+            "FastAPI",
+            "Python",
+            "APIs",
+            "Remote",
+            "2025",
+            "",
+            "",
+            "edit 1",
+            "",
+            "Updated backend summary.",
+            "y",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "y",
+            "delete 2",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert loaded.experience[0].summary == "Updated backend summary."
+    assert loaded.experience[0].id == "backend-engineer"
+    assert len(loaded.experience) == 1
+    assert "Staged new experience entry 'Second Company'. Run 'apply' to save." in output
+    assert "Staged deletion for 'Second Company'. Run 'apply' to save." in output
+
+
+def test_experience_cli_apply_requires_confirmation_before_writing(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+
+    output = _run_schema_cli(
+        "experience",
+        path,
+        [
+            "delete 1",
+            "y",
+            "apply",
+            "n",
+            "quit",
+            "y",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert len(loaded.experience) == 1
+    assert "Apply canceled." in output
+
+
+def test_user_cli_show_and_edit_after_apply(tmp_path):
+    path = _write_yaml(tmp_path, _valid_user_payload(), filename="user.yaml")
+
+    output = _run_schema_cli(
+        "user",
+        path,
+        [
+            "show",
+            "edit",
+            "Updated Candidate",
+            "updated@example.com",
+            "",
+            "y",
+            "n",
+            "",
+            "y",
+            "apply",
+            "y",
+            "show",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "user")
+    assert loaded.name == "Updated Candidate"
+    assert loaded.email == "updated@example.com"
+    assert loaded.github is None
+    assert "Name: Updated Candidate" in output
+    assert "GitHub: none" in output
+
+
+def test_user_cli_apply_requires_confirmation_before_writing(tmp_path):
+    path = _write_yaml(tmp_path, _valid_user_payload(), filename="user.yaml")
+
+    output = _run_schema_cli(
+        "user",
+        path,
+        [
+            "edit",
+            "Updated Candidate",
+            "",
+            "",
+            "y",
+            "y",
+            "y",
+            "apply",
+            "n",
+            "quit",
+            "y",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "user")
+    assert loaded.name == "Example Candidate"
+    assert "Apply canceled." in output
+
+
+def test_user_cli_reload_discards_dirty_changes_only_after_confirmation(tmp_path):
+    path = _write_yaml(tmp_path, _valid_user_payload(), filename="user.yaml")
+
+    output = _run_schema_cli(
+        "user",
+        path,
+        [
+            "edit",
+            "Updated Candidate",
+            "",
+            "",
+            "y",
+            "y",
+            "y",
+            "reload",
+            "y",
+            "show",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "user")
+    assert loaded.name == "Example Candidate"
+    assert "Reloaded user evidence from disk." in output
+    assert "Name: Example Candidate" in output.split("Reloaded user evidence from disk.")[-1]
+
+
+def test_user_cli_quit_warns_about_unapplied_changes(tmp_path):
+    path = _write_yaml(tmp_path, _valid_user_payload(), filename="user.yaml")
+
+    output = _run_schema_cli(
+        "user",
+        path,
+        [
+            "edit",
+            "Updated Candidate",
+            "",
+            "",
+            "y",
+            "y",
+            "y",
             "quit",
             "n",
             "quit",

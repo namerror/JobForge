@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import shlex
 from typing import Callable, TextIO
 
-from resume_evidence.base_cli import EvidenceCLIBase
-from resume_evidence.selection_ui import ChoiceFunc, PickerFunc, choose_index, choose_value
-from resume_evidence.session import ProjectsEvidenceSession, PendingProjectChanges
+from resume_evidence.cli.base import EvidenceCLIBase
+from resume_evidence.cli.selection_ui import ChoiceFunc, PickerFunc, choose_index, choose_value
+from resume_evidence.session import PendingProjectChanges, ProjectsEvidenceSession
+
 
 class ProjectsEvidenceCLI(EvidenceCLIBase):
     prompt_label = "projects"
@@ -258,14 +260,6 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
         self._println("  delete [index] Delete a highlight")
         self._println("  done           Finish editing highlights")
 
-    def _show_indexed_list(self, label: str, items: list[str]) -> None:
-        if not items:
-            self._println(f"{label}: none")
-            return
-        self._println(f"{label}:")
-        for index, item in enumerate(items, start=1):
-            self._println(f"  {index}. {item}")
-
     def _parse_highlight_index(self, parts: list[str], command: str, highlights: list[str]) -> int:
         if len(parts) != 2:
             raise ValueError(f"Usage: {command} <index>")
@@ -346,12 +340,7 @@ class ProjectsEvidenceCLI(EvidenceCLIBase):
         return False
 
     def _parse_single_index(self, parts: list[str], command: str) -> int:
-        if len(parts) != 2:
-            raise ValueError(f"Usage: {command} <index>")
-        try:
-            return int(parts[1])
-        except ValueError as exc:
-            raise ValueError(f"Project index must be an integer for '{command}'") from exc
+        return super()._parse_single_index(parts, command, "Project")
 
     def _resolve_project_index_or_pick(self, parts: list[str], command: str) -> int | None:
         if len(parts) == 2:

@@ -202,11 +202,14 @@ This repo is no longer only a skill-selection codebase. It now contains an imple
 - local CRUD/session workflows:
   - `ProjectsEvidenceSession`
   - `SkillsEvidenceSession`
+  - `EducationEvidenceSession`
+  - `ExperienceEvidenceSession`
+  - `UserInfoEvidenceSession`
 - interactive CLI:
   - `python -m resume_evidence.cli`
-  - `cli.py` dispatches by schema
-  - `projects_cli.py` and `skills_cli.py` contain schema-specific commands
-  - `base_cli.py` contains shared prompt helpers
+  - `resume_evidence/cli/__init__.py` dispatches by schema
+  - `resume_evidence/cli/{projects,skills,education,experience,user}.py` contain schema-specific commands
+  - `resume_evidence/cli/base.py` contains shared prompt helpers
 
 ### `projects.yaml` contract
 
@@ -270,7 +273,7 @@ Validation guarantees:
 - `dirty` tracks whether staged data differs from the baseline file
 - `apply()` writes atomically to disk
 - `reload()` discards staged changes and reloads from disk
-- the CLI switches schemas with `python -m resume_evidence.cli --schema skills`
+- the CLI switches schemas with `python -m resume_evidence.cli --schema <education|experience|projects|skills|user>`
 
 ## 7) Future Resume Pipeline
 

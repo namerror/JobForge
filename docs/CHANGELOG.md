@@ -13,9 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `resume_generation` orchestration that loads resume evidence, reads `user/resume_generation` YAML config, and calls selection plus bullet-point generation APIs over HTTP.
 - Modern project and highlight picker support, including a command-complete action menu, in the resume evidence CLI.
 - `user/resume_evidence/skills.yaml` evidence support with strict loading, startup registration, and staged CLI editing via `python -m resume_evidence.cli --schema skills`
+- Staged resume evidence CLI workflows for `education`, `experience`, and `user` schemas via `python -m resume_evidence.cli --schema <schema>`.
 
 ### Changed
 - Resume evidence is now a top-level package with CLI entrypoint `python -m resume_evidence.cli`; the FastAPI app imports it for startup validation instead of owning it under `app/`.
+- Resume evidence CLI components now live under the standalone `resume_evidence/cli/` package.
 - Runtime selection configuration is now subsystem-scoped: use `SKILL_METHOD`, `SKILL_TOP_N`, `SKILL_BASELINE_FILTER`, `PROJ_METHOD`, and `PROJ_TOP_N` instead of generic selection env vars.
 - Skill-selection and project-selection LLM defaults are configured separately with `SKILL_LLM_*` and `PROJ_LLM_*` settings; legacy `LLM_MODEL` and `LLM_MAX_OUTPUT_TOKENS` are no longer read.
 - `/health` now reports scoped `skill_selection` and `project_selection` config blocks instead of top-level generic selection keys.

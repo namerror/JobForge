@@ -1,16 +1,18 @@
 from __future__ import annotations
-from typing import Callable, TextIO
+
 import shlex
+from typing import Callable, TextIO
 
-from resume_evidence.base_cli import EvidenceCLIBase
-from resume_evidence.session import SkillsEvidenceSession, PendingSkillsChanges
+from resume_evidence.cli.base import EvidenceCLIBase
+from resume_evidence.session import PendingUserInfoChanges, UserInfoEvidenceSession
 
-class SkillsEvidenceCLI(EvidenceCLIBase):
-    prompt_label = "skills"
+
+class UserInfoEvidenceCLI(EvidenceCLIBase):
+    prompt_label = "user"
 
     def __init__(
         self,
-        session: SkillsEvidenceSession,
+        session: UserInfoEvidenceSession,
         *,
         input_func: Callable[[str], str] = input,
         output: TextIO | None = None,
@@ -25,11 +27,11 @@ class SkillsEvidenceCLI(EvidenceCLIBase):
         if command == "help":
             self._show_help()
             return True
-        if command == "list":
-            self._list_skills()
+        if command in {"show", "list"}:
+            self._show_user_info()
             return True
         if command == "edit":
-            self._edit_skills()
+            self._edit_user_info()
             return True
         if command == "apply":
             self._apply_changes()
@@ -45,38 +47,36 @@ class SkillsEvidenceCLI(EvidenceCLIBase):
     def _show_help(self) -> None:
         self._println("Commands:")
         self._println("  help           Show available commands")
-        self._println("  list           Show staged skills by category")
-        self._println("  edit           Edit staged skills")
+        self._println("  show           Show staged user info")
+        self._println("  list           Alias for show")
+        self._println("  edit           Edit staged user info")
         self._println("  apply          Save staged changes to disk")
         self._println("  reload         Discard staged changes and reload from disk")
         self._println("  quit           Exit the CLI")
 
-    def _list_skills(self) -> None:
-        skills_file = self.session.get_skills()
-        self._show_list("Technology", skills_file.skills.technology)
-        self._show_list("Programming", skills_file.skills.programming)
-        self._show_list("Concepts", skills_file.skills.concepts)
+    def _show_user_info(self) -> None:
+        user_info = self.session.get_user_info()
+        self._println(f"Name: {user_info.name}")
+        self._println(f"Email: {user_info.email}")
+        self._println(f"Phone: {user_info.phone}")
+        self._show_optional_text("LinkedIn", user_info.linkedin)
+        self._show_optional_text("GitHub", user_info.github)
+        self._show_optional_text("Website", user_info.website)
 
         if self.session.dirty:
             self._println("Staged changes are pending. Run 'apply' to write them to disk.")
 
-    def _edit_skills(self) -> None:
-        skills_file = self.session.get_skills()
-        self.session.update_skills(
-            technology=self._prompt_comma_list(
-                "Technology skills",
-                default_items=skills_file.skills.technology,
-            ),
-            programming=self._prompt_comma_list(
-                "Programming skills",
-                default_items=skills_file.skills.programming,
-            ),
-            concepts=self._prompt_comma_list(
-                "Concepts",
-                default_items=skills_file.skills.concepts,
-            ),
+    def _edit_user_info(self) -> None:
+        user_info = self.session.get_user_info()
+        self.session.update_user_info(
+            name=self._prompt_required_text("Name", default=user_info.name),
+            email=self._prompt_required_text("Email", default=user_info.email),
+            phone=self._prompt_required_text("Phone", default=user_info.phone),
+            linkedin=self._prompt_optional_editable_text("LinkedIn", user_info.linkedin),
+            github=self._prompt_optional_editable_text("GitHub", user_info.github),
+            website=self._prompt_optional_editable_text("Website", user_info.website),
         )
-        self._println("Staged skills updates. Run 'apply' to save.")
+        self._println("Staged user info updates. Run 'apply' to save.")
 
     def _apply_changes(self) -> None:
         changes = self.session.pending_changes()
@@ -101,7 +101,7 @@ class SkillsEvidenceCLI(EvidenceCLIBase):
             return
 
         self.session.reload()
-        self._println("Reloaded skills evidence from disk.")
+        self._println("Reloaded user evidence from disk.")
 
     def _handle_quit(self) -> bool:
         if self.session.dirty and not self._confirm(
@@ -114,7 +114,7 @@ class SkillsEvidenceCLI(EvidenceCLIBase):
         self._println("Goodbye.")
         return False
 
-    def _print_pending_changes(self, changes: PendingSkillsChanges) -> None:
-        self._println(f"Pending changes: {len(changes.changed_categories)} categories updated.")
-        if changes.changed_categories:
-            self._println(f"Updated categories: {', '.join(changes.changed_categories)}")
+    def _print_pending_changes(self, changes: PendingUserInfoChanges) -> None:
+        self._println(f"Pending changes: {len(changes.changed_fields)} fields updated.")
+        if changes.changed_fields:
+            self._println(f"Updated fields: {', '.join(changes.changed_fields)}")

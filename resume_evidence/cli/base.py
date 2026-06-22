@@ -4,6 +4,7 @@ import builtins
 import sys
 from typing import Callable, TextIO
 
+
 class EvidenceCLIBase:
     prompt_label = "evidence"
 
@@ -54,6 +55,17 @@ class EvidenceCLIBase:
             if value:
                 return value
             self._println(f"{label} is required.")
+
+    def _prompt_optional_text(self, label: str, default: str | None = None) -> str | None:
+        value = self._prompt_value(label, default=default).strip()
+        return value or None
+
+    def _prompt_optional_editable_text(self, label: str, current_value: str | None) -> str | None:
+        current = current_value or "none"
+        self._println(f"Current {label}: {current}")
+        if self._confirm(f"Keep current {label.lower()}?", default=True):
+            return current_value
+        return self._prompt_optional_text(label)
 
     def _prompt_list(self, label: str, required: bool = False) -> list[str]:
         self._println(f"{label}: enter one item per line. Leave blank to finish.")
@@ -168,6 +180,25 @@ class EvidenceCLIBase:
             self._println(f"{label}: none")
             return
         self._println(f"{label}: {', '.join(items)}")
+
+    def _show_optional_text(self, label: str, value: str | None) -> None:
+        self._println(f"{label}: {value or 'none'}")
+
+    def _show_indexed_list(self, label: str, items: list[str]) -> None:
+        if not items:
+            self._println(f"{label}: none")
+            return
+        self._println(f"{label}:")
+        for index, item in enumerate(items, start=1):
+            self._println(f"  {index}. {item}")
+
+    def _parse_single_index(self, parts: list[str], command: str, label: str) -> int:
+        if len(parts) != 2:
+            raise ValueError(f"Usage: {command} <index>")
+        try:
+            return int(parts[1])
+        except ValueError as exc:
+            raise ValueError(f"{label} index must be an integer for '{command}'") from exc
 
     def _println(self, message: str) -> None:
         self.output.write(f"{message}\n")

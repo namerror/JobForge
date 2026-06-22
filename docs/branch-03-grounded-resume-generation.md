@@ -124,12 +124,11 @@ The CLI entrypoint is:
 python -m resume_evidence.cli
 ```
 
-The module layout now separates the entrypoint from command implementations:
+The module layout now keeps CLI components under `resume_evidence/cli/`:
 
-- `cli.py` parses arguments and dispatches by schema
-- `projects_cli.py` contains project-evidence commands
-- `skills_cli.py` contains skills-evidence commands
-- `base_cli.py` contains shared interactive helpers
+- `__init__.py` parses arguments and dispatches by schema
+- `projects.py`, `skills.py`, `education.py`, `experience.py`, and `user.py` contain schema-specific commands
+- `base.py` and `selection_ui.py` contain shared interactive helpers
 
 Supported workflow today:
 
@@ -137,7 +136,7 @@ Supported workflow today:
 - inspect a project with `show`
 - create a project with auto-generated hidden IDs
 - edit or delete projects in staged state
-- switch to `--schema skills` for categorized skills editing
+- switch to `--schema skills`, `education`, `experience`, or `user` for the other registered evidence schemas
 - confirm `apply` before writing to disk
 - discard staged changes with `reload` or `quit`
 
