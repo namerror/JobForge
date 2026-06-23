@@ -13,6 +13,7 @@ from app.main import app
 from app.project_selection.llm_client import LLMProjectScoreResult
 from app.skill_selection.llm_client import LLMScoreResult
 from resume_generation import (
+    ExperienceBulletPointResult,
     IntermediateResumeResult,
     ProjectBulletPointResult,
     ProjectSelectionResult,
@@ -22,6 +23,7 @@ from resume_generation import (
     SkillSelectionResult,
     assemble_intermediate_resume_result,
     build_skill_selection_payload,
+    generate_experience_bullet_points,
     generate_project_bullet_points,
     enrich_projects_with_link_scanning,
     generate_selection_context,
@@ -516,6 +518,91 @@ def test_generate_project_bullet_points_posts_once_per_selected_project(monkeypa
     assert result[0].bullet_points == ["Generated bullet for active-project."]
 
 
+def test_generate_experience_bullet_points_posts_once_per_active_experience(
+    monkeypatch,
+    tmp_path,
+):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    experience_payload = _experience_payload()
+    experience_payload["experience"].append(
+        {
+            "id": "inactive-role",
+            "name": "Inactive Company",
+            "role": "Frontend Engineer",
+            "summary": "Older inactive experience.",
+            "highlights": ["This should not generate."],
+            "active": False,
+            "skills": {
+                "technology": ["Angular"],
+                "programming": ["JavaScript"],
+                "concepts": ["UI"],
+            },
+            "location": "Remote",
+            "start": "2022",
+            "end": "2023",
+            "links": None,
+        }
+    )
+    experience_path = _write_yaml(tmp_path / "experience.yaml", experience_payload)
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_path)
+    experience_file = _loaded_evidence(
+        projects_path,
+        skills_path,
+        experience_path=experience_path,
+    )["experience"]
+    requests: list[tuple[str, dict]] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            requests.append((endpoint, json))
+            return httpx.Response(
+                200,
+                json={
+                    "bullet_points": [
+                        f"Generated bullet for {json['experience']['id']}."
+                    ],
+                    "details": {"method": "llm"},
+                },
+            )
+
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+
+    result = generate_experience_bullet_points(
+        experience=experience_file.experience,
+        config=config,
+        job_target=job_target,
+    )
+
+    assert [endpoint for endpoint, _ in requests] == ["/generate-bulletpoints"]
+    payload = requests[0][1]
+    assert payload["context"] == {
+        "title": "Backend Engineer",
+        "description": "Build Python APIs with FastAPI.",
+    }
+    assert payload["experience"]["id"] == "backend-engineer"
+    assert payload["experience"]["role"] == "Backend Engineer"
+    assert payload["experience"]["highlights"] == ["Designed schema-validated APIs."]
+    assert payload["bullet_count_range"] == {"min": 2, "max": 4}
+    assert payload["llm_model"] == "bullet-model"
+    assert payload["llm_max_output_tokens"] == 990
+    assert [item.experience_id for item in result] == ["backend-engineer"]
+    assert result[0].bullet_points == ["Generated bullet for backend-engineer."]
+
+
 def test_enrich_projects_with_link_scanning_posts_linked_projects_and_merges_patch(
     monkeypatch,
     tmp_path,
@@ -682,6 +769,12 @@ def test_assemble_intermediate_resume_result_builds_deterministic_schema(tmp_pat
                 bullet_points=["Generated bullet for active-project."],
             ),
         ],
+        experience_bullet_points=[
+            ExperienceBulletPointResult(
+                experience_id="backend-engineer",
+                bullet_points=["Generated bullet for backend-engineer."],
+            )
+        ],
     )
 
     assert result.top.model_dump() == {
@@ -696,7 +789,7 @@ def test_assemble_intermediate_resume_result_builds_deterministic_schema(tmp_pat
     assert result.education[0].relevant_coursework == ["Data Structures", "Algorithms"]
     assert [item.name for item in result.experience] == ["Example Company"]
     assert result.experience[0].role == "Backend Engineer"
-    assert result.experience[0].bullet_points == ["Designed schema-validated APIs."]
+    assert result.experience[0].bullet_points == ["Generated bullet for backend-engineer."]
     assert result.experience[0].skills == [
         "FastAPI",
         "Docker",
@@ -1067,10 +1160,11 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
                     },
                 )
             if endpoint == "/generate-bulletpoints":
+                evidence = json.get("project") or json.get("experience")
                 return httpx.Response(
                     200,
                     json={
-                        "bullet_points": ["Generated bullet for active-project."],
+                        "bullet_points": [f"Generated bullet for {evidence['id']}."],
                     },
                 )
             raise AssertionError(f"unexpected endpoint: {endpoint}")
@@ -1146,7 +1240,13 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
         resume_result_artifact_path=artifact_path,
     )
 
-    assert calls == ["/select-skills", "/select-projects", "/generate-bulletpoints", "assemble"]
+    assert calls == [
+        "/select-skills",
+        "/select-projects",
+        "/generate-bulletpoints",
+        "/generate-bulletpoints",
+        "assemble",
+    ]
     assert result is None
     artifact_payload = json.loads(artifact_path.read_text(encoding="utf-8"))
     assert artifact_payload["top"]["name"] == "Example Candidate"
@@ -1165,6 +1265,12 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
     ]
     assert assembly_calls[0]["project_bullet_points"][0].bullet_points == [
         "Generated bullet for active-project."
+    ]
+    assert [item.experience_id for item in assembly_calls[0]["experience_bullet_points"]] == [
+        "backend-engineer"
+    ]
+    assert assembly_calls[0]["experience_bullet_points"][0].bullet_points == [
+        "Generated bullet for backend-engineer."
     ]
 
 
@@ -1247,7 +1353,12 @@ def test_resume_generation_pipeline_reuses_cached_stage_results(monkeypatch, tmp
             },
         )
 
-    assert calls == ["/select-skills", "/select-projects", "/generate-bulletpoints"]
+    assert calls == [
+        "/select-skills",
+        "/select-projects",
+        "/generate-bulletpoints",
+        "/generate-bulletpoints",
+    ]
 
 
 def test_resume_generation_pipeline_cache_misses_when_job_target_changes(
@@ -1344,8 +1455,10 @@ def test_resume_generation_pipeline_cache_misses_when_job_target_changes(
         "/select-skills",
         "/select-projects",
         "/generate-bulletpoints",
+        "/generate-bulletpoints",
         "/select-skills",
         "/select-projects",
+        "/generate-bulletpoints",
         "/generate-bulletpoints",
     ]
 
@@ -1400,7 +1513,9 @@ def test_resume_generation_pipeline_resumes_after_project_bullet_failure(
         def post(self, endpoint: str, json: dict):
             nonlocal fail_second_project
             project_id = json.get("project", {}).get("id")
-            calls.append((endpoint, project_id))
+            experience_id = json.get("experience", {}).get("id")
+            evidence_id = project_id or experience_id
+            calls.append((endpoint, evidence_id))
             if endpoint == "/select-skills":
                 return httpx.Response(
                     200,
@@ -1435,7 +1550,7 @@ def test_resume_generation_pipeline_resumes_after_project_bullet_failure(
                 return httpx.Response(
                     200,
                     json={
-                        "bullet_points": [f"Generated bullet for {project_id}."],
+                        "bullet_points": [f"Generated bullet for {evidence_id}."],
                     },
                 )
             raise AssertionError(f"unexpected endpoint: {endpoint}")
@@ -1476,6 +1591,7 @@ def test_resume_generation_pipeline_resumes_after_project_bullet_failure(
         ("/generate-bulletpoints", "active-project"),
         ("/generate-bulletpoints", "second-project"),
         ("/generate-bulletpoints", "second-project"),
+        ("/generate-bulletpoints", "backend-engineer"),
     ]
 
 
@@ -1552,10 +1668,11 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
                 )
             if endpoint == "/generate-bulletpoints":
                 bullet_payloads.append(json)
+                evidence = json.get("project") or json.get("experience")
                 return httpx.Response(
                     200,
                     json={
-                        "bullet_points": ["Generated bullet for active-project."],
+                        "bullet_points": [f"Generated bullet for {evidence['id']}."],
                     },
                 )
             raise AssertionError(f"unexpected endpoint: {endpoint}")
@@ -1577,12 +1694,19 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
         },
     )
 
-    assert calls == ["/select-skills", "/select-projects", "/scan-link", "/generate-bulletpoints"]
+    assert calls == [
+        "/select-skills",
+        "/select-projects",
+        "/scan-link",
+        "/generate-bulletpoints",
+        "/generate-bulletpoints",
+    ]
     assert bullet_payloads[0]["project"]["highlights"] == [
         "Built the service.",
         "Scanned link confirms project context.",
     ]
     assert bullet_payloads[0]["project"]["skills"]["technology"] == ["FastAPI"]
+    assert bullet_payloads[1]["experience"]["id"] == "backend-engineer"
     assert result is None
 
 

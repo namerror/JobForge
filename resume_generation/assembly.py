@@ -10,6 +10,7 @@ from resume_evidence.models import (
     UserInfoFile,
 )
 from resume_generation.models import (
+    ExperienceBulletPointResult,
     IntermediateResumeResult,
     ProjectBulletPointResult,
     ResumeEducationItem,
@@ -29,9 +30,14 @@ def assemble_intermediate_resume_result(
     selection_context: ResumeSelectionContext,
     selected_projects: Iterable[ProjectRecord],
     project_bullet_points: Iterable[ProjectBulletPointResult],
+    experience_bullet_points: Iterable[ExperienceBulletPointResult] | None = None,
 ) -> IntermediateResumeResult:
     bullet_points_by_project_id = {
         result.project_id: result.bullet_points for result in project_bullet_points
+    }
+    bullet_points_by_experience_id = {
+        result.experience_id: result.bullet_points
+        for result in experience_bullet_points or []
     }
 
     return IntermediateResumeResult(
@@ -59,7 +65,7 @@ def assemble_intermediate_resume_result(
             ResumeExperienceItem(
                 name=item.name,
                 role=item.role,
-                bullet_points=item.highlights,
+                bullet_points=bullet_points_by_experience_id.get(item.id, item.highlights),
                 skills=_flatten_skills(item.skills),
                 location=item.location,
                 start=item.start,

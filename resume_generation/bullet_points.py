@@ -4,9 +4,10 @@ from typing import Iterable
 
 import httpx
 
-from resume_evidence.models import ProjectRecord
+from resume_evidence.models import ExperienceRecord, ProjectRecord
 from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.models import (
+    ExperienceBulletPointResult,
     JobTarget,
     ProjectBulletPointResult,
     ResumeGenerationConfig,
@@ -48,6 +49,50 @@ def generate_project_bullet_points(
             results.append(
                 ProjectBulletPointResult(
                     project_id=project.id,
+                    bullet_points=response["bullet_points"],
+                    details=response.get("details"),
+                )
+            )
+
+    return results
+
+
+def generate_experience_bullet_points(
+    *,
+    experience: Iterable[ExperienceRecord],
+    config: ResumeGenerationConfig,
+    job_target: JobTarget,
+    cache: ResumeGenerationStageCache | None = None,
+) -> list[ExperienceBulletPointResult]:
+    bullet_config = _exclude_none(config.bullet_point_generation)
+
+    results: list[ExperienceBulletPointResult] = []
+    with httpx.Client(
+        base_url=config.app.base_url,
+        timeout=config.app.timeout_seconds,
+    ) as client:
+        for item in experience:
+            if not item.active:
+                continue
+            payload = {
+                "context": {
+                    "title": job_target.title,
+                    "description": job_target.description,
+                },
+                "experience": item.model_dump(),
+                **bullet_config,
+            }
+            response = _cached_post_json(
+                cache=cache,
+                stage="experience_bullet_points",
+                client=client,
+                endpoint="/generate-bulletpoints",
+                payload=payload,
+                namespace=item.id,
+            )
+            results.append(
+                ExperienceBulletPointResult(
+                    experience_id=item.id,
                     bullet_points=response["bullet_points"],
                     details=response.get("details"),
                 )

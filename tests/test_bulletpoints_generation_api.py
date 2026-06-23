@@ -39,6 +39,29 @@ def _project_payload() -> dict:
     }
 
 
+def _experience_payload() -> dict:
+    return {
+        "id": "backend-engineer",
+        "name": "Example Company",
+        "role": "Backend Engineer",
+        "summary": "Built backend services for internal platforms.",
+        "highlights": [
+            "Designed schema-validated APIs.",
+            "Maintained automated tests for backend services.",
+        ],
+        "active": True,
+        "skills": {
+            "technology": ["FastAPI"],
+            "programming": ["Python"],
+            "concepts": ["API", "Testing"],
+        },
+        "location": "Example City, ST",
+        "start": "2024",
+        "end": None,
+        "links": ["https://example.com/company"],
+    }
+
+
 def _request_payload(**overrides) -> dict:
     payload = {
         "context": {
@@ -46,6 +69,19 @@ def _request_payload(**overrides) -> dict:
             "description": "Build Python APIs with grounded AI workflows.",
         },
         "project": _project_payload(),
+        "dev_mode": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _experience_request_payload(**overrides) -> dict:
+    payload = {
+        "context": {
+            "title": "Backend Engineer",
+            "description": "Build Python APIs with grounded AI workflows.",
+        },
+        "experience": _experience_payload(),
         "dev_mode": True,
     }
     payload.update(overrides)
@@ -87,6 +123,7 @@ def test_generate_bulletpoints_api_success_with_default_count_and_details(monkey
     assert data["details"]["method"] == "llm"
     assert data["details"]["requested_count_range"] is None
     assert data["details"]["effective_count_range"] == {"min": 3, "max": 3}
+    assert data["details"]["evidence_type"] == "project"
     assert data["details"]["_bulletpoints_llm"]["total_tokens"] == 42
 
     after = api_request("GET", "/metrics-lite").json()
@@ -96,7 +133,9 @@ def test_generate_bulletpoints_api_success_with_default_count_and_details(monkey
     assert after["total_tokens"] == before["total_tokens"] + 42
     assert after_bucket["requests_total"] == before_bucket["requests_total"] + 1
     assert after_bucket["total_tokens"] == before_bucket["total_tokens"] + 42
-    assert after_bucket["method_usage"].get("llm", 0) == before_bucket["method_usage"].get("llm", 0) + 1
+    assert after_bucket["method_usage"].get("llm", 0) == (
+        before_bucket["method_usage"].get("llm", 0) + 1
+    )
 
 
 def test_generate_bulletpoints_api_uses_request_count_range(monkeypatch):
@@ -120,6 +159,58 @@ def test_generate_bulletpoints_api_uses_request_count_range(monkeypatch):
     assert response.status_code == 200
     assert captured["count_range"].min == 2
     assert captured["count_range"].max == 4
+
+
+def test_generate_bulletpoints_api_accepts_experience_record(monkeypatch):
+    captured = {}
+
+    def fake_generate(**kwargs):
+        captured.update(kwargs)
+        return LLMBulletPointResult(
+            bullet_points=["Designed schema-validated APIs for backend platforms."],
+            metadata={"model": "test-model", "total_tokens": 0},
+        )
+
+    monkeypatch.setattr(bullet_service, "generate_bulletpoints_with_llm", fake_generate)
+
+    response = api_request(
+        "POST",
+        "/generate-bulletpoints",
+        json=_experience_request_payload(bullet_count_range={"min": 1, "max": 1}),
+    )
+
+    assert response.status_code == 200
+    assert captured["project"] is None
+    assert captured["experience"].id == "backend-engineer"
+    assert response.json()["details"]["evidence_type"] == "experience"
+    assert response.json()["bullet_points"] == [
+        "Designed schema-validated APIs for backend platforms."
+    ]
+
+
+def test_generate_bulletpoints_api_rejects_missing_or_ambiguous_evidence():
+    response = api_request(
+        "POST",
+        "/generate-bulletpoints",
+        json={
+            "context": {
+                "title": "Backend Engineer",
+                "description": "Build Python APIs.",
+            },
+        },
+    )
+
+    assert response.status_code == 422
+    assert "Exactly one of project or experience" in response.text
+
+    response = api_request(
+        "POST",
+        "/generate-bulletpoints",
+        json=_request_payload(experience=_experience_payload()),
+    )
+
+    assert response.status_code == 422
+    assert "Exactly one of project or experience" in response.text
 
 
 def test_generate_bulletpoints_api_returns_502_on_llm_failure(monkeypatch):

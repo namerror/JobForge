@@ -16,7 +16,10 @@ from resume_generation.config import (
     load_job_target,
 )
 from resume_generation.assembly import assemble_intermediate_resume_result
-from resume_generation.bullet_points import generate_project_bullet_points
+from resume_generation.bullet_points import (
+    generate_experience_bullet_points,
+    generate_project_bullet_points,
+)
 from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.link_scanning import enrich_projects_with_link_scanning
 from resume_generation.models import IntermediateResumeResult
@@ -99,6 +102,13 @@ def run_resume_generation_pipeline(
         cache=cache,
     )
 
+    experience_bullet_points = generate_experience_bullet_points(
+        experience=_experience.experience,
+        config=config,
+        job_target=job_target,
+        cache=cache,
+    )
+
     # TODO: optionally overall content validation
 
     resume_result = assemble_intermediate_resume_result(
@@ -108,6 +118,7 @@ def run_resume_generation_pipeline(
         selection_context=context,
         selected_projects=enriched_projects,
         project_bullet_points=bullet_points,
+        experience_bullet_points=experience_bullet_points,
     )
 
     write_resume_result_artifact(resume_result, resume_result_artifact_path)

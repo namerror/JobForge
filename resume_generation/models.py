@@ -254,6 +254,12 @@ class ProjectBulletPointResult(StrictSchemaModel):
     details: dict[str, Any] | None = None
 
 
+class ExperienceBulletPointResult(StrictSchemaModel):
+    experience_id: str
+    bullet_points: list[str]
+    details: dict[str, Any] | None = None
+
+
 class ResumeTopSection(StrictSchemaModel):
     name: str
     phone: str

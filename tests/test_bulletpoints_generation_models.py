@@ -30,6 +30,28 @@ def _project_payload(**overrides):
     return payload
 
 
+def _experience_payload(**overrides):
+    payload = {
+        "id": "backend-engineer",
+        "name": "Example Company",
+        "role": "Backend Engineer",
+        "summary": "Built backend services for internal platforms.",
+        "highlights": ["Designed schema-validated APIs."],
+        "active": True,
+        "skills": {
+            "technology": ["FastAPI"],
+            "programming": ["Python"],
+            "concepts": ["API"],
+        },
+        "location": "Example City, ST",
+        "start": "2024",
+        "end": None,
+        "links": ["https://example.com/company"],
+    }
+    payload.update(overrides)
+    return payload
+
+
 def test_bullet_count_range_accepts_exact_and_flexible_ranges():
     exact = BulletCountRange(min=3, max=3)
     flexible = BulletCountRange(min=2, max=4)
@@ -63,9 +85,45 @@ def test_bullet_generation_request_accepts_full_project_record():
     )
 
     assert request.context.title == "Backend Engineer"
+    assert request.project is not None
     assert request.project.highlights[0].startswith("Built a FastAPI")
     assert request.bullet_count_range is not None
     assert request.bullet_count_range.max == 4
+
+
+def test_bullet_generation_request_accepts_full_experience_record():
+    request = BulletGenerationRequest.model_validate(
+        {
+            "context": {"title": "Backend Engineer", "description": "Build Python APIs."},
+            "experience": _experience_payload(),
+            "bullet_count_range": {"min": 2, "max": 4},
+            "dev_mode": True,
+        }
+    )
+
+    assert request.context.title == "Backend Engineer"
+    assert request.experience is not None
+    assert request.experience.role == "Backend Engineer"
+    assert request.evidence_type == "experience"
+    assert request.evidence_id == "backend-engineer"
+
+
+def test_bullet_generation_request_requires_exactly_one_evidence_record():
+    with pytest.raises(ValidationError, match="Exactly one of project or experience"):
+        BulletGenerationRequest.model_validate(
+            {
+                "context": {"title": "Backend Engineer"},
+            }
+        )
+
+    with pytest.raises(ValidationError, match="Exactly one of project or experience"):
+        BulletGenerationRequest.model_validate(
+            {
+                "context": {"title": "Backend Engineer"},
+                "project": _project_payload(),
+                "experience": _experience_payload(),
+            }
+        )
 
 
 def test_bullet_generation_request_rejects_empty_title():

@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `06-23-2026-Codex-experience-bullet-generation.md` - 2026-06-23 - Add experience bullet generation
 - `06-22-2026-Codex-add-experience-role-field.md` - 2026-06-22 - Add experience role field
 - `06-22-2026-Codex-expand-resume-evidence-cli-schemas.md` - 2026-06-22 - Expand resume evidence CLI schemas
 - `06-21-2026-Codex-resume-result-json-artifact.md` - 2026-06-21 - Add resume result JSON artifact

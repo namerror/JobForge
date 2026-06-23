@@ -14,7 +14,7 @@ from app.bulletpoints_generation.llm_client import (
     generate_bulletpoints_with_llm,
 )
 from app.bulletpoints_generation.models import BulletCountRange, BulletJobContext
-from resume_evidence.models import ProjectRecord, ProjectSkills
+from resume_evidence.models import ExperienceRecord, ProjectRecord, ProjectSkills
 
 
 def _project() -> ProjectRecord:
@@ -36,6 +36,29 @@ def _project() -> ProjectRecord:
     )
 
 
+def _experience() -> ExperienceRecord:
+    return ExperienceRecord(
+        id="backend-engineer",
+        name="Example Company",
+        role="Backend Engineer",
+        summary="Built backend services for internal platforms.",
+        highlights=[
+            "Designed schema-validated APIs.",
+            "Maintained automated tests for backend services.",
+        ],
+        active=True,
+        skills=ProjectSkills(
+            technology=["FastAPI"],
+            programming=["Python"],
+            concepts=["API", "Testing"],
+        ),
+        location="Example City, ST",
+        start="2024",
+        end=None,
+        links=["https://example.com/company"],
+    )
+
+
 def test_build_bulletpoint_schema_uses_strict_count_range():
     schema = build_bulletpoint_schema(BulletCountRange(min=2, max=4))
 
@@ -49,9 +72,14 @@ def test_build_bulletpoint_schema_uses_strict_count_range():
 def test_build_bulletpoint_instructions_distinguishes_exact_and_flexible_counts():
     exact = build_bulletpoint_instructions(BulletCountRange(min=3, max=3))
     flexible = build_bulletpoint_instructions(BulletCountRange(min=2, max=4))
+    experience = build_bulletpoint_instructions(
+        BulletCountRange(min=1, max=1),
+        evidence_type="experience",
+    )
 
     assert "Return exactly 3 bullet point strings." in exact
     assert "Return between 2 and 4 bullet point strings" in flexible
+    assert "experience evidence" in experience
 
 
 def test_build_bulletpoint_prompt_payload_excludes_links():
@@ -68,6 +96,26 @@ def test_build_bulletpoint_prompt_payload_excludes_links():
     assert payload["project"]["skills"]["programming"] == ["Python"]
     assert "links" not in payload["project"]
     assert "https://example.com/jobforge" not in json.dumps(payload)
+
+
+def test_build_bulletpoint_prompt_payload_supports_experience_evidence():
+    payload = json.loads(
+        build_bulletpoint_prompt_payload(
+            context=BulletJobContext(title="Backend Engineer", description="Build APIs."),
+            experience=_experience(),
+            count_range=BulletCountRange(min=1, max=2),
+        )
+    )
+
+    assert payload["job"]["title"] == "Backend Engineer"
+    assert payload["experience"]["id"] == "backend-engineer"
+    assert payload["experience"]["role"] == "Backend Engineer"
+    assert payload["experience"]["location"] == "Example City, ST"
+    assert payload["experience"]["skills"]["concepts"] == ["API", "Testing"]
+    assert "project" not in payload
+    assert "links" not in payload["experience"]
+    assert "https://example.com/company" not in json.dumps(payload)
+    assert "experience evidence" in payload["grounding_rules"][0]
 
 
 def test_generate_bulletpoints_with_llm_sends_strict_schema(monkeypatch):
@@ -119,6 +167,42 @@ def test_generate_bulletpoints_with_llm_sends_strict_schema(monkeypatch):
     assert json.loads(kwargs["input"])["project"]["id"] == "jobforge"
     assert result.bullet_points[0].startswith("Built FastAPI")
     assert result.metadata["total_tokens"] == 30
+
+
+def test_generate_bulletpoints_with_llm_uses_experience_schema_name(monkeypatch):
+    captured = {}
+
+    class DummyResponses:
+        def create(self, **kwargs):
+            captured["kwargs"] = kwargs
+            return SimpleNamespace(
+                output_text=json.dumps(
+                    {
+                        "bullet_points": [
+                            "Designed schema-validated APIs for backend platforms."
+                        ]
+                    }
+                ),
+                usage=None,
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            self.responses = DummyResponses()
+
+    monkeypatch.setattr(bullet_llm_client, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(bullet_llm_client.settings, "OPENAI_API_KEY", "test-key")
+
+    generate_bulletpoints_with_llm(
+        context=BulletJobContext(title="Backend Engineer"),
+        experience=_experience(),
+        count_range=BulletCountRange(min=1, max=1),
+    )
+
+    kwargs = captured["kwargs"]
+    assert kwargs["text"]["format"]["name"] == "experience_bullet_points"
+    assert json.loads(kwargs["input"])["experience"]["id"] == "backend-engineer"
+    assert "experience evidence" in kwargs["instructions"]
 
 
 def test_generate_bulletpoints_with_llm_omits_temperature_for_gpt_5_mini(monkeypatch):

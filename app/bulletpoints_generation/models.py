@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from resume_evidence.models import ProjectRecord
+from resume_evidence.models import ExperienceRecord, ProjectRecord
 
 
 class StrictSchemaModel(BaseModel):
@@ -48,11 +48,31 @@ class BulletCountRange(StrictSchemaModel):
 
 class BulletGenerationRequest(StrictSchemaModel):
     context: BulletJobContext
-    project: ProjectRecord
+    project: ProjectRecord | None = None
+    experience: ExperienceRecord | None = None
     bullet_count_range: BulletCountRange | None = None
     dev_mode: bool | None = None
     llm_model: str | None = None
     llm_max_output_tokens: int | None = None
+
+    @model_validator(mode="after")
+    def validate_single_evidence_record(self) -> "BulletGenerationRequest":
+        evidence_count = int(self.project is not None) + int(self.experience is not None)
+        if evidence_count != 1:
+            raise ValueError("Exactly one of project or experience must be provided")
+        return self
+
+    @property
+    def evidence_type(self) -> Literal["project", "experience"]:
+        return "project" if self.project is not None else "experience"
+
+    @property
+    def evidence_id(self) -> str:
+        if self.project is not None:
+            return self.project.id
+        if self.experience is not None:
+            return self.experience.id
+        raise ValueError("Exactly one of project or experience must be provided")
 
     @field_validator("llm_model")
     @classmethod

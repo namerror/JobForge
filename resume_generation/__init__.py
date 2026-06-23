@@ -14,6 +14,7 @@ from resume_generation.assembly import assemble_intermediate_resume_result
 from resume_generation.models import (
     BulletCountRangeConfig,
     BulletPointGenerationConfig,
+    ExperienceBulletPointResult,
     GenerationAppConfig,
     IntermediateResumeResult,
     JobTarget,
@@ -33,7 +34,10 @@ from resume_generation.models import (
     SkillSelectionConfig,
     SkillSelectionResult,
 )
-from resume_generation.bullet_points import generate_project_bullet_points
+from resume_generation.bullet_points import (
+    generate_experience_bullet_points,
+    generate_project_bullet_points,
+)
 from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.link_scanning import enrich_projects_with_link_scanning
 from resume_generation.selection import (
@@ -47,6 +51,7 @@ __all__ = [
     "DEFAULT_JOB_TARGET_PATH",
     "BulletCountRangeConfig",
     "BulletPointGenerationConfig",
+    "ExperienceBulletPointResult",
     "GenerationAppConfig",
     "IntermediateResumeResult",
     "JobTarget",
@@ -70,6 +75,7 @@ __all__ = [
     "assemble_intermediate_resume_result",
     "build_skill_selection_payload",
     "enrich_projects_with_link_scanning",
+    "generate_experience_bullet_points",
     "generate_project_bullet_points",
     "generate_selection_context",
     "load_generation_config",

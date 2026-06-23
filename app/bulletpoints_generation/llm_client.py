@@ -4,14 +4,14 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from openai import OpenAI
 
 from app.bulletpoints_generation.models import BulletCountRange, BulletJobContext
 from app.config import settings
 from app.skill_selection.llm_client import supports_temperature
-from resume_evidence.models import ProjectRecord
+from resume_evidence.models import ExperienceRecord, ProjectRecord
 
 logger = logging.getLogger("bulletpoints_llm_client")
 
@@ -24,6 +24,9 @@ class BulletPointLLMClientError(RuntimeError):
 class LLMBulletPointResult:
     bullet_points: list[str]
     metadata: dict[str, Any]
+
+
+EvidenceType = Literal["project", "experience"]
 
 
 def build_bulletpoint_schema(count_range: BulletCountRange) -> dict[str, Any]:
@@ -45,25 +48,23 @@ def build_bulletpoint_schema(count_range: BulletCountRange) -> dict[str, Any]:
 def build_bulletpoint_prompt_payload(
     *,
     context: BulletJobContext,
-    project: ProjectRecord,
     count_range: BulletCountRange,
+    project: ProjectRecord | None = None,
+    experience: ExperienceRecord | None = None,
 ) -> str:
+    evidence_type, evidence_payload = _build_evidence_payload(
+        project=project,
+        experience=experience,
+    )
     payload = {
         "job": {
             "title": context.title,
             "description": context.description or "",
         },
-        "project": {
-            "id": project.id,
-            "name": project.name,
-            "summary": project.summary,
-            "highlights": project.highlights,
-            "active": project.active,
-            "skills": project.skills.model_dump(),
-        },
+        evidence_type: evidence_payload,
         "bullet_count_range": count_range.model_dump(),
         "grounding_rules": [
-            "Use only the supplied project evidence as the source of user experience.",
+            f"Use only the supplied {evidence_type} evidence as the source of user experience.",
             "The job description may guide emphasis but is not evidence of user experience.",
             "Omit unsupported claims instead of guessing.",
             "Return plain bullet text without leading bullet symbols.",
@@ -72,7 +73,10 @@ def build_bulletpoint_prompt_payload(
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def build_bulletpoint_instructions(count_range: BulletCountRange) -> str:
+def build_bulletpoint_instructions(
+    count_range: BulletCountRange,
+    evidence_type: EvidenceType = "project",
+) -> str:
     count_instruction = (
         f"Return exactly {count_range.min} bullet point strings."
         if count_range.min == count_range.max
@@ -83,11 +87,61 @@ def build_bulletpoint_instructions(count_range: BulletCountRange) -> str:
     )
     return (
         "You are a deterministic resume bullet writer. Return JSON only. "
-        f"{count_instruction} Tailor the project evidence to the target job while staying "
-        "grounded in the supplied project summary, highlights, and skills. Maximize the user's chances of getting an interview by creating strong, ATS-friendly resume bullets. "
-        "Use strong action verbs + task + impact (prioritize measurable results) and follow best practices for resume bullet writing. "
-        "Some appropriate amount of larping to decorate the bullet points is fine, but do not fabricate any details that are not supported by the supplied evidence. "
+        f"{count_instruction} Tailor the supplied {evidence_type} evidence to the "
+        "target job while staying grounded in the supplied "
+        f"{evidence_type} summary, highlights, and skills. Maximize the user's "
+        "chances of getting an interview by creating strong, ATS-friendly "
+        "resume bullets. Use strong action verbs + task + impact, prioritize "
+        "measurable results, and follow best practices for resume bullet "
+        "writing. Light phrasing polish is allowed, but do not fabricate any "
+        "details that are not supported by the supplied evidence. "
         "Each string must be a polished resume bullet without a leading bullet marker."
+    )
+
+
+def _build_evidence_payload(
+    *,
+    project: ProjectRecord | None = None,
+    experience: ExperienceRecord | None = None,
+) -> tuple[EvidenceType, dict[str, Any]]:
+    evidence_count = int(project is not None) + int(experience is not None)
+    if evidence_count != 1:
+        raise BulletPointLLMClientError(
+            "Exactly one of project or experience must be provided"
+        )
+
+    if project is not None:
+        return (
+            "project",
+            {
+                "id": project.id,
+                "name": project.name,
+                "summary": project.summary,
+                "highlights": project.highlights,
+                "active": project.active,
+                "skills": project.skills.model_dump(),
+            },
+        )
+
+    if experience is None:
+        raise BulletPointLLMClientError(
+            "Exactly one of project or experience must be provided"
+        )
+
+    return (
+        "experience",
+        {
+            "id": experience.id,
+            "name": experience.name,
+            "role": experience.role,
+            "summary": experience.summary,
+            "highlights": experience.highlights,
+            "active": experience.active,
+            "skills": experience.skills.model_dump(),
+            "location": experience.location,
+            "start": experience.start,
+            "end": experience.end,
+        },
     )
 
 
@@ -107,6 +161,7 @@ def build_bulletpoint_response_create_kwargs(
     prompt_payload: str,
     schema: dict[str, Any],
     max_output_tokens: int,
+    schema_name: str = "project_bullet_points",
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
         "model": model,
@@ -117,7 +172,7 @@ def build_bulletpoint_response_create_kwargs(
         "text": {
             "format": {
                 "type": "json_schema",
-                "name": "project_bullet_points",
+                "name": schema_name,
                 "schema": schema,
                 "strict": True,
             }
@@ -159,18 +214,24 @@ def _validate_bullet_points(raw_response: Any, count_range: BulletCountRange) ->
 def generate_bulletpoints_with_llm(
     *,
     context: BulletJobContext,
-    project: ProjectRecord,
     count_range: BulletCountRange,
+    project: ProjectRecord | None = None,
+    experience: ExperienceRecord | None = None,
     model: str | None = None,
     max_output_tokens: int | None = None,
 ) -> LLMBulletPointResult:
+    evidence_type, _ = _build_evidence_payload(
+        project=project,
+        experience=experience,
+    )
     prompt_payload = build_bulletpoint_prompt_payload(
         context=context,
         project=project,
+        experience=experience,
         count_range=count_range,
     )
     schema = build_bulletpoint_schema(count_range)
-    instructions = build_bulletpoint_instructions(count_range)
+    instructions = build_bulletpoint_instructions(count_range, evidence_type=evidence_type)
 
     api_key = getattr(settings, "OPENAI_API_KEY", "")
     if not api_key.strip():
@@ -192,6 +253,7 @@ def generate_bulletpoints_with_llm(
             prompt_payload=prompt_payload,
             schema=schema,
             max_output_tokens=effective_max_output_tokens,
+            schema_name=f"{evidence_type}_bullet_points",
         )
         response = client.responses.create(**create_kwargs)
     except Exception as exc:

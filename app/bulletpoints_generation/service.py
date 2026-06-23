@@ -57,6 +57,7 @@ def generate_bulletpoints_service(req: BulletGenerationRequest) -> BulletGenerat
         llm_result = generate_bulletpoints_with_llm(
             context=req.context,
             project=req.project,
+            experience=req.experience,
             count_range=count_range,
             model=req.llm_model,
             max_output_tokens=req.llm_max_output_tokens,
@@ -75,7 +76,8 @@ def generate_bulletpoints_service(req: BulletGenerationRequest) -> BulletGenerat
                 "event": "generate_bulletpoints",
                 "subsystem": METRICS_SUBSYSTEM,
                 "job_title": req.context.title,
-                "project_id": req.project.id,
+                "evidence_type": req.evidence_type,
+                "evidence_id": req.evidence_id,
                 "method": "llm",
                 "latency_ms": round(latency_ms, 3),
                 "bullet_count": len(llm_result.bullet_points),
@@ -92,6 +94,7 @@ def generate_bulletpoints_service(req: BulletGenerationRequest) -> BulletGenerat
                     else None
                 ),
                 "effective_count_range": count_range.model_dump(),
+                "evidence_type": req.evidence_type,
                 "_bulletpoints_llm": llm_metadata,
             }
 
@@ -110,7 +113,8 @@ def generate_bulletpoints_service(req: BulletGenerationRequest) -> BulletGenerat
                 "event": "generate_bulletpoints_failed",
                 "subsystem": METRICS_SUBSYSTEM,
                 "job_title": req.context.title,
-                "project_id": req.project.id,
+                "evidence_type": req.evidence_type,
+                "evidence_id": req.evidence_id,
                 "method": "llm",
                 "error": str(exc),
             },
