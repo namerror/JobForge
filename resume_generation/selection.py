@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -19,6 +20,9 @@ from resume_generation.models import (
     ResumeSelectionContext,
     SkillSelectionResult,
 )
+
+
+logger = logging.getLogger("resume_generation")
 
 
 class ResumeGenerationError(RuntimeError):
@@ -106,14 +110,46 @@ def _cached_post_json(
     namespace: str | None = None,
 ) -> dict[str, Any]:
     if cache is None:
-        return _post_json(client, endpoint, payload)
+        data = _post_json(client, endpoint, payload)
+        logger.info(
+            "resume_generation_stage_response",
+            extra={
+                "event": "resume_generation_stage_response",
+                "stage": stage,
+                "endpoint": endpoint,
+                "namespace": namespace,
+                "source": "http",
+                "cache_status": "disabled",
+                "cache_key": None,
+            },
+        )
+        return data
 
-    return cache.get_or_store(
+    result = cache.get_or_store_result(
         stage=stage,
         payload=payload,
         namespace=namespace,
         fetch=lambda: _post_json(client, endpoint, payload),
     )
+    logger.info(
+        "resume_generation_stage_response",
+        extra={
+            "event": "resume_generation_stage_response",
+            "stage": stage,
+            "endpoint": endpoint,
+            "namespace": namespace,
+            "source": result.source,
+            "cache_status": (
+                "hit"
+                if result.source == "cache"
+                else "refresh"
+                if cache.force_refresh
+                else "miss"
+            ),
+            "cache_key": result.cache_key,
+        },
+    )
+    return result.data
 
 
 def generate_selection_context(

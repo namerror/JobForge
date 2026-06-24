@@ -5,14 +5,22 @@ import json
 import os
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from json import JSONDecodeError
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from resume_generation.models import ResumeGenerationCacheConfig
 
 _CACHE_VERSION = 1
 _SAFE_SEGMENT_PATTERN = re.compile(r"[^A-Za-z0-9_.-]+")
+
+
+@dataclass(frozen=True)
+class ResumeGenerationStageCacheResult:
+    data: dict[str, Any]
+    source: Literal["cache", "http"]
+    cache_key: str
 
 
 class ResumeGenerationStageCache:
@@ -55,18 +63,40 @@ class ResumeGenerationStageCache:
         Otherwise, use the provided fetch function and store the result in cache.
         '''
 
+        return self.get_or_store_result(
+            stage=stage,
+            payload=payload,
+            fetch=fetch,
+            namespace=namespace,
+        ).data
 
+    def get_or_store_result(
+        self,
+        *,
+        stage: str,
+        payload: dict[str, Any],
+        fetch: Callable[[], dict[str, Any]],
+        namespace: str | None = None,
+    ) -> ResumeGenerationStageCacheResult:
         cache_key = self.cache_key(stage=stage, payload=payload)
         path = self._entry_path(stage=stage, cache_key=cache_key, namespace=namespace)
 
         if not self.force_refresh:
             cached_data = self._read(path=path, stage=stage, cache_key=cache_key)
             if cached_data is not None:
-                return cached_data
+                return ResumeGenerationStageCacheResult(
+                    data=cached_data,
+                    source="cache",
+                    cache_key=cache_key,
+                )
 
         data = fetch()
         self._write(path=path, stage=stage, cache_key=cache_key, data=data)
-        return data
+        return ResumeGenerationStageCacheResult(
+            data=data,
+            source="http",
+            cache_key=cache_key,
+        )
 
     def cache_key(self, *, stage: str, payload: dict[str, Any]) -> str:
         canonical_payload = json.dumps(

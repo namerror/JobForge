@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -24,6 +25,9 @@ from app.bulletpoints_generation.service import (
 from app.link_scanning.models import LinkScanRequest, LinkScanResponse
 from app.link_scanning.service import LinkScanningError, scan_project_links_service
 from resume_evidence import load_registered_evidence
+
+
+logger = logging.getLogger("app_main")
 
 
 @asynccontextmanager
@@ -83,6 +87,15 @@ async def get_metrics():
 
 @app.post("/select-skills", response_model=SkillSelectResponse)
 async def select_skills(payload: SkillSelectRequest) -> SkillSelectResponse:
+    logger.info(
+        "app_content_stage_request",
+        extra={
+            "event": "app_content_stage_request",
+            "stage": "skill_selection",
+            "endpoint": "/select-skills",
+            "source": "http",
+        },
+    )
     try:
         return select_skills_service(payload)
     except ValueError as ve:
@@ -91,6 +104,17 @@ async def select_skills(payload: SkillSelectRequest) -> SkillSelectResponse:
 
 @app.post("/generate-bulletpoints", response_model=BulletGenerationResponse)
 async def generate_bulletpoints(payload: BulletGenerationRequest) -> BulletGenerationResponse:
+    logger.info(
+        "app_content_stage_request",
+        extra={
+            "event": "app_content_stage_request",
+            "stage": f"{payload.evidence_type}_bullet_points",
+            "endpoint": "/generate-bulletpoints",
+            "source": "http",
+            "evidence_type": payload.evidence_type,
+            "evidence_id": payload.evidence_id,
+        },
+    )
     try:
         return generate_bulletpoints_service(payload)
     except ValueError as ve:
@@ -102,6 +126,16 @@ async def generate_bulletpoints(payload: BulletGenerationRequest) -> BulletGener
 
 @app.post("/scan-link", response_model=LinkScanResponse)
 async def scan_link(payload: LinkScanRequest) -> LinkScanResponse:
+    logger.info(
+        "app_content_stage_request",
+        extra={
+            "event": "app_content_stage_request",
+            "stage": "link_scanning",
+            "endpoint": "/scan-link",
+            "source": "http",
+            "project_id": payload.project.id,
+        },
+    )
     try:
         return scan_project_links_service(payload)
     except LinkScanningError as exc:
@@ -110,6 +144,15 @@ async def scan_link(payload: LinkScanRequest) -> LinkScanResponse:
 
 @app.post("/select-projects", response_model=ProjectSelectionResult)
 async def select_projects(payload: dict[str, Any]) -> ProjectSelectionResult:
+    logger.info(
+        "app_content_stage_request",
+        extra={
+            "event": "app_content_stage_request",
+            "stage": "project_selection",
+            "endpoint": "/select-projects",
+            "source": "http",
+        },
+    )
     try:
         request = ProjectSelectRequest.model_validate(payload)
         return select_projects_service(request)

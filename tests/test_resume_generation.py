@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 
 import httpx
@@ -9,6 +10,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from app.bulletpoints_generation.models import BulletGenerationResponse
 from app.main import app
 from app.project_selection.llm_client import LLMProjectScoreResult
 from app.skill_selection.llm_client import LLMScoreResult
@@ -68,10 +70,16 @@ def _config_payload(**overrides) -> dict:
             "llm_model": "link-model",
             "llm_max_output_tokens": 660,
         },
-        "bullet_point_generation": {
+        "project_bullet_point_generation": {
             "bullet_count_range": {"min": 2, "max": 4},
             "dev_mode": True,
-            "llm_model": "bullet-model",
+            "llm_model": "project-bullet-model",
+            "llm_max_output_tokens": 990,
+        },
+        "experience_bullet_point_generation": {
+            "bullet_count_range": {"min": 1, "max": 2},
+            "dev_mode": True,
+            "llm_model": "experience-bullet-model",
             "llm_max_output_tokens": 990,
         },
     }
@@ -215,6 +223,64 @@ def _loaded_evidence(
     }
 
 
+def _install_successful_pipeline_client(monkeypatch, calls: list[dict]) -> None:
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            project_id = json.get("project", {}).get("id")
+            experience_id = json.get("experience", {}).get("id")
+            calls.append(
+                {
+                    "endpoint": endpoint,
+                    "project_id": project_id,
+                    "experience_id": experience_id,
+                    "llm_model": json.get("llm_model"),
+                }
+            )
+            if endpoint == "/select-skills":
+                return httpx.Response(
+                    200,
+                    json={
+                        "technology": ["FastAPI"],
+                        "programming": ["Python"],
+                        "concepts": ["API"],
+                    },
+                )
+            if endpoint == "/select-projects":
+                return httpx.Response(
+                    200,
+                    json={
+                        "selected_project_ids": ["active-project"],
+                        "ranked_projects": [
+                            {
+                                "project_id": "active-project",
+                                "score": 1.0,
+                                "method": "llm",
+                            }
+                        ],
+                    },
+                )
+            if endpoint == "/generate-bulletpoints":
+                evidence_id = project_id or experience_id
+                return httpx.Response(
+                    200,
+                    json={"bullet_points": [f"Generated bullet for {evidence_id}."]},
+                )
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+
+
 def test_load_generation_config_returns_typed_config(tmp_path):
     path = _write_yaml(tmp_path / "config.yaml", _config_payload())
 
@@ -228,9 +294,15 @@ def test_load_generation_config_returns_typed_config(tmp_path):
     assert config.link_scanning.dev_mode is True
     assert config.link_scanning.llm_model == "link-model"
     assert config.link_scanning.llm_max_output_tokens == 660
-    assert config.bullet_point_generation.llm_model == "bullet-model"
-    assert config.bullet_point_generation.bullet_count_range is not None
-    assert config.bullet_point_generation.bullet_count_range.min == 2
+    assert config.project_bullet_point_generation.llm_model == "project-bullet-model"
+    assert config.project_bullet_point_generation.bullet_count_range is not None
+    assert config.project_bullet_point_generation.bullet_count_range.min == 2
+    assert (
+        config.experience_bullet_point_generation.llm_model
+        == "experience-bullet-model"
+    )
+    assert config.experience_bullet_point_generation.bullet_count_range is not None
+    assert config.experience_bullet_point_generation.bullet_count_range.min == 1
     assert config.cache.enabled is False
     assert config.cache.force_refresh is False
 
@@ -298,7 +370,7 @@ def test_resume_generation_stage_cache_force_refresh_bypasses_read(tmp_path):
     payload = {"project": {"id": "active-project"}}
 
     cache.get_or_store(
-        stage="bullet_points",
+        stage="project_bullet_points",
         payload=payload,
         fetch=lambda: {"bullet_points": ["Original bullet."]},
         namespace="active-project",
@@ -306,7 +378,7 @@ def test_resume_generation_stage_cache_force_refresh_bypasses_read(tmp_path):
 
     refreshing_cache = ResumeGenerationStageCache(tmp_path / "cache", force_refresh=True)
     result = refreshing_cache.get_or_store(
-        stage="bullet_points",
+        stage="project_bullet_points",
         payload=payload,
         fetch=lambda: {"bullet_points": ["Refreshed bullet."]},
         namespace="active-project",
@@ -318,9 +390,9 @@ def test_resume_generation_stage_cache_force_refresh_bypasses_read(tmp_path):
 def test_resume_generation_stage_cache_treats_malformed_entry_as_miss(tmp_path):
     cache = ResumeGenerationStageCache(tmp_path / "cache")
     payload = {"project": {"id": "active-project"}}
-    cache_key = cache.cache_key(stage="bullet_points", payload=payload)
+    cache_key = cache.cache_key(stage="project_bullet_points", payload=payload)
     entry_path = cache._entry_path(
-        stage="bullet_points",
+        stage="project_bullet_points",
         cache_key=cache_key,
         namespace="active-project",
     )
@@ -328,7 +400,7 @@ def test_resume_generation_stage_cache_treats_malformed_entry_as_miss(tmp_path):
     entry_path.write_text("{not valid json", encoding="utf-8")
 
     result = cache.get_or_store(
-        stage="bullet_points",
+        stage="project_bullet_points",
         payload=payload,
         fetch=lambda: {"bullet_points": ["Recovered bullet."]},
         namespace="active-project",
@@ -343,7 +415,7 @@ def test_load_generation_config_rejects_invalid_bullet_count_range(tmp_path):
     path = _write_yaml(
         tmp_path / "config.yaml",
         _config_payload(
-            bullet_point_generation={
+            project_bullet_point_generation={
                 "bullet_count_range": {"min": 0, "max": 4},
                 "dev_mode": True,
             }
@@ -351,6 +423,21 @@ def test_load_generation_config_rejects_invalid_bullet_count_range(tmp_path):
     )
 
     with pytest.raises(ValidationError, match="bullet_count_range.min"):
+        load_generation_config(path)
+
+
+def test_load_generation_config_rejects_legacy_shared_bullet_config(tmp_path):
+    path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            bullet_point_generation={
+                "bullet_count_range": {"min": 2, "max": 4},
+                "dev_mode": True,
+            }
+        ),
+    )
+
+    with pytest.raises(ValidationError, match="project_bullet_point_generation"):
         load_generation_config(path)
 
 
@@ -512,7 +599,7 @@ def test_generate_project_bullet_points_posts_once_per_selected_project(monkeypa
     assert payload["project"]["id"] == "active-project"
     assert payload["project"]["highlights"] == ["Built the service."]
     assert payload["bullet_count_range"] == {"min": 2, "max": 4}
-    assert payload["llm_model"] == "bullet-model"
+    assert payload["llm_model"] == "project-bullet-model"
     assert payload["llm_max_output_tokens"] == 990
     assert [item.project_id for item in result] == ["active-project"]
     assert result[0].bullet_points == ["Generated bullet for active-project."]
@@ -596,11 +683,76 @@ def test_generate_experience_bullet_points_posts_once_per_active_experience(
     assert payload["experience"]["id"] == "backend-engineer"
     assert payload["experience"]["role"] == "Backend Engineer"
     assert payload["experience"]["highlights"] == ["Designed schema-validated APIs."]
-    assert payload["bullet_count_range"] == {"min": 2, "max": 4}
-    assert payload["llm_model"] == "bullet-model"
+    assert payload["bullet_count_range"] == {"min": 1, "max": 2}
+    assert payload["llm_model"] == "experience-bullet-model"
     assert payload["llm_max_output_tokens"] == 990
     assert [item.experience_id for item in result] == ["backend-engineer"]
     assert result[0].bullet_points == ["Generated bullet for backend-engineer."]
+
+
+def test_cached_project_bullet_generation_logs_response_source(
+    monkeypatch,
+    tmp_path,
+    caplog,
+):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_path)
+    projects_file = _loaded_evidence(projects_path, skills_path)["projects"]
+    selected_project = projects_file.projects_by_id()["active-project"]
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            return httpx.Response(
+                200,
+                json={"bullet_points": ["Generated bullet for active-project."]},
+            )
+
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+
+    with caplog.at_level(logging.INFO, logger="resume_generation"):
+        generate_project_bullet_points(
+            selected_projects=[selected_project],
+            config=config,
+            job_target=job_target,
+            cache=cache,
+        )
+        generate_project_bullet_points(
+            selected_projects=[selected_project],
+            config=config,
+            job_target=job_target,
+            cache=cache,
+        )
+
+    response_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "resume_generation_stage_response"
+    ]
+    assert calls == ["/generate-bulletpoints"]
+    assert [
+        (record.stage, record.source, record.cache_status, record.endpoint)
+        for record in response_records
+    ] == [
+        ("project_bullet_points", "http", "miss", "/generate-bulletpoints"),
+        ("project_bullet_points", "cache", "hit", "/generate-bulletpoints"),
+    ]
+    assert all(record.cache_key for record in response_records)
 
 
 def test_enrich_projects_with_link_scanning_posts_linked_projects_and_merges_patch(
@@ -1361,6 +1513,234 @@ def test_resume_generation_pipeline_reuses_cached_stage_results(monkeypatch, tmp
     ]
 
 
+def test_experience_bullet_model_change_does_not_regenerate_project_bullets(
+    monkeypatch,
+    tmp_path,
+):
+    cache_config = {
+        "enabled": True,
+        "path": str(tmp_path / "cache"),
+        "force_refresh": False,
+    }
+    first_config_path = _write_yaml(
+        tmp_path / "first-config.yaml",
+        _config_payload(cache=cache_config),
+    )
+    second_config = _config_payload(cache=cache_config)
+    second_config["experience_bullet_point_generation"][
+        "llm_model"
+    ] = "experience-bullet-model-v2"
+    second_config_path = _write_yaml(tmp_path / "second-config.yaml", second_config)
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[dict] = []
+
+    _install_successful_pipeline_client(monkeypatch, calls)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    run_resume_generation_pipeline(
+        config_path=first_config_path,
+        job_target_path=job_path,
+        evidence_paths={"projects": projects_path, "skills": skills_path},
+    )
+    run_resume_generation_pipeline(
+        config_path=second_config_path,
+        job_target_path=job_path,
+        evidence_paths={"projects": projects_path, "skills": skills_path},
+    )
+
+    assert [
+        (call["endpoint"], call["project_id"], call["experience_id"], call["llm_model"])
+        for call in calls
+    ] == [
+        ("/select-skills", None, None, "skill-model"),
+        ("/select-projects", None, None, "project-model"),
+        ("/generate-bulletpoints", "active-project", None, "project-bullet-model"),
+        (
+            "/generate-bulletpoints",
+            None,
+            "backend-engineer",
+            "experience-bullet-model",
+        ),
+        (
+            "/generate-bulletpoints",
+            None,
+            "backend-engineer",
+            "experience-bullet-model-v2",
+        ),
+    ]
+
+
+def test_project_bullet_model_change_does_not_regenerate_experience_bullets(
+    monkeypatch,
+    tmp_path,
+):
+    cache_config = {
+        "enabled": True,
+        "path": str(tmp_path / "cache"),
+        "force_refresh": False,
+    }
+    first_config_path = _write_yaml(
+        tmp_path / "first-config.yaml",
+        _config_payload(cache=cache_config),
+    )
+    second_config = _config_payload(cache=cache_config)
+    second_config["project_bullet_point_generation"][
+        "llm_model"
+    ] = "project-bullet-model-v2"
+    second_config_path = _write_yaml(tmp_path / "second-config.yaml", second_config)
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[dict] = []
+
+    _install_successful_pipeline_client(monkeypatch, calls)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    run_resume_generation_pipeline(
+        config_path=first_config_path,
+        job_target_path=job_path,
+        evidence_paths={"projects": projects_path, "skills": skills_path},
+    )
+    run_resume_generation_pipeline(
+        config_path=second_config_path,
+        job_target_path=job_path,
+        evidence_paths={"projects": projects_path, "skills": skills_path},
+    )
+
+    assert [
+        (call["endpoint"], call["project_id"], call["experience_id"], call["llm_model"])
+        for call in calls
+    ] == [
+        ("/select-skills", None, None, "skill-model"),
+        ("/select-projects", None, None, "project-model"),
+        ("/generate-bulletpoints", "active-project", None, "project-bullet-model"),
+        (
+            "/generate-bulletpoints",
+            None,
+            "backend-engineer",
+            "experience-bullet-model",
+        ),
+        ("/generate-bulletpoints", "active-project", None, "project-bullet-model-v2"),
+    ]
+
+
+def test_skill_evidence_change_only_invalidates_skill_selection(
+    monkeypatch,
+    tmp_path,
+):
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            cache={
+                "enabled": True,
+                "path": str(tmp_path / "cache"),
+                "force_refresh": False,
+            }
+        ),
+    )
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    first_skills_path = _write_yaml(tmp_path / "first-skills.yaml", _skills_payload())
+    second_skills = _skills_payload()
+    second_skills["skills"]["technology"].append("Redis")
+    second_skills_path = _write_yaml(tmp_path / "second-skills.yaml", second_skills)
+    evidence_by_skills_path = {
+        first_skills_path: _loaded_evidence(projects_path, first_skills_path),
+        second_skills_path: _loaded_evidence(projects_path, second_skills_path),
+    }
+    calls: list[dict] = []
+
+    _install_successful_pipeline_client(monkeypatch, calls)
+
+    def fake_load_registered_evidence(paths=None):
+        assert paths is not None
+        return evidence_by_skills_path[Path(paths["skills"])]
+
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        fake_load_registered_evidence,
+    )
+
+    run_resume_generation_pipeline(
+        config_path=config_path,
+        job_target_path=job_path,
+        evidence_paths={"projects": projects_path, "skills": first_skills_path},
+    )
+    run_resume_generation_pipeline(
+        config_path=config_path,
+        job_target_path=job_path,
+        evidence_paths={"projects": projects_path, "skills": second_skills_path},
+    )
+
+    assert [
+        (call["endpoint"], call["project_id"], call["experience_id"])
+        for call in calls
+    ] == [
+        ("/select-skills", None, None),
+        ("/select-projects", None, None),
+        ("/generate-bulletpoints", "active-project", None),
+        ("/generate-bulletpoints", None, "backend-engineer"),
+        ("/select-skills", None, None),
+    ]
+
+
+def test_resume_generation_pipeline_logs_stage_events(monkeypatch, tmp_path, caplog):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[dict] = []
+
+    _install_successful_pipeline_client(monkeypatch, calls)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    with caplog.at_level(logging.INFO, logger="resume_generation"):
+        run_resume_generation_pipeline(
+            config_path=config_path,
+            job_target_path=job_path,
+            evidence_paths={"projects": projects_path, "skills": skills_path},
+        )
+
+    stage_events = [
+        (record.event, getattr(record, "stage", None))
+        for record in caplog.records
+        if getattr(record, "event", None)
+        in {
+            "resume_generation_pipeline_start",
+            "resume_generation_pipeline_complete",
+            "resume_generation_stage_start",
+            "resume_generation_stage_complete",
+            "resume_generation_stage_skipped",
+            "resume_generation_artifact_written",
+        }
+    ]
+    assert ("resume_generation_pipeline_start", None) in stage_events
+    assert ("resume_generation_stage_start", "selection") in stage_events
+    assert ("resume_generation_stage_complete", "selection") in stage_events
+    assert ("resume_generation_stage_skipped", "link_scanning") in stage_events
+    assert ("resume_generation_stage_start", "project_bullet_points") in stage_events
+    assert ("resume_generation_stage_complete", "project_bullet_points") in stage_events
+    assert ("resume_generation_stage_start", "experience_bullet_points") in stage_events
+    assert ("resume_generation_stage_complete", "experience_bullet_points") in stage_events
+    assert ("resume_generation_stage_complete", "assembly") in stage_events
+    assert ("resume_generation_artifact_written", None) in stage_events
+    assert ("resume_generation_pipeline_complete", None) in stage_events
+
+
 def test_resume_generation_pipeline_cache_misses_when_job_target_changes(
     monkeypatch,
     tmp_path,
@@ -1717,6 +2097,40 @@ def api_request(method: str, path: str, **kwargs):
             return await client.request(method, path, **kwargs)
 
     return asyncio.run(_request())
+
+
+def test_generate_bulletpoints_route_logs_http_source(monkeypatch, caplog):
+    monkeypatch.setattr(
+        "app.main.generate_bulletpoints_service",
+        lambda payload: BulletGenerationResponse(bullet_points=["Built APIs."]),
+    )
+
+    with caplog.at_level(logging.INFO, logger="app_main"):
+        response = api_request(
+            "POST",
+            "/generate-bulletpoints",
+            json={
+                "context": {
+                    "title": "Backend Engineer",
+                    "description": "Build APIs.",
+                },
+                "project": _projects_payload()["projects"][0],
+            },
+        )
+
+    assert response.status_code == 200
+    route_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "app_content_stage_request"
+    ]
+    assert len(route_records) == 1
+    record = route_records[0]
+    assert record.stage == "project_bullet_points"
+    assert record.endpoint == "/generate-bulletpoints"
+    assert record.source == "http"
+    assert record.evidence_type == "project"
+    assert record.evidence_id == "active-project"
 
 
 def test_skill_selection_api_uses_request_llm_overrides(monkeypatch):

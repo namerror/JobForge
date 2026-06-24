@@ -38,7 +38,7 @@ from resume_generation.bullet_points import (
     generate_experience_bullet_points,
     generate_project_bullet_points,
 )
-from resume_generation.cache import ResumeGenerationStageCache
+from resume_generation.cache import ResumeGenerationStageCache, ResumeGenerationStageCacheResult
 from resume_generation.link_scanning import enrich_projects_with_link_scanning
 from resume_generation.selection import (
     ResumeGenerationError,
@@ -62,6 +62,7 @@ __all__ = [
     "ProjectSelectionResult",
     "ResumeGenerationCacheConfig",
     "ResumeGenerationStageCache",
+    "ResumeGenerationStageCacheResult",
     "ResumeEducationItem",
     "ResumeExperienceItem",
     "ResumeGenerationConfig",

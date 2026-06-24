@@ -22,7 +22,7 @@ def generate_project_bullet_points(
     job_target: JobTarget,
     cache: ResumeGenerationStageCache | None = None,
 ) -> list[ProjectBulletPointResult]:
-    bullet_config = _exclude_none(config.bullet_point_generation)
+    bullet_config = _exclude_none(config.project_bullet_point_generation)
 
     results: list[ProjectBulletPointResult] = []
     with httpx.Client(
@@ -40,7 +40,7 @@ def generate_project_bullet_points(
             }
             response = _cached_post_json(
                 cache=cache,
-                stage="bullet_points",
+                stage="project_bullet_points",
                 client=client,
                 endpoint="/generate-bulletpoints",
                 payload=payload,
@@ -64,7 +64,7 @@ def generate_experience_bullet_points(
     job_target: JobTarget,
     cache: ResumeGenerationStageCache | None = None,
 ) -> list[ExperienceBulletPointResult]:
-    bullet_config = _exclude_none(config.bullet_point_generation)
+    bullet_config = _exclude_none(config.experience_bullet_point_generation)
 
     results: list[ExperienceBulletPointResult] = []
     with httpx.Client(

@@ -192,10 +192,24 @@ class ResumeGenerationConfig(StrictSchemaModel):
     skill_selection: SkillSelectionConfig = Field(default_factory=SkillSelectionConfig)
     project_selection: ProjectSelectionConfig = Field(default_factory=ProjectSelectionConfig)
     link_scanning: LinkScanningConfig = Field(default_factory=LinkScanningConfig)
-    bullet_point_generation: BulletPointGenerationConfig = Field(
+    project_bullet_point_generation: BulletPointGenerationConfig = Field(
+        default_factory=BulletPointGenerationConfig
+    )
+    experience_bullet_point_generation: BulletPointGenerationConfig = Field(
         default_factory=BulletPointGenerationConfig
     )
     cache: ResumeGenerationCacheConfig = Field(default_factory=ResumeGenerationCacheConfig)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_legacy_bullet_point_generation(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "bullet_point_generation" in data:
+            raise ValueError(
+                "bullet_point_generation has been replaced by "
+                "project_bullet_point_generation and "
+                "experience_bullet_point_generation"
+            )
+        return data
 
 
 class JobTarget(StrictSchemaModel):

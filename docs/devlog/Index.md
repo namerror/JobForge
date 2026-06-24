@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `06-24-2026-Codex-modular-resume-generation-cache-logging.md` - 2026-06-24 - Modular resume generation cache logging
 - `06-23-2026-Codex-experience-bullet-generation.md` - 2026-06-23 - Add experience bullet generation
 - `06-22-2026-Codex-add-experience-role-field.md` - 2026-06-22 - Add experience role field
 - `06-22-2026-Codex-expand-resume-evidence-cli-schemas.md` - 2026-06-22 - Expand resume evidence CLI schemas
