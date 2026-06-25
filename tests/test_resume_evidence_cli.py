@@ -15,6 +15,7 @@ from resume_evidence import (
 )
 from resume_evidence.cli.base import EvidenceCLIBase
 from resume_evidence.cli import main as cli_main
+from resume_evidence.cli.experience import ExperienceEvidenceCLI
 from resume_evidence.cli.projects import ProjectsEvidenceCLI
 from resume_evidence.session import generate_experience_id, generate_project_id
 
@@ -237,6 +238,39 @@ def _run_projects_cli_with_action_picker(
     output = StringIO()
     session = ProjectsEvidenceSession.load(path)
     cli = ProjectsEvidenceCLI(
+        session,
+        input_func=InputFeeder(responses),
+        output=output,
+        picker=picker,
+        action_picker=action_picker,
+    )
+    assert cli.run() == 0
+    return output.getvalue()
+
+
+def _run_experience_cli_with_picker(path, responses: list[str], picker: FakePicker) -> str:
+    output = StringIO()
+    session = ExperienceEvidenceSession.load(path)
+    cli = ExperienceEvidenceCLI(
+        session,
+        input_func=InputFeeder(responses),
+        output=output,
+        picker=picker,
+    )
+    assert cli.run() == 0
+    return output.getvalue()
+
+
+def _run_experience_cli_with_action_picker(
+    path,
+    responses: list[str],
+    action_picker: FakeChoicePicker,
+    *,
+    picker: FakePicker | None = None,
+) -> str:
+    output = StringIO()
+    session = ExperienceEvidenceSession.load(path)
+    cli = ExperienceEvidenceCLI(
         session,
         input_func=InputFeeder(responses),
         output=output,
@@ -1467,6 +1501,321 @@ def test_experience_cli_list_and_show(tmp_path):
     assert "Role: Backend Engineer" in output
     assert "Location: Example City, ST" in output
     assert "Technology: FastAPI, PostgreSQL" in output
+
+
+def test_experience_cli_action_menu_show_uses_entry_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+    action_picker = FakeChoicePicker(["show", "quit"])
+    picker = FakePicker([1])
+
+    output = _run_experience_cli_with_action_picker(path, [], action_picker, picker=picker)
+
+    assert action_picker.calls[0][0] == "Choose experience action"
+    assert picker.calls == [
+        ("Choose an experience entry to show", ["1. Example Company [active]"]),
+    ]
+    assert "Role: Backend Engineer" in output
+
+
+def test_experience_cli_action_menu_cancellation_returns_to_typed_prompt(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+    action_picker = FakeChoicePicker([None, None])
+
+    output = _run_experience_cli_with_action_picker(path, ["list", "quit"], action_picker)
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert loaded.model_dump() == _valid_experience_payload()
+    assert output.count("1. Example Company [active]") >= 2
+    assert output.endswith("Goodbye.\n")
+
+
+def test_experience_cli_show_without_index_uses_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+    picker = FakePicker([1])
+
+    output = _run_experience_cli_with_picker(path, ["show", "quit"], picker)
+
+    assert picker.calls == [
+        ("Choose an experience entry to show", ["1. Example Company [active]"]),
+    ]
+    assert "Summary: Built reliable backend services for internal platforms." in output
+
+
+def test_experience_cli_edit_without_index_uses_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+    picker = FakePicker([1])
+
+    _run_experience_cli_with_picker(
+        path,
+        [
+            "edit",
+            "",
+            "",
+            "Updated from picker.",
+            "y",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+        picker,
+    )
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert picker.calls[0] == (
+        "Choose an experience entry to edit",
+        ["1. Example Company [active]"],
+    )
+    assert loaded.experience[0].summary == "Updated from picker."
+
+
+def test_experience_cli_delete_without_index_uses_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+    picker = FakePicker([1])
+
+    _run_experience_cli_with_picker(
+        path,
+        ["delete", "y", "apply", "y", "quit"],
+        picker,
+    )
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert picker.calls == [
+        ("Choose an experience entry to delete", ["1. Example Company [active]"]),
+    ]
+    assert loaded.experience == []
+
+
+def test_experience_cli_edit_updates_highlight_by_temporary_index(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+
+    _run_schema_cli(
+        "experience",
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "",
+            "n",
+            "edit 2",
+            "Improved test coverage, with indexed editing.",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert loaded.experience[0].highlights == [
+        "Designed schema-validated APIs.",
+        "Improved test coverage, with indexed editing.",
+    ]
+
+
+def test_experience_cli_edit_highlight_without_index_uses_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+    picker = FakePicker([2])
+
+    _run_experience_cli_with_picker(
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "",
+            "n",
+            "edit",
+            "Improved test coverage, with picker editing.",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+        picker,
+    )
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert picker.calls == [
+        (
+            "Choose a highlight to edit",
+            [
+                "1. Designed schema-validated APIs.",
+                "2. Improved test coverage for core services.",
+            ],
+        )
+    ]
+    assert loaded.experience[0].highlights == [
+        "Designed schema-validated APIs.",
+        "Improved test coverage, with picker editing.",
+    ]
+
+
+def test_experience_cli_edit_can_add_and_delete_highlights_by_temporary_index(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+
+    _run_schema_cli(
+        "experience",
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "",
+            "n",
+            "add",
+            "Added a nested editor, preserving commas in experience highlights.",
+            "delete 1",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert loaded.experience[0].highlights == [
+        "Improved test coverage for core services.",
+        "Added a nested editor, preserving commas in experience highlights.",
+    ]
+
+
+def test_experience_cli_delete_highlight_without_index_uses_picker(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+    picker = FakePicker([1])
+
+    _run_experience_cli_with_picker(
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "",
+            "n",
+            "delete",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "y",
+            "apply",
+            "y",
+            "quit",
+        ],
+        picker,
+    )
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert picker.calls[0][0] == "Choose a highlight to delete"
+    assert loaded.experience[0].highlights == [
+        "Improved test coverage for core services.",
+    ]
+
+
+def test_experience_cli_edit_rejects_deleting_final_highlight(tmp_path):
+    payload = _valid_experience_payload()
+    payload["experience"][0]["highlights"] = ["Only experience highlight."]
+    path = _write_yaml(tmp_path, payload, filename="experience.yaml")
+
+    output = _run_schema_cli(
+        "experience",
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "",
+            "n",
+            "delete 1",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "y",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert loaded.experience[0].highlights == ["Only experience highlight."]
+    assert "Error: At least one highlight is required." in output
+
+
+def test_experience_cli_edit_highlight_invalid_commands_do_not_mutate_staged_data(tmp_path):
+    path = _write_yaml(tmp_path, _valid_experience_payload(), filename="experience.yaml")
+
+    output = _run_schema_cli(
+        "experience",
+        path,
+        [
+            "edit 1",
+            "",
+            "",
+            "",
+            "n",
+            "wat",
+            "edit 99",
+            "delete nope",
+            "done",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "y",
+            "y",
+            "quit",
+        ],
+    )
+
+    loaded = load_evidence_yaml(path, "experience")
+    assert loaded.experience[0].highlights == _valid_experience_payload()["experience"][0][
+        "highlights"
+    ]
+    assert "Error: Unknown highlights command 'wat'" in output
+    assert "Error: Highlight index 99 is out of range" in output
+    assert "Error: Highlight index must be an integer for 'delete'" in output
 
 
 def test_experience_cli_create_edit_delete_and_apply(tmp_path):
