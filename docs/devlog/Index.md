@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `07-08-2026-Codex-run-resume-generation-agentic-test.md` - 2026-07-08 - Run resume generation agentic test
 - `07-08-2026-Codex-document-resume-generation-usage.md` - 2026-07-08 - Document resume generation usage
 - `07-08-2026-Codex-latex-resume-output.md` - 2026-07-08 - LaTeX resume output
 - `07-08-2026-Codex-resume-generation-token-monitoring.md` - 2026-07-08 - Resume generation token monitoring
