@@ -4,9 +4,9 @@ This project is evolving from a skill-selection microservice into a grounded res
 
 - a production FastAPI API for skill selection with deterministic baseline, embeddings, and LLM methods
 - a public project-selection API for ranking explicit user project candidates for a target job
-- an implemented first milestone of the evidence-based resume pipeline centered on `user/resume_evidence/projects.yaml`
+- an implemented evidence-based resume-generation pipeline that reads `user/resume_generation/` and `user/resume_evidence/`
 
-Selection services live under the FastAPI `app/` package, while evidence management now lives in top-level `resume_evidence/`. The top-level `resume_generation/` package is reserved for the future orchestration layer that will load evidence, call the selection services, and prepare structured resume fill data.
+Selection services live under the FastAPI `app/` package, evidence management lives in top-level `resume_evidence/`, and resume orchestration lives in top-level `resume_generation/`.
 
 ## Vision
 
@@ -63,7 +63,7 @@ The first implemented milestone is the `resume_evidence` package.
 - `resume_evidence/cli/{projects,skills,education,experience,user}.py`
   - schema-specific command implementations
 - `resume_generation/`
-  - reserved boundary for future evidence-to-selection orchestration and structured fill-data preparation
+  - evidence-to-selection orchestration, bullet-point generation, intermediate result assembly, and LaTeX artifact rendering
 - `app/main.py`
   - loads registered evidence on startup into `app.state.resume_evidence`
 
@@ -75,6 +75,12 @@ The currently implemented evidence schemas are:
 - `user/resume_evidence/skills.yaml`
   - `schema_version: 1`
   - strict categorized skill lists under `technology`, `programming`, and `concepts`
+- `user/resume_evidence/education.yaml`
+  - `schema_version: 1`
+  - strict education records with `name`, `degree`, `grade`, `start`, optional `end`, `location`, and `relevant_coursework`
+- `user/resume_evidence/experience.yaml`
+  - `schema_version: 1`
+  - strict experience records with `id`, `name`, `role`, `summary`, `highlights`, `active`, `skills`, `location`, `start`, optional `end`, and optional `links`
 - `user/resume_evidence/user.yaml`
   - `schema_version: 1`
   - strict basic contact info with required `name`, `email`, and `phone`, plus optional `linkedin`, `github`, and `website`
@@ -143,10 +149,58 @@ JobForge now has a broader resume-engine shape:
 - the skills API helps prioritize and rank skills for the future Skills section
 - the project-selection API helps prioritize grounded projects for a target job
 - the top-level resume-evidence package establishes grounded source-of-truth data under `user/resume_evidence/`
-- the future `resume_generation/` layer will combine target job context, evidence, and selected service outputs into structured fill data
-- future deterministic assembly will turn that structured fill data into resume output without inventing claims
+- the `resume_generation/` layer combines target job context, evidence, and selected service outputs into an intermediate resume result
+- deterministic assembly and LaTeX rendering turn that structured result into resume artifacts without inventing claims
 
 Skill selection is no longer the whole project. It is one subsystem inside the larger grounded resume pipeline.
+
+## Resume Generation Usage
+
+Resume generation runs from `resume_generation/main.py`. It reads generation settings, the target job, and all registered evidence files, then calls the running FastAPI app over HTTP for selection, link scanning, and bullet generation.
+
+Start the app first:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Then run the generation pipeline from the repo root:
+
+```bash
+PYTHONPATH=. python -m resume_generation.main
+```
+
+The direct module entrypoint writes:
+
+- `user/resume_generation/resume_result.json` - intermediate structured resume data
+- `user/resume_generation/resume.tex` - LaTeX resume output, unless `resume_output.path` overrides it
+
+`user/resume_generation/config.yaml` controls the orchestration:
+
+- `app` - FastAPI base URL and request timeout used by the pipeline
+- `skill_selection` - method, `top_n`, baseline-filter toggle, debug mode, and LLM overrides sent to `/select-skills`
+- `project_selection` - method, `top_n`, debug mode, and LLM overrides sent to `/select-projects`; `top_n: null` omits the request override and lets the app's `PROJ_TOP_N` default decide the limit
+- `link_scanning` - optional project-link enrichment before project bullet generation
+- `project_bullet_point_generation` - bullet count range, debug mode, and LLM overrides for selected projects
+- `experience_bullet_point_generation` - bullet count range, debug mode, and LLM overrides for active experience records
+- `cache` - stage cache toggle, path override, and force-refresh behavior
+- `resume_output` - optional `.tex` output path
+
+`user/resume_generation/job_target.yaml` supplies the target role:
+
+- `schema_version: 1`
+- `title` - required job title
+- `description` - optional job description text used for selection and bullet generation context
+
+The pipeline loads every registered resume-evidence schema from `user/resume_evidence/`:
+
+- `user.yaml` - contact/header data for the resume top section
+- `education.yaml` - education entries and relevant coursework
+- `experience.yaml` - active work experience entries and evidence for experience bullets
+- `projects.yaml` - active project candidates, highlights, skills, and optional links
+- `skills.yaml` - categorized skills available for the Skills section
+
+Only `active: true` projects are sent to project selection, and only selected projects are sent to project bullet generation. Only `active: true` experience entries are assembled into the final experience section.
 
 ## API
 
@@ -366,6 +420,12 @@ PYTHONPATH=. python -m resume_evidence.cli --schema experience
 PYTHONPATH=. python -m resume_evidence.cli --schema user
 ```
 
+Run resume generation after the app is running:
+
+```bash
+PYTHONPATH=. python -m resume_generation.main
+```
+
 ## Tests
 
 Tests assume the repo root is on `PYTHONPATH`:
@@ -385,15 +445,11 @@ PYTHONPATH=. pytest tests/test_integration.py
 
 ## Planned Next
 
-The resume-generation pipeline is implemented from `resume_generation/main.py`: it loads evidence, reads `user/resume_generation/config.yaml` plus `job_target.yaml`, calls the running app's selection APIs over HTTP, and hands selected projects to bullet-point generation.
-
 The following pieces are still planned for the broader public resume-generation flow:
 
-- additional evidence files under `user/resume_evidence/`
-  - `experience.yaml`
 - grounded synthesis/extraction under `resume_generation/` that returns structured resume fill data with provenance
-- resume format definitions owned by the generation layer
-- deterministic assembly that renders full resume artifacts from structured fill data
+- additional resume format definitions owned by the generation layer
+- expanded deterministic assembly and rendering beyond the current intermediate JSON and LaTeX artifacts
 
 See:
 
@@ -407,5 +463,5 @@ See:
 ## Current Limitations
 
 - JobForge does not yet ship a public full-resume generation API.
-- The evidence layer currently stops at `user.yaml`, `projects.yaml`, and `skills.yaml`.
-- Resume synthesis, assembly, and additional evidence files are still future work.
+- Resume generation currently runs as a local orchestration module, not as a public HTTP endpoint.
+- The current output path is structured JSON plus LaTeX; additional export formats are still future work.
