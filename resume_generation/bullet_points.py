@@ -13,6 +13,7 @@ from resume_generation.models import (
     ResumeGenerationConfig,
 )
 from resume_generation.selection import _cached_post_json, _exclude_none
+from resume_generation.token_usage import ResumeGenerationTokenUsageMonitor
 
 
 def generate_project_bullet_points(
@@ -21,6 +22,7 @@ def generate_project_bullet_points(
     config: ResumeGenerationConfig,
     job_target: JobTarget,
     cache: ResumeGenerationStageCache | None = None,
+    token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
 ) -> list[ProjectBulletPointResult]:
     bullet_config = _exclude_none(config.project_bullet_point_generation)
 
@@ -45,6 +47,7 @@ def generate_project_bullet_points(
                 endpoint="/generate-bulletpoints",
                 payload=payload,
                 namespace=project.id,
+                token_usage_monitor=token_usage_monitor,
             )
             results.append(
                 ProjectBulletPointResult(
@@ -63,6 +66,7 @@ def generate_experience_bullet_points(
     config: ResumeGenerationConfig,
     job_target: JobTarget,
     cache: ResumeGenerationStageCache | None = None,
+    token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
 ) -> list[ExperienceBulletPointResult]:
     bullet_config = _exclude_none(config.experience_bullet_point_generation)
 
@@ -89,6 +93,7 @@ def generate_experience_bullet_points(
                 endpoint="/generate-bulletpoints",
                 payload=payload,
                 namespace=item.id,
+                token_usage_monitor=token_usage_monitor,
             )
             results.append(
                 ExperienceBulletPointResult(

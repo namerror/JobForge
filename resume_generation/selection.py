@@ -20,6 +20,10 @@ from resume_generation.models import (
     ResumeSelectionContext,
     SkillSelectionResult,
 )
+from resume_generation.token_usage import (
+    ResumeGenerationTokenUsageMonitor,
+    extract_response_token_usage,
+)
 
 
 logger = logging.getLogger("resume_generation")
@@ -108,9 +112,13 @@ def _cached_post_json(
     endpoint: str,
     payload: dict[str, Any],
     namespace: str | None = None,
+    token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
 ) -> dict[str, Any]:
     if cache is None:
         data = _post_json(client, endpoint, payload)
+        token_usage = extract_response_token_usage(stage, data)
+        if token_usage_monitor is not None:
+            token_usage_monitor.observe(stage, token_usage)
         logger.info(
             "resume_generation_stage_response",
             extra={
@@ -121,6 +129,7 @@ def _cached_post_json(
                 "source": "http",
                 "cache_status": "disabled",
                 "cache_key": None,
+                **token_usage.model_dump(),
             },
         )
         return data
@@ -131,6 +140,9 @@ def _cached_post_json(
         namespace=namespace,
         fetch=lambda: _post_json(client, endpoint, payload),
     )
+    token_usage = extract_response_token_usage(stage, result.data)
+    if token_usage_monitor is not None:
+        token_usage_monitor.observe(stage, token_usage)
     logger.info(
         "resume_generation_stage_response",
         extra={
@@ -147,6 +159,7 @@ def _cached_post_json(
                 else "miss"
             ),
             "cache_key": result.cache_key,
+            **token_usage.model_dump(),
         },
     )
     return result.data
@@ -161,6 +174,7 @@ def generate_selection_context(
     job_target_path: Path | str = DEFAULT_JOB_TARGET_PATH,
     evidence_paths: Mapping[str, Path | str] | None = None,
     cache: ResumeGenerationStageCache | None = None,
+    token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
 ) -> ResumeSelectionContext:
     merged_evidence_paths = dict(DEFAULT_EVIDENCE_PATHS)
     if evidence_paths is not None:
@@ -189,6 +203,7 @@ def generate_selection_context(
                 skills_file=skills_file,
                 config=config,
             ),
+            token_usage_monitor=token_usage_monitor,
         )
         project_response = _cached_post_json(
             cache=cache,
@@ -200,6 +215,7 @@ def generate_selection_context(
                 projects_file=projects_file,
                 config=config,
             ),
+            token_usage_monitor=token_usage_monitor,
         )
 
     project_selection = ProjectSelectionResult.model_validate(project_response)

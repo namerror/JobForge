@@ -34,6 +34,7 @@ from resume_generation import (
 )
 from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.main import run_resume_generation_pipeline, write_resume_result_artifact
+from resume_generation.token_usage import extract_response_token_usage
 from resume_evidence import load_evidence_yaml
 
 
@@ -253,6 +254,15 @@ def _install_successful_pipeline_client(monkeypatch, calls: list[dict]) -> None:
                         "technology": ["FastAPI"],
                         "programming": ["Python"],
                         "concepts": ["API"],
+                        "details": {
+                            "_llm": {
+                                "prompt_tokens": 10,
+                                "completion_tokens": 5,
+                                "total_tokens": 15,
+                                "api_calls": 1,
+                                "latency_ms": 100.125,
+                            }
+                        },
                     },
                 )
             if endpoint == "/select-projects":
@@ -267,13 +277,33 @@ def _install_successful_pipeline_client(monkeypatch, calls: list[dict]) -> None:
                                 "method": "llm",
                             }
                         ],
+                        "details": {
+                            "_project_llm": {
+                                "prompt_tokens": 20,
+                                "completion_tokens": 10,
+                                "total_tokens": 30,
+                                "api_calls": 1,
+                                "latency_ms": 200.25,
+                            }
+                        },
                     },
                 )
             if endpoint == "/generate-bulletpoints":
                 evidence_id = project_id or experience_id
                 return httpx.Response(
                     200,
-                    json={"bullet_points": [f"Generated bullet for {evidence_id}."]},
+                    json={
+                        "bullet_points": [f"Generated bullet for {evidence_id}."],
+                        "details": {
+                            "_bulletpoints_llm": {
+                                "prompt_tokens": 4,
+                                "completion_tokens": 3,
+                                "total_tokens": 7,
+                                "api_calls": 1,
+                                "latency_ms": 25.0,
+                            }
+                        },
+                    },
                 )
             raise AssertionError(f"unexpected endpoint: {endpoint}")
 
@@ -720,7 +750,18 @@ def test_cached_project_bullet_generation_logs_response_source(
             calls.append(endpoint)
             return httpx.Response(
                 200,
-                json={"bullet_points": ["Generated bullet for active-project."]},
+                json={
+                    "bullet_points": ["Generated bullet for active-project."],
+                    "details": {
+                        "_bulletpoints_llm": {
+                            "prompt_tokens": 6,
+                            "completion_tokens": 4,
+                            "total_tokens": 10,
+                            "api_calls": 1,
+                            "latency_ms": 50.5,
+                        }
+                    },
+                },
             )
 
     monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
@@ -752,7 +793,65 @@ def test_cached_project_bullet_generation_logs_response_source(
         ("project_bullet_points", "http", "miss", "/generate-bulletpoints"),
         ("project_bullet_points", "cache", "hit", "/generate-bulletpoints"),
     ]
+    assert [
+        (
+            record.prompt_tokens,
+            record.completion_tokens,
+            record.total_tokens,
+            record.api_calls,
+            record.latency_ms,
+        )
+        for record in response_records
+    ] == [
+        (6, 4, 10, 1, 50.5),
+        (6, 4, 10, 1, 50.5),
+    ]
     assert all(record.cache_key for record in response_records)
+
+
+def test_extract_response_token_usage_reads_stage_metadata():
+    skill_usage = extract_response_token_usage(
+        "skill_selection",
+        {
+            "details": {
+                "_llm": {
+                    "prompt_tokens": "11",
+                    "completion_tokens": 7,
+                    "total_tokens": 18,
+                    "api_calls": 1,
+                    "latency_ms": "31.25",
+                }
+            }
+        },
+    )
+    project_usage = extract_response_token_usage(
+        "project_selection",
+        {"details": {"_project_llm": {"total_tokens": 22}}},
+    )
+    link_usage = extract_response_token_usage(
+        "link_scanning",
+        {"details": {"_link_scanning_llm": {"total_tokens": 33}}},
+    )
+    bullet_usage = extract_response_token_usage(
+        "experience_bullet_points",
+        {"details": {"_bulletpoints_llm": {"total_tokens": 44}}},
+    )
+    missing_usage = extract_response_token_usage(
+        "project_bullet_points",
+        {"details": {"_bulletpoints_llm": {"total_tokens": "not-a-number"}}},
+    )
+
+    assert skill_usage.model_dump() == {
+        "prompt_tokens": 11,
+        "completion_tokens": 7,
+        "total_tokens": 18,
+        "api_calls": 1,
+        "latency_ms": 31.25,
+    }
+    assert project_usage.total_tokens == 22
+    assert link_usage.total_tokens == 33
+    assert bullet_usage.total_tokens == 44
+    assert missing_usage.total_tokens == 0
 
 
 def test_enrich_projects_with_link_scanning_posts_linked_projects_and_merges_patch(
@@ -1739,6 +1838,66 @@ def test_resume_generation_pipeline_logs_stage_events(monkeypatch, tmp_path, cap
     assert ("resume_generation_stage_complete", "assembly") in stage_events
     assert ("resume_generation_artifact_written", None) in stage_events
     assert ("resume_generation_pipeline_complete", None) in stage_events
+    skipped_link_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "resume_generation_stage_skipped"
+        and getattr(record, "stage", None) == "link_scanning"
+    ]
+    assert skipped_link_records[0].total_tokens == 0
+
+
+def test_resume_generation_pipeline_logs_token_usage_summary(
+    monkeypatch,
+    tmp_path,
+    caplog,
+):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[dict] = []
+
+    _install_successful_pipeline_client(monkeypatch, calls)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    with caplog.at_level(logging.INFO, logger="resume_generation"):
+        run_resume_generation_pipeline(
+            config_path=config_path,
+            job_target_path=job_path,
+            evidence_paths={"projects": projects_path, "skills": skills_path},
+        )
+
+    stage_complete = {
+        record.stage: record
+        for record in caplog.records
+        if getattr(record, "event", None) == "resume_generation_stage_complete"
+    }
+    assert stage_complete["selection"].total_tokens == 45
+    assert stage_complete["project_bullet_points"].total_tokens == 7
+    assert stage_complete["experience_bullet_points"].total_tokens == 7
+    assert stage_complete["assembly"].total_tokens == 0
+
+    summaries = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "resume_generation_token_usage_summary"
+    ]
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.stages["selection"]["total_tokens"] == 45
+    assert summary.stages["skill_selection"]["total_tokens"] == 15
+    assert summary.stages["project_selection"]["total_tokens"] == 30
+    assert summary.stages["link_scanning"]["total_tokens"] == 0
+    assert summary.stages["project_bullet_points"]["total_tokens"] == 7
+    assert summary.stages["experience_bullet_points"]["total_tokens"] == 7
+    assert summary.stages["assembly"]["total_tokens"] == 0
+    assert summary.total["total_tokens"] == 59
+    assert summary.total["api_calls"] == 4
 
 
 def test_resume_generation_pipeline_cache_misses_when_job_target_changes(

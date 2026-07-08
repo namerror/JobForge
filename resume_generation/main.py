@@ -25,12 +25,23 @@ from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.link_scanning import enrich_projects_with_link_scanning
 from resume_generation.models import IntermediateResumeResult
 from resume_generation.selection import generate_selection_context
+from resume_generation.token_usage import ResumeGenerationTokenUsageMonitor, TokenUsage
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESUME_RESULT_ARTIFACT_PATH = (
     _REPO_ROOT / "user" / "resume_generation" / "resume_result.json"
 )
 logger = logging.getLogger("resume_generation")
+
+
+def _token_usage_extra(usage: TokenUsage) -> dict[str, int | float]:
+    return {
+        "prompt_tokens": usage.prompt_tokens,
+        "completion_tokens": usage.completion_tokens,
+        "total_tokens": usage.total_tokens,
+        "api_calls": usage.api_calls,
+        "latency_ms": round(usage.latency_ms, 3),
+    }
 
 
 def write_resume_result_artifact(
@@ -70,6 +81,7 @@ def run_resume_generation_pipeline(
         config.cache,
         config_path=config_path,
     )
+    token_usage_monitor = ResumeGenerationTokenUsageMonitor()
 
     _user_info = loaded_evidence.get("user")
     if not isinstance(_user_info, UserInfoFile):
@@ -96,6 +108,7 @@ def run_resume_generation_pipeline(
         job_target_path=job_target_path,
         evidence_paths=evidence_paths,
         cache=cache,
+        token_usage_monitor=token_usage_monitor,
     )
     logger.info(
         "resume_generation_stage_complete",
@@ -103,6 +116,11 @@ def run_resume_generation_pipeline(
             "event": "resume_generation_stage_complete",
             "stage": "selection",
             "selected_project_count": len(context.selected_projects),
+            **_token_usage_extra(
+                token_usage_monitor.combined_total(
+                    ("skill_selection", "project_selection")
+                )
+            ),
         },
     )
 
@@ -125,6 +143,7 @@ def run_resume_generation_pipeline(
                 "event": "resume_generation_stage_skipped",
                 "stage": "link_scanning",
                 "reason": "disabled",
+                **_token_usage_extra(TokenUsage()),
             },
         )
     enriched_projects = enrich_projects_with_link_scanning(
@@ -132,6 +151,7 @@ def run_resume_generation_pipeline(
         config=config,
         job_target=job_target,
         cache=cache,
+        token_usage_monitor=token_usage_monitor,
     )
     if config.link_scanning.enabled:
         logger.info(
@@ -140,6 +160,7 @@ def run_resume_generation_pipeline(
                 "event": "resume_generation_stage_complete",
                 "stage": "link_scanning",
                 "project_count": len(enriched_projects),
+                **_token_usage_extra(token_usage_monitor.stage_total("link_scanning")),
             },
         )
 
@@ -156,6 +177,7 @@ def run_resume_generation_pipeline(
         config=config,
         job_target=job_target,
         cache=cache,
+        token_usage_monitor=token_usage_monitor,
     )
     logger.info(
         "resume_generation_stage_complete",
@@ -163,6 +185,9 @@ def run_resume_generation_pipeline(
             "event": "resume_generation_stage_complete",
             "stage": "project_bullet_points",
             "result_count": len(bullet_points),
+            **_token_usage_extra(
+                token_usage_monitor.stage_total("project_bullet_points")
+            ),
         },
     )
 
@@ -180,6 +205,7 @@ def run_resume_generation_pipeline(
         config=config,
         job_target=job_target,
         cache=cache,
+        token_usage_monitor=token_usage_monitor,
     )
     logger.info(
         "resume_generation_stage_complete",
@@ -187,6 +213,9 @@ def run_resume_generation_pipeline(
             "event": "resume_generation_stage_complete",
             "stage": "experience_bullet_points",
             "result_count": len(experience_bullet_points),
+            **_token_usage_extra(
+                token_usage_monitor.stage_total("experience_bullet_points")
+            ),
         },
     )
 
@@ -207,7 +236,11 @@ def run_resume_generation_pipeline(
     )
     logger.info(
         "resume_generation_stage_complete",
-        extra={"event": "resume_generation_stage_complete", "stage": "assembly"},
+        extra={
+            "event": "resume_generation_stage_complete",
+            "stage": "assembly",
+            **_token_usage_extra(TokenUsage()),
+        },
     )
 
     artifact_path = write_resume_result_artifact(resume_result, resume_result_artifact_path)
@@ -220,6 +253,14 @@ def run_resume_generation_pipeline(
     )
 
     # TODO: output LaTeX format resume, this is the final output for now, but in the future we can also output other formats like PDF, Word, etc.
+
+    logger.info(
+        "resume_generation_token_usage_summary",
+        extra={
+            "event": "resume_generation_token_usage_summary",
+            **token_usage_monitor.summary(),
+        },
+    )
 
     logger.info(
         "resume_generation_pipeline_complete",

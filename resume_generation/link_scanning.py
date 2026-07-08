@@ -12,6 +12,7 @@ from resume_generation.models import (
     ResumeGenerationConfig,
 )
 from resume_generation.selection import _cached_post_json
+from resume_generation.token_usage import ResumeGenerationTokenUsageMonitor
 
 
 def enrich_projects_with_link_scanning(
@@ -20,6 +21,7 @@ def enrich_projects_with_link_scanning(
     config: ResumeGenerationConfig,
     job_target: JobTarget,
     cache: ResumeGenerationStageCache | None = None,
+    token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
 ) -> list[ProjectRecord]:
     projects = list(selected_projects)
     if not config.link_scanning.enabled:
@@ -52,6 +54,7 @@ def enrich_projects_with_link_scanning(
                 endpoint="/scan-link",
                 payload={key: value for key, value in payload.items() if value is not None},
                 namespace=project.id,
+                token_usage_monitor=token_usage_monitor,
             )
             scan_result = ProjectLinkScanResult.model_validate(response)
             enriched_projects.append(_apply_link_scan_result(project, scan_result))
