@@ -27,6 +27,7 @@ from resume_generation.models import (
     ResumeEducationItem,
     ResumeExperienceItem,
     ResumeGenerationConfig,
+    ResumeOutputConfig,
     ResumeProjectItem,
     ResumeSelectionContext,
     ResumeSkillsSection,
@@ -39,6 +40,13 @@ from resume_generation.bullet_points import (
     generate_project_bullet_points,
 )
 from resume_generation.cache import ResumeGenerationStageCache, ResumeGenerationStageCacheResult
+from resume_generation.latex import (
+    DEFAULT_RESUME_TEX_ARTIFACT_PATH,
+    latex_escape,
+    render_resume_latex,
+    resolve_resume_latex_output_path,
+    write_resume_latex_artifact,
+)
 from resume_generation.link_scanning import enrich_projects_with_link_scanning
 from resume_generation.selection import (
     ResumeGenerationError,
@@ -49,6 +57,7 @@ from resume_generation.selection import (
 __all__ = [
     "DEFAULT_GENERATION_CONFIG_PATH",
     "DEFAULT_JOB_TARGET_PATH",
+    "DEFAULT_RESUME_TEX_ARTIFACT_PATH",
     "BulletCountRangeConfig",
     "BulletPointGenerationConfig",
     "ExperienceBulletPointResult",
@@ -67,6 +76,7 @@ __all__ = [
     "ResumeExperienceItem",
     "ResumeGenerationConfig",
     "ResumeGenerationError",
+    "ResumeOutputConfig",
     "ResumeProjectItem",
     "ResumeSelectionContext",
     "ResumeSkillsSection",
@@ -79,6 +89,10 @@ __all__ = [
     "generate_experience_bullet_points",
     "generate_project_bullet_points",
     "generate_selection_context",
+    "latex_escape",
     "load_generation_config",
     "load_job_target",
+    "render_resume_latex",
+    "resolve_resume_latex_output_path",
+    "write_resume_latex_artifact",
 ]

@@ -22,6 +22,7 @@ from resume_generation.bullet_points import (
     generate_project_bullet_points,
 )
 from resume_generation.cache import ResumeGenerationStageCache
+from resume_generation.latex import write_resume_latex_artifact
 from resume_generation.link_scanning import enrich_projects_with_link_scanning
 from resume_generation.models import IntermediateResumeResult
 from resume_generation.selection import generate_selection_context
@@ -65,7 +66,7 @@ def run_resume_generation_pipeline(
     job_target_path: Path | str = DEFAULT_JOB_TARGET_PATH,
     evidence_paths: dict[str, Path | str] | None = None,
     resume_result_artifact_path: Path | str = DEFAULT_RESUME_RESULT_ARTIFACT_PATH,
-) -> None:
+) -> IntermediateResumeResult:
     logger.info(
         "resume_generation_pipeline_start",
         extra={
@@ -252,8 +253,6 @@ def run_resume_generation_pipeline(
         },
     )
 
-    # TODO: output LaTeX format resume, this is the final output for now, but in the future we can also output other formats like PDF, Word, etc.
-
     logger.info(
         "resume_generation_token_usage_summary",
         extra={
@@ -266,8 +265,30 @@ def run_resume_generation_pipeline(
         "resume_generation_pipeline_complete",
         extra={"event": "resume_generation_pipeline_complete"},
     )
-    return None
+
+    return resume_result
+
+
+def write_resume_latex_from_config(
+    resume_result: IntermediateResumeResult,
+    *,
+    config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
+) -> Path:
+    config = load_generation_config(config_path)
+    artifact_path = write_resume_latex_artifact(
+        resume_result,
+        config.resume_output.path,
+    )
+    logger.info(
+        "resume_generation_latex_artifact_written",
+        extra={
+            "event": "resume_generation_latex_artifact_written",
+            "path": str(artifact_path),
+        },
+    )
+    return artifact_path
 
 
 if __name__ == "__main__":
-    run_resume_generation_pipeline()
+    resume_result = run_resume_generation_pipeline()
+    write_resume_latex_from_config(resume_result)

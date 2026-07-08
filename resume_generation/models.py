@@ -186,6 +186,18 @@ class ResumeGenerationCacheConfig(StrictSchemaModel):
         return normalized
 
 
+class ResumeOutputConfig(StrictSchemaModel):
+    path: str | None = None
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
 class ResumeGenerationConfig(StrictSchemaModel):
     schema_version: Literal[1]
     app: GenerationAppConfig = Field(default_factory=GenerationAppConfig)
@@ -199,6 +211,7 @@ class ResumeGenerationConfig(StrictSchemaModel):
         default_factory=BulletPointGenerationConfig
     )
     cache: ResumeGenerationCacheConfig = Field(default_factory=ResumeGenerationCacheConfig)
+    resume_output: ResumeOutputConfig = Field(default_factory=ResumeOutputConfig)
 
     @model_validator(mode="before")
     @classmethod

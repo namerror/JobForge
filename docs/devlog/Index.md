@@ -13,6 +13,8 @@
 
 ## Session Index
 
+- `07-08-2026-Codex-document-resume-generation-usage.md` - 2026-07-08 - Document resume generation usage
+- `07-08-2026-Codex-latex-resume-output.md` - 2026-07-08 - LaTeX resume output
 - `07-08-2026-Codex-resume-generation-token-monitoring.md` - 2026-07-08 - Resume generation token monitoring
 - `06-25-2026-Codex-experience-cli-selection-editor.md` - 2026-06-25 - Add experience CLI selection editor
 - `06-24-2026-Codex-modular-resume-generation-cache-logging.md` - 2026-06-24 - Modular resume generation cache logging

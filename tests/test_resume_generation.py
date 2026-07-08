@@ -15,6 +15,7 @@ from app.main import app
 from app.project_selection.llm_client import LLMProjectScoreResult
 from app.skill_selection.llm_client import LLMScoreResult
 from resume_generation import (
+    DEFAULT_RESUME_TEX_ARTIFACT_PATH,
     ExperienceBulletPointResult,
     IntermediateResumeResult,
     ProjectBulletPointResult,
@@ -29,11 +30,19 @@ from resume_generation import (
     generate_project_bullet_points,
     enrich_projects_with_link_scanning,
     generate_selection_context,
+    latex_escape,
     load_generation_config,
     load_job_target,
+    render_resume_latex,
+    resolve_resume_latex_output_path,
+    write_resume_latex_artifact,
 )
 from resume_generation.cache import ResumeGenerationStageCache
-from resume_generation.main import run_resume_generation_pipeline, write_resume_result_artifact
+from resume_generation.main import (
+    run_resume_generation_pipeline,
+    write_resume_latex_from_config,
+    write_resume_result_artifact,
+)
 from resume_generation.token_usage import extract_response_token_usage
 from resume_evidence import load_evidence_yaml
 
@@ -224,6 +233,54 @@ def _loaded_evidence(
     }
 
 
+def _sample_intermediate_resume_result() -> IntermediateResumeResult:
+    return IntermediateResumeResult.model_validate(
+        {
+            "top": {
+                "name": "Example Candidate",
+                "phone": "+1 555-0100",
+                "email": "candidate_name@example.com",
+                "github": "https://github.com/example-candidate",
+            },
+            "education": [
+                {
+                    "name": "Example & University",
+                    "degree": "Bachelor of Science in Computer Science",
+                    "grade": "3.8 GPA",
+                    "start": "2020",
+                    "end": "2024",
+                    "location": "Example City, ST",
+                    "relevant_coursework": ["Data Structures", "Algorithms"],
+                }
+            ],
+            "experience": [
+                {
+                    "name": "Example Company",
+                    "role": "Backend Engineer",
+                    "bullet_points": ["Designed schema-validated APIs & workers."],
+                    "skills": ["FastAPI", "Python"],
+                    "location": "Example City, ST",
+                    "start": "2024",
+                    "end": None,
+                }
+            ],
+            "projects": [
+                {
+                    "name": "Active Project",
+                    "bullet_points": ["Generated bullet for active_project."],
+                    "skills": ["FastAPI", "Python", "API"],
+                    "links": ["https://example.com/active"],
+                }
+            ],
+            "skills": {
+                "technology": ["FastAPI"],
+                "programming": ["Python"],
+                "concepts": ["API"],
+            },
+        }
+    )
+
+
 def _install_successful_pipeline_client(monkeypatch, calls: list[dict]) -> None:
     class FakeClient:
         def __init__(self, *, base_url: str, timeout: float):
@@ -335,6 +392,10 @@ def test_load_generation_config_returns_typed_config(tmp_path):
     assert config.experience_bullet_point_generation.bullet_count_range.min == 1
     assert config.cache.enabled is False
     assert config.cache.force_refresh is False
+    assert config.resume_output.path is None
+    assert resolve_resume_latex_output_path(config.resume_output.path) == (
+        DEFAULT_RESUME_TEX_ARTIFACT_PATH
+    )
 
 
 def test_load_generation_config_accepts_cache_config(tmp_path):
@@ -354,6 +415,33 @@ def test_load_generation_config_accepts_cache_config(tmp_path):
     assert config.cache.enabled is True
     assert config.cache.path == str(tmp_path / "cache")
     assert config.cache.force_refresh is True
+
+
+def test_load_generation_config_accepts_resume_output_path(tmp_path):
+    output_path = tmp_path / "resume.tex"
+    path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(resume_output={"path": str(output_path)}),
+    )
+
+    config = load_generation_config(path)
+
+    assert config.resume_output.path == str(output_path)
+    assert resolve_resume_latex_output_path(config.resume_output.path) == output_path
+
+
+def test_load_generation_config_defaults_blank_resume_output_path(tmp_path):
+    path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(resume_output={"path": "   "}),
+    )
+
+    config = load_generation_config(path)
+
+    assert config.resume_output.path is None
+    assert resolve_resume_latex_output_path(config.resume_output.path) == (
+        DEFAULT_RESUME_TEX_ARTIFACT_PATH
+    )
 
 
 def test_resume_generation_stage_cache_reuses_exact_payload(tmp_path):
@@ -1125,6 +1213,93 @@ def test_write_resume_result_artifact_writes_human_readable_json(tmp_path):
     ]
 
 
+def test_latex_escape_escapes_reserved_characters():
+    assert latex_escape("&%$_#{}") == r"\&\%\$\_\#\{\}"
+    assert latex_escape("Path \\ value ~ caret ^") == (
+        r"Path \textbackslash{} value \textasciitilde{} caret \textasciicircum{}"
+    )
+
+
+def test_render_resume_latex_uses_template_sections_and_runtime_result():
+    resume_result = _sample_intermediate_resume_result()
+
+    rendered = render_resume_latex(resume_result)
+
+    assert rendered.startswith("\\documentclass[letterpaper,9pt]{article}")
+    assert rendered.endswith("\\end{document}\n")
+    assert "\\section{Education}" in rendered
+    assert "\\section{Experience}" in rendered
+    assert "\\section{Projects}" in rendered
+    assert "\\section{Technical Skills}" in rendered
+    assert r"\textbf{\Large \scshape Example Candidate}" in rendered
+    assert r"{\seticon{faEnvelope} candidate\_name@example.com}" in rendered
+    assert r"{\seticon{faGithub} \underline{github.com/example-candidate}}" in rendered
+    assert "faLinkedin" not in rendered
+    assert "faGlobe" not in rendered
+    assert r"{Example \& University}{2020 -- 2024}" in rendered
+    assert (
+        r"\resumeItem{\textbf{Relevant Coursework:} Data Structures, Algorithms}"
+        in rendered
+    )
+    assert (
+        r"{Backend Engineer $|$ \emph{FastAPI, Python}}{Example City, ST}"
+        in rendered
+    )
+    assert r"\resumeItem{Designed schema-validated APIs \& workers.}" in rendered
+    assert (
+        r"{\textbf{Active Project} $|$ \emph{FastAPI, Python, API}}{}"
+        in rendered
+    )
+    assert r"\resumeItem{Generated bullet for active\_project.}" in rendered
+    assert (
+        rendered.index("\\section{Education}")
+        < rendered.index("\\section{Experience}")
+        < rendered.index("\\section{Projects}")
+        < rendered.index("\\section{Technical Skills}")
+    )
+
+
+def test_write_resume_latex_artifact_writes_tex_file(tmp_path):
+    resume_result = _sample_intermediate_resume_result()
+    artifact_path = tmp_path / "artifacts" / "resume.tex"
+
+    written_path = write_resume_latex_artifact(resume_result, artifact_path)
+
+    assert written_path == artifact_path
+    rendered = artifact_path.read_text(encoding="utf-8")
+    assert rendered.startswith("\\documentclass[letterpaper,9pt]{article}")
+    assert rendered.endswith("\\end{document}\n")
+    assert "\\section{Projects}" in rendered
+
+
+def test_write_resume_latex_from_config_writes_configured_output(
+    tmp_path,
+    caplog,
+):
+    resume_result = _sample_intermediate_resume_result()
+    output_path = tmp_path / "out" / "resume.tex"
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(resume_output={"path": str(output_path)}),
+    )
+
+    with caplog.at_level(logging.INFO, logger="resume_generation"):
+        written_path = write_resume_latex_from_config(
+            resume_result,
+            config_path=config_path,
+        )
+
+    assert written_path == output_path
+    assert output_path.read_text(encoding="utf-8").endswith("\\end{document}\n")
+    records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "resume_generation_latex_artifact_written"
+    ]
+    assert len(records) == 1
+    assert records[0].path == str(output_path)
+
+
 def test_generate_project_bullet_points_wraps_http_errors(monkeypatch, tmp_path):
     config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
     job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
@@ -1498,7 +1673,7 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
         "/generate-bulletpoints",
         "assemble",
     ]
-    assert result is None
+    assert result.top.name == "Example Candidate"
     artifact_payload = json.loads(artifact_path.read_text(encoding="utf-8"))
     assert artifact_payload["top"]["name"] == "Example Candidate"
     assert artifact_payload["projects"][0]["bullet_points"] == [
@@ -2246,7 +2421,7 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
     ]
     assert bullet_payloads[0]["project"]["skills"]["technology"] == ["FastAPI"]
     assert bullet_payloads[1]["experience"]["id"] == "backend-engineer"
-    assert result is None
+    assert result.projects[0].bullet_points == ["Generated bullet for active-project."]
 
 
 def api_request(method: str, path: str, **kwargs):
