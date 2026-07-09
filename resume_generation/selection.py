@@ -113,23 +113,29 @@ def _cached_post_json(
     payload: dict[str, Any],
     namespace: str | None = None,
     token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
+    stage_response_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if cache is None:
         data = _post_json(client, endpoint, payload)
         token_usage = extract_response_token_usage(stage, data)
         if token_usage_monitor is not None:
             token_usage_monitor.observe(stage, token_usage)
+        record = {
+            "stage": stage,
+            "endpoint": endpoint,
+            "namespace": namespace,
+            "source": "http",
+            "cache_status": "disabled",
+            "cache_key": None,
+            **token_usage.model_dump(),
+        }
+        if stage_response_records is not None:
+            stage_response_records.append(record)
         logger.info(
             "resume_generation_stage_response",
             extra={
                 "event": "resume_generation_stage_response",
-                "stage": stage,
-                "endpoint": endpoint,
-                "namespace": namespace,
-                "source": "http",
-                "cache_status": "disabled",
-                "cache_key": None,
-                **token_usage.model_dump(),
+                **record,
             },
         )
         return data
@@ -143,23 +149,29 @@ def _cached_post_json(
     token_usage = extract_response_token_usage(stage, result.data)
     if token_usage_monitor is not None:
         token_usage_monitor.observe(stage, token_usage)
+    cache_status = (
+        "hit"
+        if result.source == "cache"
+        else "refresh"
+        if cache.force_refresh
+        else "miss"
+    )
+    record = {
+        "stage": stage,
+        "endpoint": endpoint,
+        "namespace": namespace,
+        "source": result.source,
+        "cache_status": cache_status,
+        "cache_key": result.cache_key,
+        **token_usage.model_dump(),
+    }
+    if stage_response_records is not None:
+        stage_response_records.append(record)
     logger.info(
         "resume_generation_stage_response",
         extra={
             "event": "resume_generation_stage_response",
-            "stage": stage,
-            "endpoint": endpoint,
-            "namespace": namespace,
-            "source": result.source,
-            "cache_status": (
-                "hit"
-                if result.source == "cache"
-                else "refresh"
-                if cache.force_refresh
-                else "miss"
-            ),
-            "cache_key": result.cache_key,
-            **token_usage.model_dump(),
+            **record,
         },
     )
     return result.data
@@ -175,6 +187,7 @@ def generate_selection_context(
     evidence_paths: Mapping[str, Path | str] | None = None,
     cache: ResumeGenerationStageCache | None = None,
     token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
+    stage_response_records: list[dict[str, Any]] | None = None,
 ) -> ResumeSelectionContext:
     merged_evidence_paths = dict(DEFAULT_EVIDENCE_PATHS)
     if evidence_paths is not None:
@@ -204,6 +217,7 @@ def generate_selection_context(
                 config=config,
             ),
             token_usage_monitor=token_usage_monitor,
+            stage_response_records=stage_response_records,
         )
         project_response = _cached_post_json(
             cache=cache,
@@ -216,6 +230,7 @@ def generate_selection_context(
                 config=config,
             ),
             token_usage_monitor=token_usage_monitor,
+            stage_response_records=stage_response_records,
         )
 
     project_selection = ProjectSelectionResult.model_validate(project_response)

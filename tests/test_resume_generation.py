@@ -663,6 +663,7 @@ def test_generate_selection_context_posts_evidence_payloads(monkeypatch, tmp_pat
     assert [endpoint for endpoint, _ in requests] == ["/select-skills", "/select-projects"]
     assert requests[0][1]["llm_model"] == "skill-model"
     assert requests[1][1]["llm_model"] == "project-model"
+    assert requests[1][1]["top_n"] == 2
     assert [candidate["id"] for candidate in requests[1][1]["candidates"]] == ["active-project"]
     assert result.selected_skills.technology == ["FastAPI"]
     assert [project.id for project in result.selected_projects] == ["active-project"]
@@ -1568,7 +1569,11 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
                         "technology": ["FastAPI"],
                         "programming": ["Python"],
                         "concepts": ["API"],
-                        "details": {"method": "llm"},
+                        "details": {
+                            "method": "baseline",
+                            "_fallback_method": "baseline",
+                            "_llm": {"fallback": "baseline"},
+                        },
                     },
                 )
             if endpoint == "/select-projects":
@@ -1655,6 +1660,7 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
         fake_assemble_intermediate_resume_result,
     )
     artifact_path = tmp_path / "artifacts" / "resume_result.json"
+    manifest_path = tmp_path / "artifacts" / "resume_run_manifest.json"
 
     result = run_resume_generation_pipeline(
         config_path=config_path,
@@ -1664,6 +1670,7 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
             "skills": skills_path,
         },
         resume_result_artifact_path=artifact_path,
+        resume_run_manifest_artifact_path=manifest_path,
     )
 
     assert calls == [
@@ -1675,10 +1682,28 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
     ]
     assert result.top.name == "Example Candidate"
     artifact_payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert list(artifact_payload) == ["top", "education", "experience", "projects", "skills"]
     assert artifact_payload["top"]["name"] == "Example Candidate"
     assert artifact_payload["projects"][0]["bullet_points"] == [
         "Generated bullet for active-project."
     ]
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest_payload["schema_version"] == 1
+    assert manifest_payload["artifacts"]["resume_result"] == str(artifact_path)
+    assert manifest_payload["selection"]["skills"]["details"]["_fallback_method"] == "baseline"
+    assert manifest_payload["selection"]["project_selection"]["ranked_projects"] == [
+        {"method": "llm", "project_id": "active-project", "score": 1.0}
+    ]
+    assert [
+        (record["stage"], record["cache_status"], record["cache_key"])
+        for record in manifest_payload["stage_responses"]
+    ] == [
+        ("skill_selection", "disabled", None),
+        ("project_selection", "disabled", None),
+        ("project_bullet_points", "disabled", None),
+        ("experience_bullet_points", "disabled", None),
+    ]
+    assert "token_usage" in manifest_payload
     assert assembly_calls[0]["user_info"].name == "Example Candidate"
     assert assembly_calls[0]["education"].education[0].name == "Example University"
     assert assembly_calls[0]["experience"].experience[0].name == "Example Company"

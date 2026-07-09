@@ -1,10 +1,10 @@
 schema_version: 1
 app:
   base_url: http://127.0.0.1:8000
-  timeout_seconds: 30
+  timeout_seconds: 120
 skill_selection:
   method: llm
-  top_n: 10
+  top_n: 20
   baseline_filter: false
   dev_mode: true
   llm_model: gpt-5-mini
@@ -19,18 +19,20 @@ link_scanning:
   enabled: false
   dev_mode: true
   llm_model: gpt-5-mini
-  llm_max_output_tokens: 1200
+  llm_max_output_tokens: null
 project_bullet_point_generation:
   bullet_count_range: null
   dev_mode: true
   llm_model: gpt-5-mini
-  llm_max_output_tokens: 1200
+  llm_max_output_tokens: 3000
 experience_bullet_point_generation:
   bullet_count_range: null
   dev_mode: true
   llm_model: gpt-5-mini
-  llm_max_output_tokens: 1200
+  llm_max_output_tokens: 3000
 cache:
   enabled: true
   path: null
   force_refresh: false
+resume_output:
+  path: null

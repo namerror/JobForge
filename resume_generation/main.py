@@ -1,8 +1,10 @@
 # entry point for resume generation
 
+import json
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 from resume_evidence import (
     EducationFile,
@@ -24,13 +26,16 @@ from resume_generation.bullet_points import (
 from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.latex import write_resume_latex_artifact
 from resume_generation.link_scanning import enrich_projects_with_link_scanning
-from resume_generation.models import IntermediateResumeResult
+from resume_generation.models import IntermediateResumeResult, ResumeSelectionContext
 from resume_generation.selection import generate_selection_context
 from resume_generation.token_usage import ResumeGenerationTokenUsageMonitor, TokenUsage
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESUME_RESULT_ARTIFACT_PATH = (
     _REPO_ROOT / "user" / "resume_generation" / "resume_result.json"
+)
+DEFAULT_RESUME_RUN_MANIFEST_ARTIFACT_PATH = (
+    _REPO_ROOT / "user" / "resume_generation" / "resume_run_manifest.json"
 )
 logger = logging.getLogger("resume_generation")
 
@@ -60,12 +65,62 @@ def write_resume_result_artifact(
     return artifact_path
 
 
+def write_resume_run_manifest_artifact(
+    manifest: dict[str, Any],
+    path: Path | str = DEFAULT_RESUME_RUN_MANIFEST_ARTIFACT_PATH,
+) -> Path:
+    artifact_path = Path(path)
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = artifact_path.with_suffix(artifact_path.suffix + ".tmp")
+    tmp_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(tmp_path, artifact_path)
+    return artifact_path
+
+
+def build_resume_run_manifest(
+    *,
+    config_path: Path | str,
+    job_target_path: Path | str,
+    context: ResumeSelectionContext,
+    stage_response_records: list[dict[str, Any]],
+    token_usage_monitor: ResumeGenerationTokenUsageMonitor,
+    resume_result_artifact_path: Path | str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "inputs": {
+            "config_path": str(config_path),
+            "job_target_path": str(job_target_path),
+            "evidence_paths": {
+                schema_name: str(path)
+                for schema_name, path in sorted(context.evidence_paths.items())
+            },
+        },
+        "artifacts": {
+            "resume_result": str(resume_result_artifact_path),
+        },
+        "selection": {
+            "skills": context.selected_skills.model_dump(),
+            "project_selection": context.project_selection.model_dump(),
+            "selected_project_ids": [project.id for project in context.selected_projects],
+        },
+        "stage_responses": stage_response_records,
+        "token_usage": token_usage_monitor.summary(),
+    }
+
+
 def run_resume_generation_pipeline(
     *,
     config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
     job_target_path: Path | str = DEFAULT_JOB_TARGET_PATH,
     evidence_paths: dict[str, Path | str] | None = None,
     resume_result_artifact_path: Path | str = DEFAULT_RESUME_RESULT_ARTIFACT_PATH,
+    resume_run_manifest_artifact_path: Path | str = (
+        DEFAULT_RESUME_RUN_MANIFEST_ARTIFACT_PATH
+    ),
 ) -> IntermediateResumeResult:
     logger.info(
         "resume_generation_pipeline_start",
@@ -83,6 +138,7 @@ def run_resume_generation_pipeline(
         config_path=config_path,
     )
     token_usage_monitor = ResumeGenerationTokenUsageMonitor()
+    stage_response_records: list[dict[str, Any]] = []
 
     _user_info = loaded_evidence.get("user")
     if not isinstance(_user_info, UserInfoFile):
@@ -110,6 +166,7 @@ def run_resume_generation_pipeline(
         evidence_paths=evidence_paths,
         cache=cache,
         token_usage_monitor=token_usage_monitor,
+        stage_response_records=stage_response_records,
     )
     logger.info(
         "resume_generation_stage_complete",
@@ -153,6 +210,7 @@ def run_resume_generation_pipeline(
         job_target=job_target,
         cache=cache,
         token_usage_monitor=token_usage_monitor,
+        stage_response_records=stage_response_records,
     )
     if config.link_scanning.enabled:
         logger.info(
@@ -179,6 +237,7 @@ def run_resume_generation_pipeline(
         job_target=job_target,
         cache=cache,
         token_usage_monitor=token_usage_monitor,
+        stage_response_records=stage_response_records,
     )
     logger.info(
         "resume_generation_stage_complete",
@@ -207,6 +266,7 @@ def run_resume_generation_pipeline(
         job_target=job_target,
         cache=cache,
         token_usage_monitor=token_usage_monitor,
+        stage_response_records=stage_response_records,
     )
     logger.info(
         "resume_generation_stage_complete",
@@ -250,6 +310,25 @@ def run_resume_generation_pipeline(
         extra={
             "event": "resume_generation_artifact_written",
             "path": str(artifact_path),
+        },
+    )
+    manifest = build_resume_run_manifest(
+        config_path=config_path,
+        job_target_path=job_target_path,
+        context=context,
+        stage_response_records=stage_response_records,
+        token_usage_monitor=token_usage_monitor,
+        resume_result_artifact_path=artifact_path,
+    )
+    manifest_path = write_resume_run_manifest_artifact(
+        manifest,
+        resume_run_manifest_artifact_path,
+    )
+    logger.info(
+        "resume_generation_artifact_written",
+        extra={
+            "event": "resume_generation_artifact_written",
+            "path": str(manifest_path),
         },
     )
 

@@ -751,6 +751,49 @@ def test_baseline_select_skills_backend_engineer():
     assert "API" in result["concepts"], "API should be selected for backend"
 
 
+def test_baseline_select_skills_backend_api_target_prioritizes_specific_terms():
+    """Backend fallback should not let broad distractors crowd out API skills."""
+    result, _ = baseline_select_skills(
+        job_role="Python MCP Server Backend Engineer",
+        job_text=(
+            "Build Python APIs and local MCP servers with FastAPI, Docker, Git, Linux, "
+            "configuration, caching, and database-backed testing workflows."
+        ),
+        technology=[
+            "Docker",
+            "FastAPI",
+            "Git",
+            "Google Cloud",
+            "Linux",
+            "PyTorch",
+            "TensorFlow",
+        ],
+        programming=["C", "C#", "C++", "Java", "JavaScript", "Python"],
+        concepts=[
+            "API",
+            "Caching",
+            "Database Management",
+            "Deep Learning",
+            "REST API",
+            "Testing",
+        ],
+        top_n=4,
+    )
+
+    assert {"Docker", "FastAPI", "Git"}.issubset(result["technology"])
+    assert "PyTorch" not in result["technology"]
+    assert "TensorFlow" not in result["technology"]
+    assert "Python" in result["programming"]
+    if "C" in result["programming"]:
+        assert result["programming"].index("Python") < result["programming"].index("C")
+    assert set(result["concepts"]) == {
+        "API",
+        "Caching",
+        "Database Management",
+        "REST API",
+    }
+
+
 def test_baseline_select_skills_swe_intern():
     """Test role detection for 'SWE Intern' (should use general profile)."""
     technology = ["Git", "Docker", "AWS"]

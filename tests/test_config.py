@@ -50,7 +50,7 @@ def test_settings_scoped_defaults(monkeypatch):
     assert settings.SKILL_LLM_MAX_OUTPUT_TOKENS == 1200
     assert settings.PROJ_LLM_MAX_OUTPUT_TOKENS == 1200
     assert settings.BULLETPOINTS_LLM_MODEL == "gpt-5-mini"
-    assert settings.BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS == 1200
+    assert settings.BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS == 3000
     assert settings.BULLETPOINTS_DEFAULT_COUNT == 3
     assert settings.LINK_SCANNING_ENABLED is False
     assert settings.LINK_SCANNING_LLM_MODEL == "gpt-5-mini"

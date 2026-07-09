@@ -103,10 +103,9 @@ Must fix:
 Should improve:
 
 - Investigate why `gpt-5-mini` skill selection returned no `output_text`; project and bullet stages returned usable text under similar API usage.
-- Tighten baseline token matching so broad language matches such as `C` do not crowd out target-specific skills.
-- Set a project `top_n` for resume generation. Including every active project makes weak-fit projects look intentionally selected.
 
 Nice to have:
 
 - Record cache keys and stage timings in the reportable artifact.
 - Add an agentic runner for the resume-generation pipeline that saves config, raw stage responses, final JSON, and a short machine-readable verdict.
+- While currently bullet point is exactly 3 per item, consider making it flexible. This would allow LLM to generate more bullets for projects with more evidence and fewer for those with less, improving the overall quality of the resume.

@@ -84,6 +84,41 @@ def test_score_skills_with_llm_omits_temperature_for_gpt_5_mini(monkeypatch):
     assert "temperature" not in captured["kwargs"]
 
 
+def test_score_skills_with_llm_reads_structured_output_when_output_text_missing(monkeypatch):
+    class DummyResponses:
+        def create(self, **_kwargs):
+            return SimpleNamespace(
+                output=[
+                    SimpleNamespace(
+                        content=[
+                            SimpleNamespace(
+                                text='{"technology":{"FastAPI":3},"programming":{},"concepts":{}}'
+                            )
+                        ]
+                    )
+                ],
+                usage=SimpleNamespace(input_tokens=12, output_tokens=8, total_tokens=20),
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            self.responses = DummyResponses()
+
+    monkeypatch.setattr(llm_client, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(llm_client.settings, "OPENAI_API_KEY", "test-key")
+
+    result = score_skills_with_llm(
+        job_role="Backend Engineer",
+        job_text="Build FastAPI services.",
+        technology=["FastAPI"],
+        programming=[],
+        concepts=[],
+    )
+
+    assert result.scores["technology"]["FastAPI"] == 3
+    assert result.metadata["total_tokens"] == 20
+
+
 def test_score_skills_with_llm_rejects_invalid_json(monkeypatch):
     class DummyResponses:
         def create(self, **_kwargs):

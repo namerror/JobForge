@@ -22,6 +22,7 @@ def enrich_projects_with_link_scanning(
     job_target: JobTarget,
     cache: ResumeGenerationStageCache | None = None,
     token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
+    stage_response_records: list[dict] | None = None,
 ) -> list[ProjectRecord]:
     projects = list(selected_projects)
     if not config.link_scanning.enabled:
@@ -55,6 +56,7 @@ def enrich_projects_with_link_scanning(
                 payload={key: value for key, value in payload.items() if value is not None},
                 namespace=project.id,
                 token_usage_monitor=token_usage_monitor,
+                stage_response_records=stage_response_records,
             )
             scan_result = ProjectLinkScanResult.model_validate(response)
             enriched_projects.append(_apply_link_scan_result(project, scan_result))

@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     PROJ_LLM_MODEL: str = "gpt-5-mini"
     PROJ_LLM_MAX_OUTPUT_TOKENS: int = 1200
     BULLETPOINTS_LLM_MODEL: str = "gpt-5-mini"
-    BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS: int = 1200
+    BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS: int = 3000
     BULLETPOINTS_DEFAULT_COUNT: int = 3
     LINK_SCANNING_ENABLED: bool = False
     LINK_SCANNING_LLM_MODEL: str = "gpt-5-mini"

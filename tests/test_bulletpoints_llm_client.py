@@ -169,6 +169,66 @@ def test_generate_bulletpoints_with_llm_sends_strict_schema(monkeypatch):
     assert result.metadata["total_tokens"] == 30
 
 
+def test_generate_bulletpoints_with_llm_retries_malformed_json(monkeypatch):
+    captured_calls: list[dict] = []
+
+    class DummyResponses:
+        def create(self, **kwargs):
+            captured_calls.append(kwargs)
+            if len(captured_calls) == 1:
+                return SimpleNamespace(
+                    output_text='{"bullet_points":["Built an API"',
+                    usage=SimpleNamespace(
+                        input_tokens=20,
+                        output_tokens=120,
+                        total_tokens=140,
+                    ),
+                )
+            return SimpleNamespace(
+                output_text=json.dumps(
+                    {
+                        "bullet_points": [
+                            "Built FastAPI APIs for grounded resume generation.",
+                            "Validated user-authored evidence for tailored resumes.",
+                        ]
+                    }
+                ),
+                usage=SimpleNamespace(input_tokens=21, output_tokens=30, total_tokens=51),
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            self.responses = DummyResponses()
+
+    monkeypatch.setattr(bullet_llm_client, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(bullet_llm_client.settings, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        bullet_llm_client.settings,
+        "BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS",
+        444,
+    )
+
+    result = generate_bulletpoints_with_llm(
+        context=BulletJobContext(title="Backend Engineer"),
+        project=_project(),
+        count_range=BulletCountRange(min=2, max=2),
+    )
+
+    assert [call["max_output_tokens"] for call in captured_calls] == [444, 3000]
+    assert result.bullet_points == [
+        "Built FastAPI APIs for grounded resume generation.",
+        "Validated user-authored evidence for tailored resumes.",
+    ]
+    assert result.metadata["api_calls"] == 2
+    assert result.metadata["prompt_tokens"] == 41
+    assert result.metadata["completion_tokens"] == 150
+    assert result.metadata["total_tokens"] == 191
+    assert "valid JSON" in result.metadata["retry_reason"]
+    assert result.metadata["attempts"][0]["error"].startswith(
+        "Bullet-point LLM response was not valid JSON"
+    )
+
+
 def test_generate_bulletpoints_with_llm_uses_experience_schema_name(monkeypatch):
     captured = {}
 

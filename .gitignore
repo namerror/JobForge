@@ -10,6 +10,7 @@ user/resume_evidence/*
 !user/resume_evidence/experience.yaml
 user/resume_generation/cache/
 user/resume_generation/resume_result.json
+user/resume_generation/resume_run_manifest.json
 
 .vscode
 

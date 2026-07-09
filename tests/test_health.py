@@ -31,7 +31,7 @@ def test_health():
     assert data["project_selection"]["method"] == "llm"
     assert data["project_selection"]["top_n"] is None
     assert data["bulletpoints_generation"]["llm_model"] == "gpt-5-mini"
-    assert data["bulletpoints_generation"]["llm_max_output_tokens"] == 1200
+    assert data["bulletpoints_generation"]["llm_max_output_tokens"] == 3000
     assert data["bulletpoints_generation"]["default_count"] == 3
     assert data["link_scanning"]["enabled"] is False
     assert data["link_scanning"]["llm_model"] == "gpt-5-mini"

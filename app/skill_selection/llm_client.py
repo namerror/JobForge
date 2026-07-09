@@ -90,6 +90,48 @@ def _usage_metadata(response: Any) -> dict[str, int]:
     }
 
 
+def _extract_output_text(response: Any) -> str | None:
+    output_text = getattr(response, "output_text", None)
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    return _extract_text_from_part(getattr(response, "output", None))
+
+
+def _extract_text_from_part(part: Any) -> str | None:
+    if isinstance(part, str):
+        stripped = part.strip()
+        return stripped or None
+
+    if isinstance(part, list):
+        for item in part:
+            extracted = _extract_text_from_part(item)
+            if extracted is not None:
+                return extracted
+        return None
+
+    if isinstance(part, dict):
+        for key in ("output_text", "text"):
+            value = part.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+        for key in ("content", "output"):
+            extracted = _extract_text_from_part(part.get(key))
+            if extracted is not None:
+                return extracted
+        return None
+
+    for key in ("output_text", "text"):
+        value = getattr(part, key, None)
+        if isinstance(value, str) and value.strip():
+            return value
+    for key in ("content", "output"):
+        extracted = _extract_text_from_part(getattr(part, key, None))
+        if extracted is not None:
+            return extracted
+    return None
+
+
 def supports_temperature(model: str) -> bool:
     """Return whether this model accepts the Responses API temperature parameter."""
     return model not in TEMPERATURE_UNSUPPORTED_MODELS
@@ -190,7 +232,7 @@ def score_skills_with_llm(
         raise LLMClientError(f"LLM request failed: {exc}") from exc
 
     latency_ms = (time.perf_counter() - start) * 1000.0
-    output_text = getattr(response, "output_text", None)
+    output_text = _extract_output_text(response)
     if not output_text:
         raise LLMClientError("LLM response did not include output_text")
 
