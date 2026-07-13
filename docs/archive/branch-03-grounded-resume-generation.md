@@ -1,5 +1,7 @@
 # Branch 03: Grounded Resume Generation
 
+Legacy documentation - no need for further updates. This branch is now fully implemented and merged into the mainline repo. It is preserved here for historical context.
+
 ## Purpose
 
 Branch 03 is no longer only a forward-looking design space. The repo now includes the first implemented milestone of the grounded resume pipeline:

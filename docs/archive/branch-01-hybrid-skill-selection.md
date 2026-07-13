@@ -1,5 +1,7 @@
 # Branch 01: Baseline-Filtered Skill Selection
 
+Legacy documentation - no need for further updates. This branch is now fully implemented and merged into the mainline repo. It is preserved here for historical context.
+
 ## Purpose
 This branch is the next skill-selection upgrade. It stays within the current skill-selector service and does not start resume generation work yet.
 

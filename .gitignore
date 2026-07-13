@@ -11,6 +11,7 @@ user/resume_evidence/*
 user/resume_generation/cache/
 user/resume_generation/resume_result.json
 user/resume_generation/resume_run_manifest.json
+user/resume_generation/resume.tex
 
 .vscode
 

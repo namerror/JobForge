@@ -1,5 +1,7 @@
 # Branch 03: Project Selection Plan
 
+Legacy documentation - no need for further updates. This branch is now fully implemented and merged into the mainline repo. It is preserved here for historical context.
+
 ## Purpose
 
 This milestone adds the first project-ranking layer for the grounded resume evidence pipeline. It selects user-provided project candidates for a job target without generating resume prose or changing evidence files.
