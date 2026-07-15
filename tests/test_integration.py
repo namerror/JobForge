@@ -146,7 +146,20 @@ def test_select_skills_llm_failure_falls_back_to_baseline(monkeypatch):
 def test_select_skills_llm_fallback_counts_baseline_usage(monkeypatch):
     """Fallback responses should increment baseline usage, not the failed method."""
     def raise_client_error(**_kwargs):
-        raise LLMClientError("simulated outage")
+        raise LLMClientError(
+            "simulated outage",
+            metadata={
+                "model": "test-model",
+                "api_calls": 2,
+                "prompt_tokens": 11,
+                "completion_tokens": 12,
+                "total_tokens": 23,
+                "attempts": [
+                    {"attempt": 1, "max_output_tokens": 1200, "total_tokens": 12},
+                    {"attempt": 2, "max_output_tokens": 3000, "total_tokens": 11},
+                ],
+            },
+        )
 
     monkeypatch.setattr(llm_scorer, "score_skills_with_llm", raise_client_error)
     before = api_request("GET", "/metrics-lite").json()
@@ -156,6 +169,7 @@ def test_select_skills_llm_fallback_counts_baseline_usage(monkeypatch):
     assert res.status_code == 200
     after = api_request("GET", "/metrics-lite").json()
     assert after["requests_total"] == before["requests_total"] + 1
+    assert after["total_tokens"] == before["total_tokens"] + 23
     assert after["method_usage"].get("baseline", 0) == before["method_usage"].get("baseline", 0) + 1
     assert after["method_usage"].get("llm", 0) == before["method_usage"].get("llm", 0)
 

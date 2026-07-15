@@ -25,6 +25,7 @@ def _fallback_to_baseline(
     top_n: int | None,
     dev_mode: bool,
     warning: str,
+    llm_metadata: dict[str, Any] | None = None,
 ) -> tuple[dict, dict | None]:
     selected, details = baseline_select_skills(
         job_role=job_role,
@@ -40,7 +41,10 @@ def _fallback_to_baseline(
         warnings = details.setdefault("_warnings", [])
         warnings.append(warning)
         details["_fallback_method"] = "baseline"
-        details["_llm"] = {"fallback": "baseline", "reason": warning}
+        fallback_metadata = dict(llm_metadata or {})
+        fallback_metadata["fallback"] = "baseline"
+        fallback_metadata["reason"] = warning
+        details["_llm"] = fallback_metadata
     return selected, details if dev_mode else None
 
 
@@ -116,6 +120,7 @@ def llm_select_skills(
         "concepts": concepts,
     }
 
+    llm_result = None
     try:
         llm_result = score_skills_with_llm(
             job_role=job_role,
@@ -128,9 +133,21 @@ def llm_select_skills(
         )
         scores, warnings = _validate_scores(llm_result.scores, category_inputs)
     except (LLMClientError, LLMValidationError) as exc:
+        llm_metadata = (
+            exc.metadata
+            if isinstance(exc, LLMClientError)
+            else llm_result.metadata
+            if llm_result is not None
+            else None
+        )
         logger.warning(
             "llm_fallback_to_baseline",
-            extra={"event": "llm_fallback_to_baseline", "role": job_role, "error": str(exc)},
+            extra={
+                "event": "llm_fallback_to_baseline",
+                "role": job_role,
+                "error": str(exc),
+                "llm_max_output_tokens": llm_max_output_tokens,
+            },
         )
         return _fallback_to_baseline(
             job_role=job_role,
@@ -141,6 +158,7 @@ def llm_select_skills(
             top_n=top_n,
             dev_mode=dev_mode,
             warning=f"LLM selection failed; fell back to baseline: {exc}",
+            llm_metadata=llm_metadata,
         )
 
     selected: dict[str, list[str]] = {}

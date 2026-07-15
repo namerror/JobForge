@@ -136,12 +136,26 @@ def test_llm_select_skills_missing_category_falls_back_to_baseline(monkeypatch):
 
     assert selected == expected
     assert details["_llm"]["fallback"] == "baseline"
+    assert details["_llm"]["total_tokens"] == 15
     assert any("fell back to baseline" in warning for warning in details["_warnings"])
 
 
 def test_llm_select_skills_client_failure_falls_back_to_baseline(monkeypatch):
     def raise_client_error(**_kwargs):
-        raise LLMClientError("bad response")
+        raise LLMClientError(
+            "bad response",
+            metadata={
+                "model": "test-model",
+                "api_calls": 2,
+                "prompt_tokens": 20,
+                "completion_tokens": 12,
+                "total_tokens": 32,
+                "attempts": [
+                    {"attempt": 1, "max_output_tokens": 1200, "total_tokens": 20},
+                    {"attempt": 2, "max_output_tokens": 3000, "total_tokens": 12},
+                ],
+            },
+        )
 
     monkeypatch.setattr(llm, "score_skills_with_llm", raise_client_error)
 
@@ -164,6 +178,11 @@ def test_llm_select_skills_client_failure_falls_back_to_baseline(monkeypatch):
 
     assert selected == expected
     assert details["_llm"]["reason"].endswith("bad response")
+    assert details["_llm"]["total_tokens"] == 32
+    assert [attempt["max_output_tokens"] for attempt in details["_llm"]["attempts"]] == [
+        1200,
+        3000,
+    ]
 
 
 def test_llm_select_skills_top_n_after_validation(monkeypatch):

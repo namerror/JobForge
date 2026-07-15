@@ -94,6 +94,7 @@ async def select_skills(payload: SkillSelectRequest) -> SkillSelectResponse:
             "stage": "skill_selection",
             "endpoint": "/select-skills",
             "source": "http",
+            "llm_max_output_tokens": payload.llm_max_output_tokens,
         },
     )
     try:

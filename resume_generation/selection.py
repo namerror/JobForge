@@ -104,6 +104,25 @@ def _post_json(
     return data
 
 
+def _should_cache_stage_response(
+    *,
+    stage: str,
+    response_data: dict[str, Any],
+) -> bool:
+    if stage != "skill_selection":
+        return True
+
+    details = response_data.get("details")
+    if not isinstance(details, dict):
+        return True
+
+    llm_metadata = details.get("_llm")
+    if isinstance(llm_metadata, dict) and llm_metadata.get("fallback") == "baseline":
+        return False
+
+    return True
+
+
 def _cached_post_json(
     *,
     cache: ResumeGenerationStageCache | None,
@@ -127,6 +146,7 @@ def _cached_post_json(
             "source": "http",
             "cache_status": "disabled",
             "cache_key": None,
+            "llm_max_output_tokens": payload.get("llm_max_output_tokens"),
             **token_usage.model_dump(),
         }
         if stage_response_records is not None:
@@ -145,6 +165,10 @@ def _cached_post_json(
         payload=payload,
         namespace=namespace,
         fetch=lambda: _post_json(client, endpoint, payload),
+        should_store=lambda data: _should_cache_stage_response(
+            stage=stage,
+            response_data=data,
+        ),
     )
     token_usage = extract_response_token_usage(stage, result.data)
     if token_usage_monitor is not None:
@@ -152,6 +176,8 @@ def _cached_post_json(
     cache_status = (
         "hit"
         if result.source == "cache"
+        else "skipped"
+        if not result.stored
         else "refresh"
         if cache.force_refresh
         else "miss"
@@ -163,6 +189,7 @@ def _cached_post_json(
         "source": result.source,
         "cache_status": cache_status,
         "cache_key": result.cache_key,
+        "llm_max_output_tokens": payload.get("llm_max_output_tokens"),
         **token_usage.model_dump(),
     }
     if stage_response_records is not None:

@@ -42,6 +42,8 @@ are included.
 
 ### 1. Skill LLM failure is cached as a successful fallback
 
+**Status:** Fixed
+
 **Severity:** High
 
 The current skill selection cache entry records a fallback to baseline because
@@ -72,10 +74,7 @@ or `force_refresh` is enabled.
 - Compute default `llm_max_output_tokens` from candidate count and schema size
   instead of a fixed global value.
 - Preserve failed attempt usage metadata when possible.
-- Mark cached entries with a quality/source state such as `llm_success`,
-  `fallback_success`, or `degraded_fallback`.
-- Consider not caching degraded fallback responses by default, or add a short
-  TTL / explicit `cache_fallbacks` control.
+- Do not cache baseline fallback responses, only cache successful LLM responses. 
 
 ### 2. Baseline fallback has role-profile weaknesses that explain poor skills
 

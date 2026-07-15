@@ -144,6 +144,7 @@ def select_skills_service(req: SkillSelectRequest) -> SkillSelectResponse:
                 "requested_method": method,
                 "baseline_filter": bool(baseline_filter),
                 "top_n": top_n,
+                "llm_max_output_tokens": req.llm_max_output_tokens,
                 "latency_ms": round(latency_ms, 3),
                 "category_counts": {k: len(v) for k, v in selected.items()},
             },
@@ -167,6 +168,7 @@ def select_skills_service(req: SkillSelectRequest) -> SkillSelectResponse:
                 "subsystem": "skill_selection",
                 "role": req.job_role,
                 "method": method,
+                "llm_max_output_tokens": req.llm_max_output_tokens,
             },
         )
         raise

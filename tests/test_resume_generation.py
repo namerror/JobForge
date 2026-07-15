@@ -1812,6 +1812,145 @@ def test_resume_generation_pipeline_reuses_cached_stage_results(monkeypatch, tmp
     ]
 
 
+def test_resume_generation_pipeline_does_not_cache_skill_llm_fallback(
+    monkeypatch,
+    tmp_path,
+    caplog,
+):
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            cache={
+                "enabled": True,
+                "path": str(tmp_path / "cache"),
+                "force_refresh": False,
+            }
+        ),
+    )
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            if endpoint == "/select-skills":
+                return httpx.Response(
+                    200,
+                    json={
+                        "technology": ["FastAPI"],
+                        "programming": ["Python"],
+                        "concepts": ["API"],
+                        "details": {
+                            "_fallback_method": "baseline",
+                            "_llm": {
+                                "fallback": "baseline",
+                                "reason": "LLM selection failed; fell back to baseline",
+                                "prompt_tokens": 11,
+                                "completion_tokens": 12,
+                                "total_tokens": 23,
+                                "api_calls": 2,
+                                "latency_ms": 51.5,
+                                "attempts": [
+                                    {
+                                        "attempt": 1,
+                                        "max_output_tokens": 777,
+                                        "total_tokens": 13,
+                                    },
+                                    {
+                                        "attempt": 2,
+                                        "max_output_tokens": 3000,
+                                        "total_tokens": 10,
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                )
+            if endpoint == "/select-projects":
+                return httpx.Response(
+                    200,
+                    json={
+                        "selected_project_ids": ["active-project"],
+                        "ranked_projects": [
+                            {
+                                "project_id": "active-project",
+                                "score": 1.0,
+                                "method": "llm",
+                            }
+                        ],
+                    },
+                )
+            if endpoint == "/generate-bulletpoints":
+                evidence = json.get("project") or json.get("experience")
+                return httpx.Response(
+                    200,
+                    json={
+                        "bullet_points": [f"Generated bullet for {evidence['id']}."],
+                    },
+                )
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    with caplog.at_level(logging.INFO, logger="resume_generation"):
+        for _ in range(2):
+            run_resume_generation_pipeline(
+                config_path=config_path,
+                job_target_path=job_path,
+                evidence_paths={
+                    "projects": projects_path,
+                    "skills": skills_path,
+                },
+                resume_result_artifact_path=tmp_path / "resume_result.json",
+                resume_run_manifest_artifact_path=tmp_path / "resume_run_manifest.json",
+            )
+
+    assert calls == [
+        "/select-skills",
+        "/select-projects",
+        "/generate-bulletpoints",
+        "/generate-bulletpoints",
+        "/select-skills",
+    ]
+    skill_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "resume_generation_stage_response"
+        and getattr(record, "stage", None) == "skill_selection"
+    ]
+    assert [
+        (
+            record.source,
+            record.cache_status,
+            record.llm_max_output_tokens,
+            record.total_tokens,
+            record.api_calls,
+        )
+        for record in skill_records
+    ] == [
+        ("http", "skipped", 777, 23, 2),
+        ("http", "skipped", 777, 23, 2),
+    ]
+
+
 def test_experience_bullet_model_change_does_not_regenerate_project_bullets(
     monkeypatch,
     tmp_path,
@@ -2492,7 +2631,7 @@ def test_generate_bulletpoints_route_logs_http_source(monkeypatch, caplog):
     assert record.evidence_id == "active-project"
 
 
-def test_skill_selection_api_uses_request_llm_overrides(monkeypatch):
+def test_skill_selection_api_uses_request_llm_overrides(monkeypatch, caplog):
     captured: dict = {}
 
     def fake_score_skills_with_llm(**kwargs):
@@ -2511,26 +2650,33 @@ def test_skill_selection_api_uses_request_llm_overrides(monkeypatch):
         fake_score_skills_with_llm,
     )
 
-    response = api_request(
-        "POST",
-        "/select-skills",
-        json={
-            "job_role": "Backend Engineer",
-            "job_text": "Build APIs.",
-            "technology": ["FastAPI"],
-            "programming": ["Python"],
-            "concepts": ["API"],
-            "method": "llm",
-            "dev_mode": True,
-            "llm_model": "request-skill-model",
-            "llm_max_output_tokens": 333,
-        },
-    )
+    with caplog.at_level(logging.INFO, logger="app_main"):
+        response = api_request(
+            "POST",
+            "/select-skills",
+            json={
+                "job_role": "Backend Engineer",
+                "job_text": "Build APIs.",
+                "technology": ["FastAPI"],
+                "programming": ["Python"],
+                "concepts": ["API"],
+                "method": "llm",
+                "dev_mode": True,
+                "llm_model": "request-skill-model",
+                "llm_max_output_tokens": 333,
+            },
+        )
 
     assert response.status_code == 200
     assert captured["model"] == "request-skill-model"
     assert captured["max_output_tokens"] == 333
     assert response.json()["details"]["_llm"]["model"] == "request-skill-model"
+    route_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "app_content_stage_request"
+    ]
+    assert route_records[0].llm_max_output_tokens == 333
 
 
 def test_project_selection_api_uses_request_llm_overrides(monkeypatch):

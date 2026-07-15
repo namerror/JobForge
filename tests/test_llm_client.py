@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -139,6 +140,123 @@ def test_score_skills_with_llm_rejects_invalid_json(monkeypatch):
             programming=[],
             concepts=[],
         )
+
+
+def test_score_skills_with_llm_retries_malformed_json(monkeypatch):
+    captured_calls: list[dict] = []
+
+    class DummyResponses:
+        def create(self, **kwargs):
+            captured_calls.append(kwargs)
+            if len(captured_calls) == 1:
+                return SimpleNamespace(
+                    output_text='{"technology":{"FastAPI":3}',
+                    usage=SimpleNamespace(input_tokens=20, output_tokens=120, total_tokens=140),
+                )
+            return SimpleNamespace(
+                output_text=json.dumps(
+                    {
+                        "technology": {"FastAPI": 3},
+                        "programming": {"Python": 3},
+                        "concepts": {"API": 3},
+                    }
+                ),
+                usage=SimpleNamespace(input_tokens=21, output_tokens=30, total_tokens=51),
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            self.responses = DummyResponses()
+
+    monkeypatch.setattr(llm_client, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(llm_client.settings, "OPENAI_API_KEY", "test-key")
+
+    result = score_skills_with_llm(
+        job_role="Backend Engineer",
+        job_text="Build FastAPI APIs.",
+        technology=["FastAPI"],
+        programming=["Python"],
+        concepts=["API"],
+        max_output_tokens=444,
+    )
+
+    assert [call["max_output_tokens"] for call in captured_calls] == [444, 3000]
+    assert result.scores["technology"]["FastAPI"] == 3
+    assert result.metadata["api_calls"] == 2
+    assert result.metadata["prompt_tokens"] == 41
+    assert result.metadata["completion_tokens"] == 150
+    assert result.metadata["total_tokens"] == 191
+    assert "valid JSON" in result.metadata["retry_reason"]
+    assert result.metadata["attempts"][0]["max_output_tokens"] == 444
+    assert result.metadata["attempts"][0]["error"].startswith(
+        "LLM response was not valid JSON"
+    )
+
+
+def test_score_skills_with_llm_error_carries_failed_attempt_metadata(monkeypatch):
+    class DummyResponses:
+        def create(self, **_kwargs):
+            return SimpleNamespace(
+                output_text="{not-json",
+                usage=SimpleNamespace(input_tokens=5, output_tokens=7, total_tokens=12),
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            self.responses = DummyResponses()
+
+    monkeypatch.setattr(llm_client, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(llm_client.settings, "OPENAI_API_KEY", "test-key")
+
+    with pytest.raises(LLMClientError, match="valid JSON") as exc_info:
+        score_skills_with_llm(
+            job_role="Backend Engineer",
+            job_text=None,
+            technology=[],
+            programming=[],
+            concepts=[],
+            max_output_tokens=200,
+        )
+
+    assert exc_info.value.metadata["api_calls"] == 2
+    assert exc_info.value.metadata["total_tokens"] == 24
+    assert [attempt["max_output_tokens"] for attempt in exc_info.value.metadata["attempts"]] == [
+        200,
+        3000,
+    ]
+
+
+def test_score_skills_with_llm_computes_default_output_cap(monkeypatch):
+    captured = {}
+    skills = [f"Candidate Skill {index}" for index in range(80)]
+
+    class DummyResponses:
+        def create(self, **kwargs):
+            captured["kwargs"] = kwargs
+            return SimpleNamespace(
+                output_text=json.dumps(
+                    {"technology": {}, "programming": {}, "concepts": {}}
+                ),
+                usage=None,
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            self.responses = DummyResponses()
+
+    monkeypatch.setattr(llm_client, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(llm_client.settings, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(llm_client.settings, "SKILL_LLM_MAX_OUTPUT_TOKENS", 321)
+
+    score_skills_with_llm(
+        job_role="Backend Engineer",
+        job_text=None,
+        technology=skills,
+        programming=[],
+        concepts=[],
+    )
+
+    assert captured["kwargs"]["max_output_tokens"] > 321
 
 
 def test_score_skills_with_llm_requires_api_key(monkeypatch):

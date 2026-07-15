@@ -78,6 +78,12 @@ def test_settings_generation_llm_env_overrides(monkeypatch):
 
 def test_settings_validates_bulletpoints_defaults(monkeypatch):
     _clear_selection_env(monkeypatch)
+    monkeypatch.setenv("SKILL_LLM_MAX_OUTPUT_TOKENS", "0")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+    _clear_selection_env(monkeypatch)
     monkeypatch.setenv("BULLETPOINTS_DEFAULT_COUNT", "0")
 
     with pytest.raises(ValidationError):

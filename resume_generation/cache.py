@@ -21,6 +21,7 @@ class ResumeGenerationStageCacheResult:
     data: dict[str, Any]
     source: Literal["cache", "http"]
     cache_key: str
+    stored: bool = True
 
 
 class ResumeGenerationStageCache:
@@ -57,6 +58,7 @@ class ResumeGenerationStageCache:
         payload: dict[str, Any],
         fetch: Callable[[], dict[str, Any]],
         namespace: str | None = None,
+        should_store: Callable[[dict[str, Any]], bool] | None = None,
     ) -> dict[str, Any]:
         '''
         Load cached data if payload and stage match an existing cache entry. 
@@ -68,6 +70,7 @@ class ResumeGenerationStageCache:
             payload=payload,
             fetch=fetch,
             namespace=namespace,
+            should_store=should_store,
         ).data
 
     def get_or_store_result(
@@ -77,6 +80,7 @@ class ResumeGenerationStageCache:
         payload: dict[str, Any],
         fetch: Callable[[], dict[str, Any]],
         namespace: str | None = None,
+        should_store: Callable[[dict[str, Any]], bool] | None = None,
     ) -> ResumeGenerationStageCacheResult:
         cache_key = self.cache_key(stage=stage, payload=payload)
         path = self._entry_path(stage=stage, cache_key=cache_key, namespace=namespace)
@@ -91,11 +95,14 @@ class ResumeGenerationStageCache:
                 )
 
         data = fetch()
-        self._write(path=path, stage=stage, cache_key=cache_key, data=data)
+        stored = should_store(data) if should_store is not None else True
+        if stored:
+            self._write(path=path, stage=stage, cache_key=cache_key, data=data)
         return ResumeGenerationStageCacheResult(
             data=data,
             source="http",
             cache_key=cache_key,
+            stored=stored,
         )
 
     def cache_key(self, *, stage: str, payload: dict[str, Any]) -> str:

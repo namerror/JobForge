@@ -56,7 +56,11 @@ class Settings(BaseSettings):
             raise ValueError("BULLETPOINTS_DEFAULT_COUNT must be between 1 and 10")
         return value
 
-    @field_validator("BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS", "LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS")
+    @field_validator(
+        "SKILL_LLM_MAX_OUTPUT_TOKENS",
+        "BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS",
+        "LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS",
+    )
     @classmethod
     def validate_llm_max_output_tokens(cls, value: int) -> int:
         if value <= 0:

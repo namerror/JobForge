@@ -1,14 +1,21 @@
 concepts:
   keywords:
     - database
+    - database management
     - server
     - api
+    - rest api
+    - caching
     - microservices
     - cloud
+    - configuration
+    - testing
     - authentication
     - authorization
 technology:
   keywords:
+    - git
+    - linux
     - node.js
     - django
     - spring

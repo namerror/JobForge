@@ -19,6 +19,10 @@ TEMPERATURE_UNSUPPORTED_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
 class LLMClientError(RuntimeError):
     """Raised when the LLM request or response cannot be used."""
 
+    def __init__(self, message: str, metadata: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.metadata = metadata or {}
+
 
 @dataclass
 class LLMScoreResult:
@@ -90,6 +94,25 @@ def _usage_metadata(response: Any) -> dict[str, int]:
     }
 
 
+def _aggregate_attempt_metadata(
+    attempts: list[dict[str, Any]],
+    *,
+    model: str,
+    latency_ms: float,
+) -> dict[str, Any]:
+    return {
+        "model": model,
+        "api_calls": len(attempts),
+        "latency_ms": round(latency_ms, 3),
+        "prompt_tokens": sum(int(attempt.get("prompt_tokens", 0) or 0) for attempt in attempts),
+        "completion_tokens": sum(
+            int(attempt.get("completion_tokens", 0) or 0) for attempt in attempts
+        ),
+        "total_tokens": sum(int(attempt.get("total_tokens", 0) or 0) for attempt in attempts),
+        "attempts": attempts,
+    }
+
+
 def _extract_output_text(response: Any) -> str | None:
     output_text = getattr(response, "output_text", None)
     if isinstance(output_text, str) and output_text.strip():
@@ -135,6 +158,27 @@ def _extract_text_from_part(part: Any) -> str | None:
 def supports_temperature(model: str) -> bool:
     """Return whether this model accepts the Responses API temperature parameter."""
     return model not in TEMPERATURE_UNSUPPORTED_MODELS
+
+
+def _estimated_default_max_output_tokens(
+    *,
+    category_inputs: dict[str, list[str]],
+    schema: dict[str, Any],
+    configured_default: int,
+) -> int:
+    unique_inputs = {
+        category: list(dict.fromkeys(category_inputs.get(category, [])))
+        for category in CATEGORIES
+    }
+    candidate_count = sum(len(skills) for skills in unique_inputs.values())
+    minimal_output = {
+        category: {skill: 0 for skill in skills}
+        for category, skills in unique_inputs.items()
+    }
+    output_size = len(json.dumps(minimal_output, ensure_ascii=False, separators=(",", ":")))
+    schema_size = len(json.dumps(schema, ensure_ascii=False, separators=(",", ":")))
+    estimated = 128 + (candidate_count * 24) + (output_size // 2) + (schema_size // 20)
+    return max(configured_default, estimated)
 
 
 def build_response_create_kwargs(
@@ -206,20 +250,18 @@ def score_skills_with_llm(
     effective_max_output_tokens = (
         max_output_tokens
         if max_output_tokens is not None
-        else settings.SKILL_LLM_MAX_OUTPUT_TOKENS
+        else _estimated_default_max_output_tokens(
+            category_inputs=category_inputs,
+            schema=schema,
+            configured_default=settings.SKILL_LLM_MAX_OUTPUT_TOKENS,
+        )
     )
 
     start = time.perf_counter()
+    attempts: list[dict[str, Any]] = []
+    retry_reason: str | None = None
     try:
         client = OpenAI(api_key=api_key)
-        create_kwargs = build_response_create_kwargs(
-            model=effective_model,
-            instructions=instructions,
-            prompt_payload=prompt_payload,
-            schema=schema,
-            max_output_tokens=effective_max_output_tokens,
-        )
-        response = client.responses.create(**create_kwargs)
     except Exception as exc:
         logger.exception(
             "llm_request_failed",
@@ -227,24 +269,109 @@ def score_skills_with_llm(
                 "event": "llm_request_failed",
                 "subsystem": "skill_selection",
                 "model": effective_model,
+                "attempt": 0,
+                "llm_max_output_tokens": effective_max_output_tokens,
             },
         )
         raise LLMClientError(f"LLM request failed: {exc}") from exc
 
-    latency_ms = (time.perf_counter() - start) * 1000.0
-    output_text = _extract_output_text(response)
-    if not output_text:
-        raise LLMClientError("LLM response did not include output_text")
+    retry_max_output_tokens = max(effective_max_output_tokens * 2, 3000)
+    max_output_tokens_by_attempt = [
+        effective_max_output_tokens,
+        retry_max_output_tokens,
+    ]
 
-    try:
-        scores = json.loads(output_text)
-    except json.JSONDecodeError as exc:
-        raise LLMClientError(f"LLM response was not valid JSON: {exc}") from exc
+    for attempt_index, attempt_max_output_tokens in enumerate(
+        max_output_tokens_by_attempt,
+        start=1,
+    ):
+        try:
+            create_kwargs = build_response_create_kwargs(
+                model=effective_model,
+                instructions=instructions,
+                prompt_payload=prompt_payload,
+                schema=schema,
+                max_output_tokens=attempt_max_output_tokens,
+            )
+            response = client.responses.create(**create_kwargs)
+        except Exception as exc:
+            attempt_metadata = {
+                "attempt": attempt_index,
+                "max_output_tokens": attempt_max_output_tokens,
+                "error": f"LLM request failed: {exc}",
+            }
+            attempts.append(attempt_metadata)
+            latency_ms = (time.perf_counter() - start) * 1000.0
+            metadata = _aggregate_attempt_metadata(
+                attempts,
+                model=effective_model,
+                latency_ms=latency_ms,
+            )
+            logger.exception(
+                "llm_request_failed",
+                extra={
+                    "event": "llm_request_failed",
+                    "subsystem": "skill_selection",
+                    "model": effective_model,
+                    "attempt": attempt_index,
+                    "llm_max_output_tokens": attempt_max_output_tokens,
+                },
+            )
+            raise LLMClientError(f"LLM request failed: {exc}", metadata=metadata) from exc
 
-    metadata = {
-        "model": effective_model,
-        "api_calls": 1,
-        "latency_ms": round(latency_ms, 3),
-        **_usage_metadata(response),
-    }
-    return LLMScoreResult(scores=scores, metadata=metadata)
+        attempt_metadata = {
+            "attempt": attempt_index,
+            "max_output_tokens": attempt_max_output_tokens,
+            **_usage_metadata(response),
+        }
+        attempts.append(attempt_metadata)
+
+        output_text = _extract_output_text(response)
+        if not output_text:
+            retry_reason = "LLM response did not include output_text"
+            attempt_metadata["error"] = retry_reason
+        else:
+            try:
+                scores = json.loads(output_text)
+            except json.JSONDecodeError as exc:
+                retry_reason = f"LLM response was not valid JSON: {exc}"
+                attempt_metadata["error"] = retry_reason
+            else:
+                latency_ms = (time.perf_counter() - start) * 1000.0
+                metadata = _aggregate_attempt_metadata(
+                    attempts,
+                    model=effective_model,
+                    latency_ms=latency_ms,
+                )
+                if retry_reason is not None:
+                    metadata["retry_reason"] = retry_reason
+                return LLMScoreResult(scores=scores, metadata=metadata)
+
+        if attempt_index == len(max_output_tokens_by_attempt):
+            latency_ms = (time.perf_counter() - start) * 1000.0
+            metadata = _aggregate_attempt_metadata(
+                attempts,
+                model=effective_model,
+                latency_ms=latency_ms,
+            )
+            if retry_reason is not None:
+                metadata["retry_reason"] = retry_reason
+            raise LLMClientError(
+                retry_reason or "LLM response could not be parsed",
+                metadata=metadata,
+            )
+
+        logger.warning(
+            "llm_response_retry",
+            extra={
+                "event": "llm_response_retry",
+                "subsystem": "skill_selection",
+                "model": effective_model,
+                "attempt": attempt_index,
+                "llm_max_output_tokens": attempt_max_output_tokens,
+                "next_llm_max_output_tokens": max_output_tokens_by_attempt[attempt_index],
+                "retry_reason": retry_reason,
+            },
+        )
+
+    raise LLMClientError("LLM response could not be parsed")
