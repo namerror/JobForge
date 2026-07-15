@@ -13,10 +13,10 @@ from app.link_scanning.llm_client import (
     build_link_scan_response_create_kwargs,
     build_link_scan_schema,
     classify_link_scan_target,
-    scan_project_links_with_llm,
+    resolve_link_scan_max_output_tokens,
+    scan_evidence_links_with_llm,
 )
-from app.link_scanning.models import LinkScanJobContext
-from resume_evidence.models import ProjectRecord, ProjectSkills
+from resume_evidence.models import ExperienceRecord, ProjectRecord, ProjectSkills
 
 
 def _project() -> ProjectRecord:
@@ -51,6 +51,26 @@ def _github_project() -> ProjectRecord:
             "https://github.com/openai/jobforge",
             "https://example.com/jobforge",
         ],
+    )
+
+
+def _experience() -> ExperienceRecord:
+    return ExperienceRecord(
+        id="backend-engineer",
+        name="Example Company",
+        role="Backend Engineer",
+        summary="Built backend services for internal platforms.",
+        highlights=["Designed schema-validated APIs."],
+        active=True,
+        skills=ProjectSkills(
+            technology=["FastAPI"],
+            programming=["Python"],
+            concepts=["API"],
+        ),
+        location="Example City, ST",
+        start="2024",
+        end=None,
+        links=["https://example.com/company"],
     )
 
 
@@ -96,13 +116,16 @@ def test_build_link_scan_schema_returns_highlight_only_contract():
 def test_build_link_scan_prompt_payload_includes_links_and_grounding_rules():
     payload = json.loads(
         build_link_scan_prompt_payload(
-            context=LinkScanJobContext(title="Backend Engineer", description="Build APIs."),
-            project=_project(),
+            evidence_type="project",
+            evidence=_project(),
+            requested_highlight_count=5,
         )
     )
 
-    assert payload["job"]["title"] == "Backend Engineer"
-    assert payload["project"]["links"] == [
+    assert "job" not in payload
+    assert payload["enrichment_goal"]["requested_highlight_count"] == 5
+    assert payload["evidence"]["type"] == "project"
+    assert payload["evidence"]["links"] == [
         "https://example.com/jobforge",
         "https://docs.example.com/jobforge",
     ]
@@ -114,11 +137,27 @@ def test_build_link_scan_prompt_payload_includes_links_and_grounding_rules():
     assert any("Do not add skills" in rule for rule in payload["grounding_rules"])
 
 
+def test_build_link_scan_prompt_payload_supports_experience_records():
+    payload = json.loads(
+        build_link_scan_prompt_payload(
+            evidence_type="experience",
+            evidence=_experience(),
+            requested_highlight_count=4,
+        )
+    )
+
+    assert payload["evidence"]["type"] == "experience"
+    assert payload["evidence"]["role"] == "Backend Engineer"
+    assert payload["evidence"]["location"] == "Example City, ST"
+    assert payload["scan_targets"][0]["url"] == "https://example.com/company"
+
+
 def test_build_link_scan_prompt_payload_marks_github_repo_targets():
     payload = json.loads(
         build_link_scan_prompt_payload(
-            context=LinkScanJobContext(title="Backend Engineer", description="Build APIs."),
-            project=_github_project(),
+            evidence_type="project",
+            evidence=_github_project(),
+            requested_highlight_count=6,
         )
     )
 
@@ -161,11 +200,33 @@ def test_build_link_scan_response_create_kwargs_uses_web_search_and_strict_schem
     assert kwargs["tool_choice"] == "required"
     assert kwargs["include"] == ["web_search_call.action.sources"]
     assert kwargs["temperature"] == 0
-    assert kwargs["text"]["format"]["name"] == "project_link_scan"
+    assert kwargs["text"]["format"]["name"] == "link_evidence_enrichment"
     assert kwargs["text"]["format"]["strict"] is True
 
 
-def test_scan_project_links_with_llm_sends_web_search_request(monkeypatch):
+def test_resolve_link_scan_max_output_tokens_uses_dynamic_highlight_budget(monkeypatch):
+    monkeypatch.setattr(link_llm_client.settings, "LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT", 6)
+    monkeypatch.setattr(link_llm_client.settings, "LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT", 120)
+
+    assert (
+        resolve_link_scan_max_output_tokens(
+            requested_highlight_count=4,
+            max_tokens_per_highlight=90,
+        )
+        == 360
+    )
+    assert resolve_link_scan_max_output_tokens() == 720
+    assert (
+        resolve_link_scan_max_output_tokens(
+            max_output_tokens=333,
+            requested_highlight_count=4,
+            max_tokens_per_highlight=90,
+        )
+        == 333
+    )
+
+
+def test_scan_evidence_links_with_llm_sends_web_search_request(monkeypatch):
     captured = {}
 
     class DummyResponses:
@@ -200,11 +261,12 @@ def test_scan_project_links_with_llm_sends_web_search_request(monkeypatch):
     monkeypatch.setattr(link_llm_client, "OpenAI", DummyOpenAI)
     monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(link_llm_client.settings, "LINK_SCANNING_LLM_MODEL", "test-model")
-    monkeypatch.setattr(link_llm_client.settings, "LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS", 555)
+    monkeypatch.setattr(link_llm_client.settings, "LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT", 5)
+    monkeypatch.setattr(link_llm_client.settings, "LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT", 111)
 
-    result = scan_project_links_with_llm(
-        context=LinkScanJobContext(title="Backend Engineer"),
-        project=_project(),
+    result = scan_evidence_links_with_llm(
+        evidence_type="project",
+        evidence=_project(),
     )
 
     assert captured["init"]["api_key"] == "test-key"
@@ -214,14 +276,15 @@ def test_scan_project_links_with_llm_sends_web_search_request(monkeypatch):
     assert kwargs["tools"] == [{"type": "web_search"}]
     assert kwargs["tool_choice"] == "required"
     payload = json.loads(kwargs["input"])
-    assert payload["project"]["id"] == "jobforge"
-    assert len(payload["project"]["links"]) == 2
+    assert payload["evidence"]["id"] == "jobforge"
+    assert payload["enrichment_goal"]["requested_highlight_count"] == 5
+    assert len(payload["evidence"]["links"]) == 2
     assert result.highlights[0].text.startswith("Scanned README")
     assert result.metadata["source_urls"] == ["https://example.com/jobforge"]
     assert result.metadata["total_tokens"] == 30
 
 
-def test_scan_project_links_with_llm_accepts_same_github_repo_source(monkeypatch):
+def test_scan_evidence_links_with_llm_accepts_same_github_repo_source(monkeypatch):
     class DummyResponses:
         def create(self, **_kwargs):
             return SimpleNamespace(
@@ -256,9 +319,9 @@ def test_scan_project_links_with_llm_accepts_same_github_repo_source(monkeypatch
     monkeypatch.setattr(link_llm_client, "OpenAI", DummyOpenAI)
     monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "test-key")
 
-    result = scan_project_links_with_llm(
-        context=LinkScanJobContext(title="Backend Engineer"),
-        project=_github_project(),
+    result = scan_evidence_links_with_llm(
+        evidence_type="project",
+        evidence=_github_project(),
     )
 
     assert result.highlights[0].source_url == (
@@ -270,7 +333,7 @@ def test_scan_project_links_with_llm_accepts_same_github_repo_source(monkeypatch
     )
 
 
-def test_scan_project_links_with_llm_omits_temperature_for_gpt_5_mini(monkeypatch):
+def test_scan_evidence_links_with_llm_omits_temperature_for_gpt_5_mini(monkeypatch):
     captured = {}
 
     class DummyResponses:
@@ -290,15 +353,15 @@ def test_scan_project_links_with_llm_omits_temperature_for_gpt_5_mini(monkeypatc
     monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(link_llm_client.settings, "LINK_SCANNING_LLM_MODEL", "gpt-5-mini")
 
-    scan_project_links_with_llm(
-        context=LinkScanJobContext(title="Backend Engineer"),
-        project=_project(),
+    scan_evidence_links_with_llm(
+        evidence_type="project",
+        evidence=_project(),
     )
 
     assert "temperature" not in captured["kwargs"]
 
 
-def test_scan_project_links_with_llm_rejects_invalid_json(monkeypatch):
+def test_scan_evidence_links_with_llm_rejects_invalid_json(monkeypatch):
     class DummyResponses:
         def create(self, **_kwargs):
             return SimpleNamespace(output_text="{not-json", output=[], usage=None)
@@ -311,13 +374,13 @@ def test_scan_project_links_with_llm_rejects_invalid_json(monkeypatch):
     monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "test-key")
 
     with pytest.raises(LinkScanningLLMClientError, match="valid JSON"):
-        scan_project_links_with_llm(
-            context=LinkScanJobContext(title="Backend Engineer"),
-            project=_project(),
+        scan_evidence_links_with_llm(
+            evidence_type="project",
+            evidence=_project(),
         )
 
 
-def test_scan_project_links_with_llm_rejects_unknown_source_url(monkeypatch):
+def test_scan_evidence_links_with_llm_rejects_unknown_source_url(monkeypatch):
     class DummyResponses:
         def create(self, **_kwargs):
             return SimpleNamespace(
@@ -353,13 +416,13 @@ def test_scan_project_links_with_llm_rejects_unknown_source_url(monkeypatch):
     monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "test-key")
 
     with pytest.raises(LinkScanningLLMClientError, match="source_url"):
-        scan_project_links_with_llm(
-            context=LinkScanJobContext(title="Backend Engineer"),
-            project=_project(),
+        scan_evidence_links_with_llm(
+            evidence_type="project",
+            evidence=_project(),
         )
 
 
-def test_scan_project_links_with_llm_rejects_other_github_repo_source(monkeypatch):
+def test_scan_evidence_links_with_llm_rejects_other_github_repo_source(monkeypatch):
     class DummyResponses:
         def create(self, **_kwargs):
             return SimpleNamespace(
@@ -395,17 +458,17 @@ def test_scan_project_links_with_llm_rejects_other_github_repo_source(monkeypatc
     monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "test-key")
 
     with pytest.raises(LinkScanningLLMClientError, match="source_url"):
-        scan_project_links_with_llm(
-            context=LinkScanJobContext(title="Backend Engineer"),
-            project=_github_project(),
+        scan_evidence_links_with_llm(
+            evidence_type="project",
+            evidence=_github_project(),
         )
 
 
-def test_scan_project_links_with_llm_requires_api_key(monkeypatch):
+def test_scan_evidence_links_with_llm_requires_api_key(monkeypatch):
     monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "")
 
     with pytest.raises(LinkScanningLLMClientError, match="OPENAI_API_KEY"):
-        scan_project_links_with_llm(
-            context=LinkScanJobContext(title="Backend Engineer"),
-            project=_project(),
+        scan_evidence_links_with_llm(
+            evidence_type="project",
+            evidence=_project(),
         )

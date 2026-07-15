@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     LINK_SCANNING_ENABLED: bool = False
     LINK_SCANNING_LLM_MODEL: str = "gpt-5-mini"
     LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS: int = 1200
+    LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT: int = 6
+    LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT: int = 120
 
     OPENAI_API_KEY: str = "" # This should be set in the .env file or environment variable
 
@@ -65,6 +67,16 @@ class Settings(BaseSettings):
     def validate_llm_max_output_tokens(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("LLM max output tokens must be greater than 0")
+        return value
+
+    @field_validator(
+        "LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT",
+        "LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT",
+    )
+    @classmethod
+    def validate_positive_link_scanning_ints(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Link scanning counts and token budgets must be greater than 0")
         return value
 
 

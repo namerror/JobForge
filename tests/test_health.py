@@ -36,6 +36,8 @@ def test_health():
     assert data["link_scanning"]["enabled"] is False
     assert data["link_scanning"]["llm_model"] == "gpt-5-mini"
     assert data["link_scanning"]["llm_max_output_tokens"] == 1200
+    assert data["link_scanning"]["default_highlight_count"] == 6
+    assert data["link_scanning"]["max_tokens_per_highlight"] == 120
 
 
 def test_health_method_not_allowed():

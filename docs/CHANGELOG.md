@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - LaTeX resume output generation from `resume_generation` runtime resume results, using the configured `resume_output.path` with a default `.tex` artifact path.
-- LLM-backed `POST /scan-link` link scanning that uses OpenAI web search to collect grounded project highlights from configured project links, with GitHub repository exploration constrained to the linked repo.
+- Standalone link evidence enrichment through `POST /enrich-link-evidence` and `python -m resume_generation.enrich`, with project and experience support, configurable requested highlight count, and dynamic scanner output-token budgeting.
+- LLM-backed link scanning that uses OpenAI web search to collect grounded evidence highlights from configured links, with GitHub repository exploration constrained to the linked repo.
 - `POST /generate-bulletpoints` API for OpenAI-backed, grounded project bullet-point generation from a job target and `ProjectRecord`.
 - `resume_generation` orchestration that loads resume evidence, reads `user/resume_generation` YAML config, and calls selection plus bullet-point generation APIs over HTTP.
 - Modern project and highlight picker support, including a command-complete action menu, in the resume evidence CLI.
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged resume evidence CLI workflows for `education`, `experience`, and `user` schemas via `python -m resume_evidence.cli --schema <schema>`.
 
 ### Changed
+- Resume generation no longer runs link scanning or web search in the normal pipeline; it consumes already-enriched evidence for selection and bullet generation.
 - Resume evidence is now a top-level package with CLI entrypoint `python -m resume_evidence.cli`; the FastAPI app imports it for startup validation instead of owning it under `app/`.
 - Resume evidence CLI components now live under the standalone `resume_evidence/cli/` package.
 - Runtime selection configuration is now subsystem-scoped: use `SKILL_METHOD`, `SKILL_TOP_N`, `SKILL_BASELINE_FILTER`, `PROJ_METHOD`, and `PROJ_TOP_N` instead of generic selection env vars.

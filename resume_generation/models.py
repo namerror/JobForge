@@ -151,6 +151,8 @@ class LinkScanningConfig(StrictSchemaModel):
     dev_mode: bool | None = None
     llm_model: str | None = None
     llm_max_output_tokens: int | None = None
+    highlight_count: int | None = None
+    max_tokens_per_highlight: int | None = None
 
     @field_validator("llm_model")
     @classmethod
@@ -167,6 +169,20 @@ class LinkScanningConfig(StrictSchemaModel):
     def validate_llm_max_output_tokens(cls, value: int | None) -> int | None:
         if value is not None and value <= 0:
             raise ValueError("llm_max_output_tokens must be greater than 0")
+        return value
+
+    @field_validator("highlight_count")
+    @classmethod
+    def validate_highlight_count(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("highlight_count must be greater than 0")
+        return value
+
+    @field_validator("max_tokens_per_highlight")
+    @classmethod
+    def validate_max_tokens_per_highlight(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("max_tokens_per_highlight must be greater than 0")
         return value
 
 

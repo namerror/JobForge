@@ -25,7 +25,6 @@ from resume_generation.bullet_points import (
 )
 from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.latex import write_resume_latex_artifact
-from resume_generation.link_scanning import enrich_projects_with_link_scanning
 from resume_generation.models import IntermediateResumeResult, ResumeSelectionContext
 from resume_generation.selection import generate_selection_context
 from resume_generation.token_usage import ResumeGenerationTokenUsageMonitor, TokenUsage
@@ -186,53 +185,16 @@ def run_resume_generation_pipeline(
 
     # TODO: optionally re-rank project skills with LLM (not the skills themselves), this is ranked per project, priortizing skills that are more relevant to the job target. This should be done with a separate reranking API instead of the one used for regular skill ranking
 
-    link_stage_extra = {
-        "event": "resume_generation_stage_start",
-        "stage": "link_scanning",
-        "enabled": config.link_scanning.enabled,
-        "project_count": len(context.selected_projects),
-    }
-    if config.link_scanning.enabled:
-        logger.info("resume_generation_stage_start", extra=link_stage_extra)
-    else:
-        logger.info(
-            "resume_generation_stage_skipped",
-            extra={
-                "event": "resume_generation_stage_skipped",
-                "stage": "link_scanning",
-                "reason": "disabled",
-                **_token_usage_extra(TokenUsage()),
-            },
-        )
-    enriched_projects = enrich_projects_with_link_scanning(
-        selected_projects=context.selected_projects,
-        config=config,
-        job_target=job_target,
-        cache=cache,
-        token_usage_monitor=token_usage_monitor,
-        stage_response_records=stage_response_records,
-    )
-    if config.link_scanning.enabled:
-        logger.info(
-            "resume_generation_stage_complete",
-            extra={
-                "event": "resume_generation_stage_complete",
-                "stage": "link_scanning",
-                "project_count": len(enriched_projects),
-                **_token_usage_extra(token_usage_monitor.stage_total("link_scanning")),
-            },
-        )
-
     logger.info(
         "resume_generation_stage_start",
         extra={
             "event": "resume_generation_stage_start",
             "stage": "project_bullet_points",
-            "project_count": len(enriched_projects),
+            "project_count": len(context.selected_projects),
         },
     )
     bullet_points = generate_project_bullet_points(
-        selected_projects=enriched_projects,
+        selected_projects=context.selected_projects,
         config=config,
         job_target=job_target,
         cache=cache,
@@ -291,7 +253,7 @@ def run_resume_generation_pipeline(
         education=_education,
         experience=_experience,
         selection_context=context,
-        selected_projects=enriched_projects,
+        selected_projects=context.selected_projects,
         project_bullet_points=bullet_points,
         experience_bullet_points=experience_bullet_points,
     )

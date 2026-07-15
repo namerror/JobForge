@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `07-15-2026-Codex-standalone-link-enrichment.md` - 2026-07-15 - Standalone link evidence enrichment
 - `07-15-2026-Codex-skill-llm-retry-cache-logging.md` - 2026-07-15 - Skill LLM retry cache logging
 - `07-09-2026-Codex-fix-resume-generation-agentic-issues.md` - 2026-07-09 - Fix resume generation agentic issues
 - `07-08-2026-Codex-run-resume-generation-agentic-test.md` - 2026-07-08 - Run resume generation agentic test

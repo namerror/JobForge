@@ -20,6 +20,8 @@ SCOPED_ENV_VARS = [
     "LINK_SCANNING_ENABLED",
     "LINK_SCANNING_LLM_MODEL",
     "LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS",
+    "LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT",
+    "LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT",
 ]
 LEGACY_ENV_VARS = [
     "METHOD",
@@ -55,6 +57,8 @@ def test_settings_scoped_defaults(monkeypatch):
     assert settings.LINK_SCANNING_ENABLED is False
     assert settings.LINK_SCANNING_LLM_MODEL == "gpt-5-mini"
     assert settings.LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS == 1200
+    assert settings.LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT == 6
+    assert settings.LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT == 120
 
 
 def test_settings_generation_llm_env_overrides(monkeypatch):
@@ -65,6 +69,8 @@ def test_settings_generation_llm_env_overrides(monkeypatch):
     monkeypatch.setenv("LINK_SCANNING_ENABLED", "true")
     monkeypatch.setenv("LINK_SCANNING_LLM_MODEL", "scanner-model")
     monkeypatch.setenv("LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS", "888")
+    monkeypatch.setenv("LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT", "9")
+    monkeypatch.setenv("LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT", "80")
 
     settings = Settings(_env_file=None)
 
@@ -74,6 +80,8 @@ def test_settings_generation_llm_env_overrides(monkeypatch):
     assert settings.LINK_SCANNING_ENABLED is True
     assert settings.LINK_SCANNING_LLM_MODEL == "scanner-model"
     assert settings.LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS == 888
+    assert settings.LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT == 9
+    assert settings.LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT == 80
 
 
 def test_settings_validates_bulletpoints_defaults(monkeypatch):
@@ -97,6 +105,18 @@ def test_settings_validates_bulletpoints_defaults(monkeypatch):
 
     _clear_selection_env(monkeypatch)
     monkeypatch.setenv("LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS", "0")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+    _clear_selection_env(monkeypatch)
+    monkeypatch.setenv("LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT", "0")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+    _clear_selection_env(monkeypatch)
+    monkeypatch.setenv("LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT", "0")
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)

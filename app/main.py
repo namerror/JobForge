@@ -23,7 +23,7 @@ from app.bulletpoints_generation.service import (
     record_bulletpoint_generation_error,
 )
 from app.link_scanning.models import LinkScanRequest, LinkScanResponse
-from app.link_scanning.service import LinkScanningError, scan_project_links_service
+from app.link_scanning.service import LinkScanningError, scan_link_evidence_service
 from resume_evidence import load_registered_evidence
 
 
@@ -69,6 +69,8 @@ async def health():
             "enabled": settings.LINK_SCANNING_ENABLED,
             "llm_model": settings.LINK_SCANNING_LLM_MODEL,
             "llm_max_output_tokens": settings.LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS,
+            "default_highlight_count": settings.LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT,
+            "max_tokens_per_highlight": settings.LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT,
         },
     }
 
@@ -125,20 +127,37 @@ async def generate_bulletpoints(payload: BulletGenerationRequest) -> BulletGener
         raise HTTPException(status_code=502, detail=str(exc))
 
 
+def _link_scan_log_extra(payload: LinkScanRequest, endpoint: str) -> dict[str, Any]:
+    return {
+        "event": "app_content_stage_request",
+        "stage": "link_scanning",
+        "endpoint": endpoint,
+        "source": "http",
+        "evidence_type": payload.evidence_type,
+        "evidence_id": payload.evidence.id,
+    }
+
+
+@app.post("/enrich-link-evidence", response_model=LinkScanResponse)
+async def enrich_link_evidence(payload: LinkScanRequest) -> LinkScanResponse:
+    logger.info(
+        "app_content_stage_request",
+        extra=_link_scan_log_extra(payload, "/enrich-link-evidence"),
+    )
+    try:
+        return scan_link_evidence_service(payload)
+    except LinkScanningError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
 @app.post("/scan-link", response_model=LinkScanResponse)
 async def scan_link(payload: LinkScanRequest) -> LinkScanResponse:
     logger.info(
         "app_content_stage_request",
-        extra={
-            "event": "app_content_stage_request",
-            "stage": "link_scanning",
-            "endpoint": "/scan-link",
-            "source": "http",
-            "project_id": payload.project.id,
-        },
+        extra=_link_scan_log_extra(payload, "/scan-link"),
     )
     try:
-        return scan_project_links_service(payload)
+        return scan_link_evidence_service(payload)
     except LinkScanningError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 

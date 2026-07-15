@@ -145,32 +145,45 @@ current run. They also make the final resume less targeted.
 
 ### 4. Link scanning should become persistent evidence enrichment, not normal generation
 
+**Status:** Fixed
+
 **Severity:** High
 
-The current project link scanning stage enriches selected projects in memory and
-then passes the enriched record to bullet generation. It does not write scanned
-highlights back to durable evidence. The stage is disabled in current config,
-but if enabled it would run as part of the normal generation pass and use
-`web_search`, which is likely the most expensive and least deterministic stage.
+The project link scanning stage has been removed from the normal resume
+generation pipeline. Resume generation now works from already-enriched evidence
+and does not call `web_search` regardless of the `link_scanning.enabled` config
+value.
 
-Experience records already have `links`, but there is no experience link
-scanning orchestration or endpoint. Only project links are scanned today.
+Link scanning is now exposed as standalone evidence enrichment through
+`POST /enrich-link-evidence` and `python -m resume_generation.enrich`. The
+enrichment flow supports both project and experience evidence, scans records
+with links, and appends non-duplicate scanned highlight text back to evidence
+YAML. The scanner prompt is no longer job-description-targeted; it asks for
+recruiter-useful technical evidence that is generally true of the linked
+project or experience.
+
+For this iteration, durable evidence keeps the existing `highlights: list[str]`
+schema. Source URLs, model metadata, requested highlight count, dynamic output
+token budget, and token usage are retained in scan responses/log details rather
+than persisted as migrated highlight objects.
 
 **Recommended design changes:**
 
-- Split link scanning into an explicit enrichment command, separate from normal
-  resume generation.
-- Store accepted scan results back into evidence files, with provenance:
+- Done: split link scanning into an explicit enrichment command, separate from
+  normal resume generation.
+- Done: append accepted scan result text back into project and experience
+  evidence files.
+- Done: support project and experience enrichment symmetrically.
+- Deferred: migrate highlight persistence to provenance-rich objects:
   `text`, `source_url`, `scanned_at`, `link_digest`, `scanner_model`, and
   possibly `accepted_by_user`.
-- Support project and experience enrichment symmetrically.
-- Add a scan policy:
+- Deferred: add a scan policy:
   - `manual`: only scan when requested
   - `missing`: scan records with links but no scanned evidence
   - `stale`: scan only when link digest or scan age changes
   - `force`: rescan everything
-- Keep the normal generation path as selection + bullet generation over already
-  enriched evidence.
+- Done: keep the normal generation path as selection + bullet generation over
+  already enriched evidence.
 
 This matches the user-observed design direction: repository/codebase scanning
 should be done once, or only when the user decides, not on every resume pass.
@@ -300,19 +313,21 @@ prompt overhead alone was 7,812 tokens for bullet stages.
 
 ### 11. Link scanning is project-only despite experience links
 
+**Status:** Fixed
+
 **Severity:** Medium
 
 `ExperienceRecord` supports `links`, and current evidence includes links for
-several experience entries. The generation pipeline only calls
-`enrich_projects_with_link_scanning`; there is no corresponding experience link
-scanner.
+several experience entries. Standalone evidence enrichment now supports both
+project and experience records through the same request and CLI flow.
 
 **Recommended design changes:**
 
-- Add experience link enrichment as part of the separate evidence-enrichment
-  workflow.
-- Store scanned facts in experience evidence before bullet generation.
-- Avoid doing this inside the normal generation run unless explicitly requested.
+- Done: add experience link enrichment as part of the separate
+  evidence-enrichment workflow.
+- Done: store scanned highlight text in experience evidence before bullet
+  generation.
+- Done: avoid doing this inside the normal generation run.
 
 ### 12. The pipeline calls the local FastAPI app over HTTP
 
@@ -421,10 +436,11 @@ bullets" or "only assemble from cached results."
    - ignore `top_n` and `dev_mode` at the raw-cache level
    - store payload metadata and quality flags
 
-4. Split link scanning into durable evidence enrichment:
-   - project and experience support
-   - persisted scanned highlights with provenance
-   - manual/stale/force scan policies
+4. Continue durable evidence enrichment:
+   - done: project and experience support
+   - done: persisted scanned highlight text
+   - deferred: provenance-rich highlight objects
+   - deferred: manual/stale/force scan policies
 
 5. Reduce bullet cost:
    - concise schema and prompt constraints
@@ -445,4 +461,3 @@ extraction should update evidence records when the user asks or when source
 digests are stale. Normal resume generation should operate on already-curated
 evidence, choose a small targeted subset, and generate concise bullets only for
 records that will actually appear in the final artifact.
-

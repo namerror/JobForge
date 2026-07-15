@@ -10,9 +10,9 @@ from urllib.parse import urlparse
 from openai import OpenAI
 
 from app.config import settings
-from app.link_scanning.models import LinkScanHighlight, LinkScanJobContext
+from app.link_scanning.models import LinkScanHighlight
 from app.skill_selection.llm_client import supports_temperature
-from resume_evidence.models import ProjectRecord
+from resume_evidence.models import ExperienceRecord, ProjectRecord
 
 logger = logging.getLogger("link_scanning_llm_client")
 
@@ -33,6 +33,8 @@ class LinkScanTarget:
     mode: str
     repo_scope: str | None = None
 
+
+LinkScannableEvidence = ProjectRecord | ExperienceRecord
 
 _GITHUB_HOSTS = {"github.com", "www.github.com"}
 _NON_REPO_GITHUB_PATHS = {
@@ -113,26 +115,54 @@ def build_link_scan_schema() -> dict[str, Any]:
     }
 
 
+def _build_evidence_payload(
+    *,
+    evidence_type: str,
+    evidence: LinkScannableEvidence,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "type": evidence_type,
+        "id": evidence.id,
+        "name": evidence.name,
+        "summary": evidence.summary,
+        "highlights": evidence.highlights,
+        "active": evidence.active,
+        "skills": evidence.skills.model_dump(),
+        "links": evidence.links or [],
+    }
+    if isinstance(evidence, ExperienceRecord):
+        payload.update(
+            {
+                "role": evidence.role,
+                "location": evidence.location,
+                "start": evidence.start,
+                "end": evidence.end,
+            }
+        )
+    return payload
+
+
 def build_link_scan_prompt_payload(
     *,
-    context: LinkScanJobContext,
-    project: ProjectRecord,
+    evidence_type: str,
+    evidence: LinkScannableEvidence,
+    requested_highlight_count: int,
 ) -> str:
-    scan_targets = build_link_scan_targets(project.links or [])
+    scan_targets = build_link_scan_targets(evidence.links or [])
     payload = {
-        "job": {
-            "title": context.title,
-            "description": context.description or "",
+        "enrichment_goal": {
+            "requested_highlight_count": requested_highlight_count,
+            "count_is_guidance_not_a_hard_requirement": True,
+            "purpose": (
+                "Add durable resume evidence highlights with enough technical detail "
+                "to show the skills, engineering judgment, and project or experience "
+                "knowledge that recruiters can evaluate later."
+            ),
         },
-        "project": {
-            "id": project.id,
-            "name": project.name,
-            "summary": project.summary,
-            "highlights": project.highlights,
-            "active": project.active,
-            "skills": project.skills.model_dump(),
-            "links": project.links or [],
-        },
+        "evidence": _build_evidence_payload(
+            evidence_type=evidence_type,
+            evidence=evidence,
+        ),
         "scan_targets": [
             {
                 "url": target.url,
@@ -149,14 +179,15 @@ def build_link_scan_prompt_payload(
             for target in scan_targets
         ],
         "grounding_rules": [
-            "Read every supplied project link using web search.",
+            "Read every supplied evidence link using web search.",
             "For single_page targets, use only the single page the URL resolves to after normal redirects.",
             "For github_repo targets, repository-scoped exploration under repo_scope is allowed.",
-            "Collect factual project evidence supported by the linked page or repository target.",
-            "The job description may guide emphasis but is not evidence of user experience.",
+            "Collect factual evidence supported by the linked page or repository target.",
             "Return concise evidence highlights, not polished resume bullets.",
-            "For github_repo targets, include technical details, implementation facts, architecture, tests, tooling, and impressive project achievements when the repository supports them.",
+            "Prefer technical details, implementation facts, architecture, tests, tooling, integrations, scale cues, reliability work, and concrete accomplishments when directly supported.",
+            "Make each highlight useful without the original page open by naming the specific technology, system behavior, implementation detail, or engineering result it demonstrates.",
             "Do not add skills or infer technologies beyond what the page directly supports.",
+            "Avoid repeating existing highlights unless the scanned source adds a new technical detail.",
             "Omit unsupported claims instead of guessing.",
         ],
     }
@@ -171,15 +202,16 @@ def build_link_scan_instructions() -> str:
         "additional pages. For github_repo targets, inspect the GitHub repository under "
         "repo_scope; you may move between pages within that same repository, including README, "
         "source tree, docs, manifests, tests, CI/config, and other repository files when useful. "
-        "Extract concise factual highlights about the project that are directly supported by "
-        "the scanned pages and useful for later resume refinement. "
-        "The target job may guide which facts are most relevant, but it is not evidence. "
+        "Extract concise factual highlights about the evidence record that are directly "
+        "supported by the scanned pages and useful for later resume refinement. "
+        "Aim for the requested highlight count when enough grounded facts exist, but return "
+        "fewer highlights or an empty array when the sources do not support more. "
         "Return JSON only. Do not include skills, technologies, metrics, dates, ownership, "
         "affiliations, or outcomes unless the scanned page directly supports them. "
-        "For github_repo targets, prefer technical details, implementation facts, architecture, "
-        "tests, tooling, project facts, and impressive achievements when directly supported by "
-        "repository content. Set source_url to the linked, final resolved, or repository page URL "
-        "supporting the highlight. "
+        "Prefer recruiter-useful technical details: implementation facts, architecture, tests, "
+        "tooling, integrations, reliability work, and concrete achievements when directly "
+        "supported by source content. Set source_url to the linked, final resolved, or repository "
+        "page URL supporting the highlight. "
         "If the pages do not provide new grounded facts, return an empty highlights array."
     )
 
@@ -203,7 +235,7 @@ def build_link_scan_response_create_kwargs(
         "text": {
             "format": {
                 "type": "json_schema",
-                "name": "project_link_scan",
+                "name": "link_evidence_enrichment",
                 "schema": schema,
                 "strict": True,
             }
@@ -354,24 +386,67 @@ def _validate_link_scan_response(
     return highlights
 
 
-def scan_project_links_with_llm(
+def resolve_link_scan_max_output_tokens(
     *,
-    context: LinkScanJobContext,
-    project: ProjectRecord,
+    max_output_tokens: int | None = None,
+    requested_highlight_count: int | None = None,
+    max_tokens_per_highlight: int | None = None,
+) -> int:
+    if max_output_tokens is not None:
+        return max_output_tokens
+
+    effective_highlight_count = (
+        requested_highlight_count
+        if requested_highlight_count is not None
+        else settings.LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT
+    )
+    effective_max_tokens_per_highlight = (
+        max_tokens_per_highlight
+        if max_tokens_per_highlight is not None
+        else settings.LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT
+    )
+    return effective_highlight_count * effective_max_tokens_per_highlight
+
+
+def scan_evidence_links_with_llm(
+    *,
+    evidence_type: str,
+    evidence: LinkScannableEvidence,
     model: str | None = None,
     max_output_tokens: int | None = None,
+    requested_highlight_count: int | None = None,
+    max_tokens_per_highlight: int | None = None,
 ) -> LLMLinkScanResult:
-    links = project.links or []
+    links = evidence.links or []
     scan_targets = build_link_scan_targets(links)
+    effective_model = model if model is not None else settings.LINK_SCANNING_LLM_MODEL
+    effective_requested_highlight_count = (
+        requested_highlight_count
+        if requested_highlight_count is not None
+        else settings.LINK_SCANNING_DEFAULT_HIGHLIGHT_COUNT
+    )
+    effective_max_tokens_per_highlight = (
+        max_tokens_per_highlight
+        if max_tokens_per_highlight is not None
+        else settings.LINK_SCANNING_MAX_TOKENS_PER_HIGHLIGHT
+    )
+    effective_max_output_tokens = resolve_link_scan_max_output_tokens(
+        max_output_tokens=max_output_tokens,
+        requested_highlight_count=effective_requested_highlight_count,
+        max_tokens_per_highlight=effective_max_tokens_per_highlight,
+    )
     if not links:
         return LLMLinkScanResult(
             highlights=[],
             metadata={
-                "model": model if model is not None else settings.LINK_SCANNING_LLM_MODEL,
+                "model": effective_model,
                 "api_calls": 0,
                 "scanned_links": [],
                 "scan_targets": [],
                 "source_urls": [],
+                "requested_highlight_count": effective_requested_highlight_count,
+                "max_tokens_per_highlight": effective_max_tokens_per_highlight,
+                "max_output_tokens": effective_max_output_tokens,
                 "prompt_tokens": 0,
                 "completion_tokens": 0,
                 "total_tokens": 0,
@@ -383,14 +458,11 @@ def scan_project_links_with_llm(
     if not api_key.strip():
         raise LinkScanningLLMClientError("OPENAI_API_KEY is required for link scanning")
 
-    effective_model = model if model is not None else settings.LINK_SCANNING_LLM_MODEL
-    effective_max_output_tokens = (
-        max_output_tokens
-        if max_output_tokens is not None
-        else settings.LINK_SCANNING_LLM_MAX_OUTPUT_TOKENS
+    prompt_payload = build_link_scan_prompt_payload(
+        evidence_type=evidence_type,
+        evidence=evidence,
+        requested_highlight_count=effective_requested_highlight_count,
     )
-
-    prompt_payload = build_link_scan_prompt_payload(context=context, project=project)
     schema = build_link_scan_schema()
     instructions = build_link_scan_instructions()
 
@@ -412,7 +484,8 @@ def scan_project_links_with_llm(
                 "event": "link_scanning_llm_request_failed",
                 "subsystem": "link_scanning",
                 "model": effective_model,
-                "project_id": project.id,
+                "evidence_type": evidence_type,
+                "evidence_id": evidence.id,
             },
         )
         raise LinkScanningLLMClientError(f"Link-scanning LLM request failed: {exc}") from exc
@@ -446,6 +519,9 @@ def scan_project_links_with_llm(
         "api_calls": 1,
         "latency_ms": round(latency_ms, 3),
         "scanned_links": links,
+        "requested_highlight_count": effective_requested_highlight_count,
+        "max_tokens_per_highlight": effective_max_tokens_per_highlight,
+        "max_output_tokens": effective_max_output_tokens,
         "scan_targets": [
             {
                 "url": target.url,
@@ -458,3 +534,4 @@ def scan_project_links_with_llm(
         **_usage_metadata(response),
     }
     return LLMLinkScanResult(highlights=highlights, metadata=metadata)
+

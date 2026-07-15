@@ -47,7 +47,11 @@ from resume_generation.latex import (
     resolve_resume_latex_output_path,
     write_resume_latex_artifact,
 )
-from resume_generation.link_scanning import enrich_projects_with_link_scanning
+from resume_generation.enrich import (
+    LinkEvidenceEnrichmentRecordResult,
+    LinkEvidenceEnrichmentResult,
+    run_link_evidence_enrichment,
+)
 from resume_generation.main import (
     DEFAULT_RESUME_RESULT_ARTIFACT_PATH,
     DEFAULT_RESUME_RUN_MANIFEST_ARTIFACT_PATH,
@@ -74,6 +78,8 @@ __all__ = [
     "GenerationAppConfig",
     "IntermediateResumeResult",
     "JobTarget",
+    "LinkEvidenceEnrichmentRecordResult",
+    "LinkEvidenceEnrichmentResult",
     "LinkScanningConfig",
     "ProjectBulletPointResult",
     "ProjectLinkScanResult",
@@ -96,7 +102,6 @@ __all__ = [
     "assemble_intermediate_resume_result",
     "build_resume_run_manifest",
     "build_skill_selection_payload",
-    "enrich_projects_with_link_scanning",
     "generate_experience_bullet_points",
     "generate_project_bullet_points",
     "generate_selection_context",
@@ -105,6 +110,7 @@ __all__ = [
     "load_job_target",
     "render_resume_latex",
     "resolve_resume_latex_output_path",
+    "run_link_evidence_enrichment",
     "run_resume_generation_pipeline",
     "write_resume_result_artifact",
     "write_resume_latex_artifact",

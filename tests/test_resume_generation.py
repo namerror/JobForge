@@ -11,6 +11,7 @@ import yaml
 from pydantic import ValidationError
 
 from app.bulletpoints_generation.models import BulletGenerationResponse
+from app.link_scanning.models import LinkScanHighlight, LinkScanResponse
 from app.main import app
 from app.project_selection.llm_client import LLMProjectScoreResult
 from app.skill_selection.llm_client import LLMScoreResult
@@ -28,13 +29,13 @@ from resume_generation import (
     build_skill_selection_payload,
     generate_experience_bullet_points,
     generate_project_bullet_points,
-    enrich_projects_with_link_scanning,
     generate_selection_context,
     latex_escape,
     load_generation_config,
     load_job_target,
     render_resume_latex,
     resolve_resume_latex_output_path,
+    run_link_evidence_enrichment,
     write_resume_latex_artifact,
 )
 from resume_generation.cache import ResumeGenerationStageCache
@@ -79,6 +80,8 @@ def _config_payload(**overrides) -> dict:
             "dev_mode": True,
             "llm_model": "link-model",
             "llm_max_output_tokens": 660,
+            "highlight_count": 6,
+            "max_tokens_per_highlight": 120,
         },
         "project_bullet_point_generation": {
             "bullet_count_range": {"min": 2, "max": 4},
@@ -381,6 +384,8 @@ def test_load_generation_config_returns_typed_config(tmp_path):
     assert config.link_scanning.dev_mode is True
     assert config.link_scanning.llm_model == "link-model"
     assert config.link_scanning.llm_max_output_tokens == 660
+    assert config.link_scanning.highlight_count == 6
+    assert config.link_scanning.max_tokens_per_highlight == 120
     assert config.project_bullet_point_generation.llm_model == "project-bullet-model"
     assert config.project_bullet_point_generation.bullet_count_range is not None
     assert config.project_bullet_point_generation.bullet_count_range.min == 2
@@ -943,79 +948,112 @@ def test_extract_response_token_usage_reads_stage_metadata():
     assert missing_usage.total_tokens == 0
 
 
-def test_enrich_projects_with_link_scanning_posts_linked_projects_and_merges_patch(
-    monkeypatch,
+def test_run_link_evidence_enrichment_scans_projects_and_experience_and_writes_yaml(
     tmp_path,
 ):
-    config_path = _write_yaml(
-        tmp_path / "config.yaml",
-        _config_payload(
-            link_scanning={
-                "enabled": True,
-                "dev_mode": True,
-                "llm_model": "link-model",
-                "llm_max_output_tokens": 660,
-            }
-        ),
-    )
-    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
     projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
-    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    experience_path = _write_yaml(tmp_path / "experience.yaml", _experience_payload())
     config = load_generation_config(config_path)
-    job_target = load_job_target(job_path)
-    projects_file = _loaded_evidence(projects_path, skills_path)["projects"]
-    linked_project = projects_file.projects_by_id()["active-project"]
-    unlinked_project = projects_file.projects_by_id()["inactive-project"]
-    requests: list[tuple[str, dict]] = []
+    requests = []
 
-    class FakeClient:
-        def __init__(self, *, base_url: str, timeout: float):
-            assert base_url == "http://jobforge.test"
-            assert timeout == 5
+    def fake_scan_service(req):
+        requests.append(req)
+        if req.evidence_type == "project":
+            highlights = [
+                LinkScanHighlight(
+                    text="Built the service.",
+                    source_url="https://example.com/active",
+                ),
+                LinkScanHighlight(
+                    text="Scanned README confirms API orchestration.",
+                    source_url="https://example.com/active",
+                ),
+            ]
+        else:
+            highlights = [
+                LinkScanHighlight(
+                    text="Company link confirms FastAPI platform work.",
+                    source_url="https://example.com/company",
+                )
+            ]
+        return LinkScanResponse(
+            evidence_type=req.evidence_type,
+            evidence_id=req.evidence.id,
+            added_highlights=highlights,
+            details={"method": "llm"},
+        )
 
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, traceback):
-            return None
-
-        def post(self, endpoint: str, json: dict):
-            requests.append((endpoint, json))
-            return httpx.Response(
-                200,
-                json={
-                    "project_id": json["project"]["id"],
-                    "added_highlights": [
-                        {
-                            "text": "Scanned README confirms API orchestration.",
-                            "source_url": "https://example.com/active",
-                        }
-                    ],
-                    "details": {"method": "llm"},
-                },
-            )
-
-    monkeypatch.setattr("resume_generation.link_scanning.httpx.Client", FakeClient)
-
-    result = enrich_projects_with_link_scanning(
-        selected_projects=[linked_project, unlinked_project],
+    result = run_link_evidence_enrichment(
+        evidence_type="all",
+        evidence_paths={
+            "projects": projects_path,
+            "experience": experience_path,
+        },
         config=config,
-        job_target=job_target,
+        highlight_count=7,
+        max_tokens_per_highlight=90,
+        scan_service=fake_scan_service,
     )
 
-    assert [endpoint for endpoint, _ in requests] == ["/scan-link"]
-    payload = requests[0][1]
-    assert payload["project"]["id"] == "active-project"
-    assert payload["dev_mode"] is True
-    assert payload["llm_model"] == "link-model"
-    assert payload["llm_max_output_tokens"] == 660
-    assert result[0].highlights == [
+    assert [(req.evidence_type, req.evidence.id) for req in requests] == [
+        ("project", "active-project"),
+        ("experience", "backend-engineer"),
+    ]
+    assert all(req.requested_highlight_count == 7 for req in requests)
+    assert all(req.max_tokens_per_highlight == 90 for req in requests)
+    assert result.scanned_count == 2
+    assert result.total_added_highlights == 2
+    assert set(result.updated_paths) == {str(projects_path), str(experience_path)}
+
+    projects_file = load_evidence_yaml(projects_path, "projects")
+    experience_file = load_evidence_yaml(experience_path, "experience")
+    assert projects_file.projects_by_id()["active-project"].highlights == [
         "Built the service.",
         "Scanned README confirms API orchestration.",
     ]
-    assert result[0].skills.technology == ["FastAPI"]
-    assert result[0].skills.programming == ["Python"]
-    assert result[1].id == "inactive-project"
+    assert projects_file.projects_by_id()["inactive-project"].highlights == [
+        "Built the frontend."
+    ]
+    assert experience_file.experience_by_id()["backend-engineer"].highlights == [
+        "Designed schema-validated APIs.",
+        "Company link confirms FastAPI platform work.",
+    ]
+
+
+def test_run_link_evidence_enrichment_dry_run_does_not_write_yaml(tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    config = load_generation_config(config_path)
+
+    def fake_scan_service(req):
+        return LinkScanResponse(
+            evidence_type=req.evidence_type,
+            evidence_id=req.evidence.id,
+            added_highlights=[
+                LinkScanHighlight(
+                    text="Dry-run scanned detail.",
+                    source_url="https://example.com/active",
+                )
+            ],
+            details=None,
+        )
+
+    result = run_link_evidence_enrichment(
+        evidence_type="projects",
+        evidence_paths={"projects": projects_path},
+        config=config,
+        dry_run=True,
+        scan_service=fake_scan_service,
+    )
+
+    assert result.dry_run is True
+    assert result.total_added_highlights == 1
+    assert result.updated_paths == ()
+    projects_file = load_evidence_yaml(projects_path, "projects")
+    assert projects_file.projects_by_id()["active-project"].highlights == [
+        "Built the service."
+    ]
 
 
 def test_assemble_intermediate_resume_result_builds_deterministic_schema(tmp_path):
@@ -2169,7 +2207,9 @@ def test_resume_generation_pipeline_logs_stage_events(monkeypatch, tmp_path, cap
     assert ("resume_generation_pipeline_start", None) in stage_events
     assert ("resume_generation_stage_start", "selection") in stage_events
     assert ("resume_generation_stage_complete", "selection") in stage_events
-    assert ("resume_generation_stage_skipped", "link_scanning") in stage_events
+    assert ("resume_generation_stage_skipped", "link_scanning") not in stage_events
+    assert ("resume_generation_stage_start", "link_scanning") not in stage_events
+    assert ("resume_generation_stage_complete", "link_scanning") not in stage_events
     assert ("resume_generation_stage_start", "project_bullet_points") in stage_events
     assert ("resume_generation_stage_complete", "project_bullet_points") in stage_events
     assert ("resume_generation_stage_start", "experience_bullet_points") in stage_events
@@ -2177,13 +2217,6 @@ def test_resume_generation_pipeline_logs_stage_events(monkeypatch, tmp_path, cap
     assert ("resume_generation_stage_complete", "assembly") in stage_events
     assert ("resume_generation_artifact_written", None) in stage_events
     assert ("resume_generation_pipeline_complete", None) in stage_events
-    skipped_link_records = [
-        record
-        for record in caplog.records
-        if getattr(record, "event", None) == "resume_generation_stage_skipped"
-        and getattr(record, "stage", None) == "link_scanning"
-    ]
-    assert skipped_link_records[0].total_tokens == 0
 
 
 def test_resume_generation_pipeline_logs_token_usage_summary(
@@ -2473,7 +2506,7 @@ def test_resume_generation_pipeline_resumes_after_project_bullet_failure(
     ]
 
 
-def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generation(
+def test_resume_generation_pipeline_does_not_scan_links_before_bullet_generation(
     monkeypatch,
     tmp_path,
 ):
@@ -2485,6 +2518,8 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
                 "dev_mode": True,
                 "llm_model": "link-model",
                 "llm_max_output_tokens": 660,
+                "highlight_count": 6,
+                "max_tokens_per_highlight": 120,
             }
         ),
     )
@@ -2531,19 +2566,6 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
                         ],
                     },
                 )
-            if endpoint == "/scan-link":
-                return httpx.Response(
-                    200,
-                    json={
-                        "project_id": json["project"]["id"],
-                        "added_highlights": [
-                            {
-                                "text": "Scanned link confirms project context.",
-                                "source_url": "https://example.com/active",
-                            }
-                        ],
-                    },
-                )
             if endpoint == "/generate-bulletpoints":
                 bullet_payloads.append(json)
                 evidence = json.get("project") or json.get("experience")
@@ -2556,7 +2578,6 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
             raise AssertionError(f"unexpected endpoint: {endpoint}")
 
     monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
-    monkeypatch.setattr("resume_generation.link_scanning.httpx.Client", FakeClient)
     monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
     monkeypatch.setattr(
         "resume_generation.main.load_registered_evidence",
@@ -2575,13 +2596,11 @@ def test_resume_generation_pipeline_optionally_scans_links_before_bullet_generat
     assert calls == [
         "/select-skills",
         "/select-projects",
-        "/scan-link",
         "/generate-bulletpoints",
         "/generate-bulletpoints",
     ]
     assert bullet_payloads[0]["project"]["highlights"] == [
         "Built the service.",
-        "Scanned link confirms project context.",
     ]
     assert bullet_payloads[0]["project"]["skills"]["technology"] == ["FastAPI"]
     assert bullet_payloads[1]["experience"]["id"] == "backend-engineer"
