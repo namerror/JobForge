@@ -57,16 +57,19 @@ def build_bulletpoint_prompt_payload(
         project=project,
         experience=experience,
     )
+    job_payload: dict[str, Any] = {"title": context.title}
+    if context.job_focus is not None:
+        job_payload["focus"] = context.job_focus.model_dump()
+    else:
+        job_payload["description"] = context.description or ""
+
     payload = {
-        "job": {
-            "title": context.title,
-            "description": context.description or "",
-        },
+        "job": job_payload,
         evidence_type: evidence_payload,
         "bullet_count_range": count_range.model_dump(),
         "grounding_rules": [
             f"Use only the supplied {evidence_type} evidence as the source of user experience.",
-            "The job description may guide emphasis but is not evidence of user experience.",
+            "The job focus or description may guide emphasis but is not evidence of user experience.",
             "Omit unsupported claims instead of guessing.",
             "Return plain bullet text without leading bullet symbols.",
         ],
@@ -89,7 +92,7 @@ def build_bulletpoint_instructions(
     return (
         "You are a deterministic resume bullet writer. Return JSON only. "
         f"{count_instruction} Tailor the supplied {evidence_type} evidence to the "
-        "target job while staying grounded in the supplied "
+        "target job focus while staying grounded in the supplied "
         f"{evidence_type} summary, highlights, and skills. Maximize the user's "
         "chances of getting an interview by creating strong, ATS-friendly "
         "resume bullets. Use strong action verbs + task + impact, prioritize "

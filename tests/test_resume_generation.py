@@ -27,6 +27,7 @@ from resume_generation import (
     SkillSelectionResult,
     assemble_intermediate_resume_result,
     build_skill_selection_payload,
+    derive_job_focus,
     generate_experience_bullet_points,
     generate_project_bullet_points,
     generate_selection_context,
@@ -75,6 +76,11 @@ def _config_payload(**overrides) -> dict:
             "llm_model": "project-model",
             "llm_max_output_tokens": 880,
         },
+        "job_focus_generation": {
+            "dev_mode": True,
+            "llm_model": "job-focus-model",
+            "llm_max_output_tokens": 770,
+        },
         "link_scanning": {
             "enabled": False,
             "dev_mode": True,
@@ -108,6 +114,38 @@ def _job_target_payload(**overrides) -> dict:
     }
     payload.update(overrides)
     return payload
+
+
+def _job_focus_payload(**overrides) -> dict:
+    payload = {
+        "summary": "Backend API role focused on Python services.",
+        "required_skills": ["Python", "FastAPI"],
+        "preferred_skills": ["Docker"],
+        "responsibilities": ["Build and maintain REST APIs"],
+        "domain_emphasis": ["Backend platforms"],
+        "resume_relevant_constraints": ["Remote collaboration"],
+        "excluded_context": ["Benefits and company culture"],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _job_focus_response(total_tokens: int = 13) -> httpx.Response:
+    return httpx.Response(
+        200,
+        json={
+            "job_focus": _job_focus_payload(),
+            "details": {
+                "_job_focus_llm": {
+                    "prompt_tokens": 8,
+                    "completion_tokens": 5,
+                    "total_tokens": total_tokens,
+                    "api_calls": 1,
+                    "latency_ms": 75.0,
+                }
+            },
+        },
+    )
 
 
 def _skills_payload() -> dict:
@@ -348,6 +386,8 @@ def _install_successful_pipeline_client(monkeypatch, calls: list[dict]) -> None:
                         },
                     },
                 )
+            if endpoint == "/derive-job-focus":
+                return _job_focus_response()
             if endpoint == "/generate-bulletpoints":
                 evidence_id = project_id or experience_id
                 bullet_count_range = json.get("bullet_count_range") or {}
@@ -385,6 +425,9 @@ def test_load_generation_config_returns_typed_config(tmp_path):
     assert config.app.base_url == "http://jobforge.test"
     assert config.skill_selection.llm_model == "skill-model"
     assert config.project_selection.llm_max_output_tokens == 880
+    assert config.job_focus_generation.dev_mode is True
+    assert config.job_focus_generation.llm_model == "job-focus-model"
+    assert config.job_focus_generation.llm_max_output_tokens == 770
     assert config.link_scanning.enabled is False
     assert config.link_scanning.dev_mode is True
     assert config.link_scanning.llm_model == "link-model"
@@ -841,6 +884,51 @@ def test_generate_experience_bullet_points_posts_once_per_active_experience(
     assert payload["llm_max_output_tokens"] == 990
     assert [item.experience_id for item in result] == ["backend-engineer"]
     assert result[0].bullet_points == ["Generated bullet for backend-engineer."]
+
+
+def test_derive_job_focus_posts_job_target_once(monkeypatch, tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_path)
+    requests: list[tuple[str, dict]] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            requests.append((endpoint, json))
+            return httpx.Response(
+                200,
+                json={
+                    "job_focus": _job_focus_payload(),
+                    "details": {
+                        "method": "llm",
+                        "_job_focus_llm": {"total_tokens": 13},
+                    },
+                },
+            )
+
+    monkeypatch.setattr("resume_generation.job_focus.httpx.Client", FakeClient)
+
+    result = derive_job_focus(config=config, job_target=job_target)
+
+    assert [endpoint for endpoint, _ in requests] == ["/derive-job-focus"]
+    payload = requests[0][1]
+    assert payload["title"] == "Backend Engineer"
+    assert payload["description"] == "Build Python APIs with FastAPI."
+    assert payload["dev_mode"] is True
+    assert payload["llm_model"] == "job-focus-model"
+    assert payload["llm_max_output_tokens"] == 770
+    assert result.required_skills == ["Python", "FastAPI"]
 
 
 def test_cached_project_bullet_generation_logs_response_source(
@@ -1999,6 +2087,8 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
                         ],
                     },
                 )
+            if endpoint == "/derive-job-focus":
+                return _job_focus_response()
             if endpoint == "/generate-bulletpoints":
                 evidence = json.get("project") or json.get("experience")
                 return httpx.Response(
@@ -2085,6 +2175,7 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
     assert calls == [
         "/select-skills",
         "/select-projects",
+        "/derive-job-focus",
         "/generate-bulletpoints",
         "/generate-bulletpoints",
         "assemble",
@@ -2099,6 +2190,7 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
     manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest_payload["schema_version"] == 1
     assert manifest_payload["artifacts"]["resume_result"] == str(artifact_path)
+    assert manifest_payload["job_focus"]["required_skills"] == ["Python", "FastAPI"]
     assert manifest_payload["selection"]["skills"]["details"]["_fallback_method"] == "baseline"
     assert manifest_payload["selection"]["project_selection"]["ranked_projects"] == [
         {"method": "llm", "project_id": "active-project", "score": 1.0}
@@ -2109,6 +2201,7 @@ def test_resume_generation_pipeline_loads_config_job_and_evidence_once(monkeypat
     ] == [
         ("skill_selection", "disabled", None),
         ("project_selection", "disabled", None),
+        ("job_focus_generation", "disabled", None),
         ("project_bullet_points", "disabled", None),
         ("experience_bullet_points", "disabled", None),
     ]
@@ -2187,6 +2280,8 @@ def test_resume_generation_pipeline_reuses_cached_stage_results(monkeypatch, tmp
                         ],
                     },
                 )
+            if endpoint == "/derive-job-focus":
+                return _job_focus_response()
             if endpoint == "/generate-bulletpoints":
                 bullet_count_range = json.get("bullet_count_range") or {}
                 bullet_count = bullet_count_range.get("min", 1)
@@ -2221,6 +2316,7 @@ def test_resume_generation_pipeline_reuses_cached_stage_results(monkeypatch, tmp
     assert calls == [
         "/select-skills",
         "/select-projects",
+        "/derive-job-focus",
         "/generate-bulletpoints",
         "/generate-bulletpoints",
     ]
@@ -2453,6 +2549,8 @@ def test_resume_generation_pipeline_does_not_cache_skill_llm_fallback(
                         ],
                     },
                 )
+            if endpoint == "/derive-job-focus":
+                return _job_focus_response()
             if endpoint == "/generate-bulletpoints":
                 evidence = json.get("project") or json.get("experience")
                 bullet_count_range = json.get("bullet_count_range") or {}
@@ -2491,6 +2589,7 @@ def test_resume_generation_pipeline_does_not_cache_skill_llm_fallback(
     assert calls == [
         "/select-skills",
         "/select-projects",
+        "/derive-job-focus",
         "/generate-bulletpoints",
         "/generate-bulletpoints",
         "/select-skills",
@@ -2666,6 +2765,7 @@ def test_experience_bullet_model_change_does_not_regenerate_project_bullets(
     ] == [
         ("/select-skills", None, None, "skill-model"),
         ("/select-projects", None, None, "project-model"),
+        ("/derive-job-focus", None, None, "job-focus-model"),
         ("/generate-bulletpoints", "active-project", None, "project-bullet-model"),
         (
             "/generate-bulletpoints",
@@ -2729,6 +2829,7 @@ def test_project_bullet_model_change_does_not_regenerate_experience_bullets(
     ] == [
         ("/select-skills", None, None, "skill-model"),
         ("/select-projects", None, None, "project-model"),
+        ("/derive-job-focus", None, None, "job-focus-model"),
         ("/generate-bulletpoints", "active-project", None, "project-bullet-model"),
         (
             "/generate-bulletpoints",
@@ -2794,6 +2895,7 @@ def test_skill_evidence_change_only_invalidates_skill_selection(
     ] == [
         ("/select-skills", None, None),
         ("/select-projects", None, None),
+        ("/derive-job-focus", None, None),
         ("/generate-bulletpoints", "active-project", None),
         ("/generate-bulletpoints", None, "backend-engineer"),
         ("/select-skills", None, None),
@@ -2837,6 +2939,8 @@ def test_resume_generation_pipeline_logs_stage_events(monkeypatch, tmp_path, cap
     assert ("resume_generation_pipeline_start", None) in stage_events
     assert ("resume_generation_stage_start", "selection") in stage_events
     assert ("resume_generation_stage_complete", "selection") in stage_events
+    assert ("resume_generation_stage_start", "job_focus_generation") in stage_events
+    assert ("resume_generation_stage_complete", "job_focus_generation") in stage_events
     assert ("resume_generation_stage_skipped", "link_scanning") not in stage_events
     assert ("resume_generation_stage_start", "link_scanning") not in stage_events
     assert ("resume_generation_stage_complete", "link_scanning") not in stage_events
@@ -2880,6 +2984,7 @@ def test_resume_generation_pipeline_logs_token_usage_summary(
         if getattr(record, "event", None) == "resume_generation_stage_complete"
     }
     assert stage_complete["selection"].total_tokens == 45
+    assert stage_complete["job_focus_generation"].total_tokens == 13
     assert stage_complete["project_bullet_points"].total_tokens == 7
     assert stage_complete["experience_bullet_points"].total_tokens == 7
     assert stage_complete["assembly"].total_tokens == 0
@@ -2894,12 +2999,13 @@ def test_resume_generation_pipeline_logs_token_usage_summary(
     assert summary.stages["selection"]["total_tokens"] == 45
     assert summary.stages["skill_selection"]["total_tokens"] == 15
     assert summary.stages["project_selection"]["total_tokens"] == 30
+    assert summary.stages["job_focus_generation"]["total_tokens"] == 13
     assert summary.stages["link_scanning"]["total_tokens"] == 0
     assert summary.stages["project_bullet_points"]["total_tokens"] == 7
     assert summary.stages["experience_bullet_points"]["total_tokens"] == 7
     assert summary.stages["assembly"]["total_tokens"] == 0
-    assert summary.total["total_tokens"] == 59
-    assert summary.total["api_calls"] == 4
+    assert summary.total["total_tokens"] == 72
+    assert summary.total["api_calls"] == 5
 
 
 def test_resume_generation_pipeline_cache_misses_when_job_target_changes(
@@ -2961,6 +3067,8 @@ def test_resume_generation_pipeline_cache_misses_when_job_target_changes(
                         ],
                     },
                 )
+            if endpoint == "/derive-job-focus":
+                return _job_focus_response()
             if endpoint == "/generate-bulletpoints":
                 return httpx.Response(
                     200,
@@ -2995,10 +3103,12 @@ def test_resume_generation_pipeline_cache_misses_when_job_target_changes(
     assert calls == [
         "/select-skills",
         "/select-projects",
+        "/derive-job-focus",
         "/generate-bulletpoints",
         "/generate-bulletpoints",
         "/select-skills",
         "/select-projects",
+        "/derive-job-focus",
         "/generate-bulletpoints",
         "/generate-bulletpoints",
     ]
@@ -3085,6 +3195,8 @@ def test_resume_generation_pipeline_resumes_after_project_bullet_failure(
                         ],
                     },
                 )
+            if endpoint == "/derive-job-focus":
+                return _job_focus_response()
             if endpoint == "/generate-bulletpoints":
                 if project_id == "second-project" and fail_second_project:
                     raise httpx.ConnectError("simulated failure")
@@ -3134,6 +3246,7 @@ def test_resume_generation_pipeline_resumes_after_project_bullet_failure(
     assert calls == [
         ("/select-skills", None),
         ("/select-projects", None),
+        ("/derive-job-focus", None),
         ("/generate-bulletpoints", "active-project"),
         ("/generate-bulletpoints", "second-project"),
         ("/generate-bulletpoints", "second-project"),
@@ -3201,6 +3314,8 @@ def test_resume_generation_pipeline_does_not_scan_links_before_bullet_generation
                         ],
                     },
                 )
+            if endpoint == "/derive-job-focus":
+                return _job_focus_response()
             if endpoint == "/generate-bulletpoints":
                 bullet_payloads.append(json)
                 evidence = json.get("project") or json.get("experience")
@@ -3231,9 +3346,15 @@ def test_resume_generation_pipeline_does_not_scan_links_before_bullet_generation
     assert calls == [
         "/select-skills",
         "/select-projects",
+        "/derive-job-focus",
         "/generate-bulletpoints",
         "/generate-bulletpoints",
     ]
+    assert bullet_payloads[0]["context"]["job_focus"]["required_skills"] == [
+        "Python",
+        "FastAPI",
+    ]
+    assert "description" not in bullet_payloads[0]["context"]
     assert bullet_payloads[0]["project"]["highlights"] == [
         "Built the service.",
     ]

@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.job_focus_generation.models import JobFocus as JobFocusResult
 from resume_evidence.models import ProjectRecord
 
 
@@ -146,6 +147,29 @@ class BulletPointGenerationConfig(StrictSchemaModel):
         return value
 
 
+class JobFocusGenerationConfig(StrictSchemaModel):
+    dev_mode: bool | None = None
+    llm_model: str | None = None
+    llm_max_output_tokens: int | None = None
+
+    @field_validator("llm_model")
+    @classmethod
+    def validate_llm_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("llm_model must not be empty")
+        return normalized
+
+    @field_validator("llm_max_output_tokens")
+    @classmethod
+    def validate_llm_max_output_tokens(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("llm_max_output_tokens must be greater than 0")
+        return value
+
+
 class LinkScanningConfig(StrictSchemaModel):
     enabled: bool = False
     dev_mode: bool | None = None
@@ -219,6 +243,9 @@ class ResumeGenerationConfig(StrictSchemaModel):
     app: GenerationAppConfig = Field(default_factory=GenerationAppConfig)
     skill_selection: SkillSelectionConfig = Field(default_factory=SkillSelectionConfig)
     project_selection: ProjectSelectionConfig = Field(default_factory=ProjectSelectionConfig)
+    job_focus_generation: JobFocusGenerationConfig = Field(
+        default_factory=JobFocusGenerationConfig
+    )
     link_scanning: LinkScanningConfig = Field(default_factory=LinkScanningConfig)
     project_bullet_point_generation: BulletPointGenerationConfig = Field(
         default_factory=BulletPointGenerationConfig

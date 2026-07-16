@@ -15,6 +15,10 @@ project_selection:
   dev_mode: true
   llm_model: gpt-5-mini
   llm_max_output_tokens: 1200
+job_focus_generation:
+  dev_mode: true
+  llm_model: gpt-5-mini
+  llm_max_output_tokens: 1200
 link_scanning:
   enabled: false
   dev_mode: true

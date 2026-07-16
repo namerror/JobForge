@@ -15,6 +15,7 @@ TOKEN_USAGE_FIELDS = (
 _STAGE_DETAIL_KEYS = {
     "skill_selection": ("_llm",),
     "project_selection": ("_project_llm",),
+    "job_focus_generation": ("_job_focus_llm",),
     "link_scanning": ("_link_scanning_llm",),
     "project_bullet_points": ("_bulletpoints_llm",),
     "experience_bullet_points": ("_bulletpoints_llm",),
@@ -80,6 +81,9 @@ class ResumeGenerationTokenUsageMonitor:
                 ).model_dump(),
                 "skill_selection": self.stage_total("skill_selection").model_dump(),
                 "project_selection": self.stage_total("project_selection").model_dump(),
+                "job_focus_generation": self.stage_total(
+                    "job_focus_generation"
+                ).model_dump(),
                 "link_scanning": self.stage_total("link_scanning").model_dump(),
                 "project_bullet_points": self.stage_total(
                     "project_bullet_points"

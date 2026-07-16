@@ -190,6 +190,8 @@ should be done once, or only when the user decides, not on every resume pass.
 
 ### 5. Cache keys include post-processing and debug fields
 
+**Status:** Fixed
+
 **Severity:** High
 
 The stage cache keys exact outgoing request payloads. That means changes to

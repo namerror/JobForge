@@ -24,6 +24,12 @@ from app.bulletpoints_generation.service import (
 )
 from app.link_scanning.models import LinkScanRequest, LinkScanResponse
 from app.link_scanning.service import LinkScanningError, scan_link_evidence_service
+from app.job_focus_generation.models import JobFocusRequest, JobFocusResponse
+from app.job_focus_generation.service import (
+    JobFocusGenerationError,
+    derive_job_focus_service,
+    record_job_focus_generation_error,
+)
 from resume_evidence import load_registered_evidence
 
 
@@ -64,6 +70,10 @@ async def health():
             "llm_model": settings.BULLETPOINTS_LLM_MODEL,
             "llm_max_output_tokens": settings.BULLETPOINTS_LLM_MAX_OUTPUT_TOKENS,
             "default_count": settings.BULLETPOINTS_DEFAULT_COUNT,
+        },
+        "job_focus_generation": {
+            "llm_model": settings.JOB_FOCUS_LLM_MODEL,
+            "llm_max_output_tokens": settings.JOB_FOCUS_LLM_MAX_OUTPUT_TOKENS,
         },
         "link_scanning": {
             "enabled": settings.LINK_SCANNING_ENABLED,
@@ -124,6 +134,27 @@ async def generate_bulletpoints(payload: BulletGenerationRequest) -> BulletGener
         record_bulletpoint_generation_error()
         raise HTTPException(status_code=400, detail=str(ve))
     except BulletPointGenerationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.post("/derive-job-focus", response_model=JobFocusResponse)
+async def derive_job_focus(payload: JobFocusRequest) -> JobFocusResponse:
+    logger.info(
+        "app_content_stage_request",
+        extra={
+            "event": "app_content_stage_request",
+            "stage": "job_focus_generation",
+            "endpoint": "/derive-job-focus",
+            "source": "http",
+            "llm_max_output_tokens": payload.llm_max_output_tokens,
+        },
+    )
+    try:
+        return derive_job_focus_service(payload)
+    except ValueError as ve:
+        record_job_focus_generation_error()
+        raise HTTPException(status_code=400, detail=str(ve))
+    except JobFocusGenerationError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
 

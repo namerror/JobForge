@@ -17,6 +17,8 @@ from resume_generation.models import (
     ExperienceBulletPointResult,
     GenerationAppConfig,
     IntermediateResumeResult,
+    JobFocusGenerationConfig,
+    JobFocusResult,
     JobTarget,
     LinkScanningConfig,
     ProjectBulletPointResult,
@@ -39,6 +41,7 @@ from resume_generation.bullet_points import (
     generate_experience_bullet_points,
     generate_project_bullet_points,
 )
+from resume_generation.job_focus import derive_job_focus
 from resume_generation.cache import ResumeGenerationStageCache, ResumeGenerationStageCacheResult
 from resume_generation.latex import (
     DEFAULT_RESUME_TEX_ARTIFACT_PATH,
@@ -77,6 +80,8 @@ __all__ = [
     "ExperienceBulletPointResult",
     "GenerationAppConfig",
     "IntermediateResumeResult",
+    "JobFocusGenerationConfig",
+    "JobFocusResult",
     "JobTarget",
     "LinkEvidenceEnrichmentRecordResult",
     "LinkEvidenceEnrichmentResult",
@@ -102,6 +107,7 @@ __all__ = [
     "assemble_intermediate_resume_result",
     "build_resume_run_manifest",
     "build_skill_selection_payload",
+    "derive_job_focus",
     "generate_experience_bullet_points",
     "generate_project_bullet_points",
     "generate_selection_context",

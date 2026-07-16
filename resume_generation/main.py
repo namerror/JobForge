@@ -24,8 +24,13 @@ from resume_generation.bullet_points import (
     generate_project_bullet_points,
 )
 from resume_generation.cache import ResumeGenerationStageCache
+from resume_generation.job_focus import derive_job_focus
 from resume_generation.latex import write_resume_latex_artifact
-from resume_generation.models import IntermediateResumeResult, ResumeSelectionContext
+from resume_generation.models import (
+    IntermediateResumeResult,
+    JobFocusResult,
+    ResumeSelectionContext,
+)
 from resume_generation.selection import generate_selection_context
 from resume_generation.token_usage import ResumeGenerationTokenUsageMonitor, TokenUsage
 
@@ -84,6 +89,7 @@ def build_resume_run_manifest(
     config_path: Path | str,
     job_target_path: Path | str,
     context: ResumeSelectionContext,
+    job_focus: JobFocusResult,
     stage_response_records: list[dict[str, Any]],
     token_usage_monitor: ResumeGenerationTokenUsageMonitor,
     resume_result_artifact_path: Path | str,
@@ -106,6 +112,7 @@ def build_resume_run_manifest(
             "project_selection": context.project_selection.model_dump(),
             "selected_project_ids": [project.id for project in context.selected_projects],
         },
+        "job_focus": job_focus.model_dump(),
         "stage_responses": stage_response_records,
         "token_usage": token_usage_monitor.summary(),
     }
@@ -187,6 +194,28 @@ def run_resume_generation_pipeline(
 
     logger.info(
         "resume_generation_stage_start",
+        extra={"event": "resume_generation_stage_start", "stage": "job_focus_generation"},
+    )
+    job_focus = derive_job_focus(
+        config=config,
+        job_target=job_target,
+        cache=cache,
+        token_usage_monitor=token_usage_monitor,
+        stage_response_records=stage_response_records,
+    )
+    logger.info(
+        "resume_generation_stage_complete",
+        extra={
+            "event": "resume_generation_stage_complete",
+            "stage": "job_focus_generation",
+            **_token_usage_extra(
+                token_usage_monitor.stage_total("job_focus_generation")
+            ),
+        },
+    )
+
+    logger.info(
+        "resume_generation_stage_start",
         extra={
             "event": "resume_generation_stage_start",
             "stage": "project_bullet_points",
@@ -197,6 +226,7 @@ def run_resume_generation_pipeline(
         selected_projects=context.selected_projects,
         config=config,
         job_target=job_target,
+        job_focus=job_focus,
         cache=cache,
         token_usage_monitor=token_usage_monitor,
         stage_response_records=stage_response_records,
@@ -226,6 +256,7 @@ def run_resume_generation_pipeline(
         experience=_experience.experience,
         config=config,
         job_target=job_target,
+        job_focus=job_focus,
         cache=cache,
         token_usage_monitor=token_usage_monitor,
         stage_response_records=stage_response_records,
@@ -278,6 +309,7 @@ def run_resume_generation_pipeline(
         config_path=config_path,
         job_target_path=job_target_path,
         context=context,
+        job_focus=job_focus,
         stage_response_records=stage_response_records,
         token_usage_monitor=token_usage_monitor,
         resume_result_artifact_path=artifact_path,

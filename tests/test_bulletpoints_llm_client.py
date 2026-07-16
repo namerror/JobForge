@@ -14,6 +14,7 @@ from app.bulletpoints_generation.llm_client import (
     generate_bulletpoints_with_llm,
 )
 from app.bulletpoints_generation.models import BulletCountRange, BulletJobContext
+from app.job_focus_generation.models import JobFocus
 from resume_evidence.models import ExperienceRecord, ProjectRecord, ProjectSkills
 
 
@@ -96,6 +97,33 @@ def test_build_bulletpoint_prompt_payload_excludes_links():
     assert payload["project"]["skills"]["programming"] == ["Python"]
     assert "links" not in payload["project"]
     assert "https://example.com/jobforge" not in json.dumps(payload)
+
+
+def test_build_bulletpoint_prompt_payload_prefers_job_focus_over_description():
+    payload = json.loads(
+        build_bulletpoint_prompt_payload(
+            context=BulletJobContext(
+                title="Backend Engineer",
+                description="Full posting with benefits and culture.",
+                job_focus=JobFocus(
+                    summary="Python API role.",
+                    required_skills=["Python", "FastAPI"],
+                    preferred_skills=["Docker"],
+                    responsibilities=["Build REST APIs"],
+                    domain_emphasis=["Backend platforms"],
+                    resume_relevant_constraints=["Remote collaboration"],
+                    excluded_context=["Benefits and culture"],
+                ),
+            ),
+            project=_project(),
+            count_range=BulletCountRange(min=2, max=4),
+        )
+    )
+
+    assert payload["job"]["title"] == "Backend Engineer"
+    assert payload["job"]["focus"]["required_skills"] == ["Python", "FastAPI"]
+    assert "description" not in payload["job"]
+    assert "Full posting" not in json.dumps(payload)
 
 
 def test_build_bulletpoint_prompt_payload_supports_experience_evidence():

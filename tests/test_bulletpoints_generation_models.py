@@ -7,6 +7,7 @@ from app.bulletpoints_generation.models import (
     BulletJobContext,
 )
 from app.bulletpoints_generation.service import effective_bullet_count_range
+from app.job_focus_generation.models import JobFocus
 
 
 def _project_payload(**overrides):
@@ -89,6 +90,29 @@ def test_bullet_generation_request_accepts_full_project_record():
     assert request.project.highlights[0].startswith("Built a FastAPI")
     assert request.bullet_count_range is not None
     assert request.bullet_count_range.max == 4
+
+
+def test_bullet_generation_request_accepts_job_focus_context():
+    request = BulletGenerationRequest.model_validate(
+        {
+            "context": {
+                "title": "Backend Engineer",
+                "job_focus": {
+                    "summary": "Python API role.",
+                    "required_skills": ["Python", "FastAPI"],
+                    "preferred_skills": ["Docker"],
+                    "responsibilities": ["Build REST APIs"],
+                    "domain_emphasis": ["Backend platforms"],
+                    "resume_relevant_constraints": ["Remote collaboration"],
+                    "excluded_context": ["Benefits"],
+                },
+            },
+            "project": _project_payload(),
+        }
+    )
+
+    assert isinstance(request.context.job_focus, JobFocus)
+    assert request.context.job_focus.required_skills == ["Python", "FastAPI"]
 
 
 def test_bullet_generation_request_accepts_full_experience_record():

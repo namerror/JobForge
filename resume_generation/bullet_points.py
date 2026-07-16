@@ -9,6 +9,7 @@ from resume_evidence.models import ExperienceRecord, ProjectRecord
 from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.models import (
     ExperienceBulletPointResult,
+    JobFocusResult,
     JobTarget,
     ProjectBulletPointResult,
     ResumeGenerationConfig,
@@ -84,6 +85,7 @@ def generate_project_bullet_points(
     selected_projects: Iterable[ProjectRecord],
     config: ResumeGenerationConfig,
     job_target: JobTarget,
+    job_focus: JobFocusResult | None = None,
     cache: ResumeGenerationStageCache | None = None,
     token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
     stage_response_records: list[dict] | None = None,
@@ -96,11 +98,13 @@ def generate_project_bullet_points(
         timeout=config.app.timeout_seconds,
     ) as client:
         for project in selected_projects:
+            context_payload: dict[str, Any] = {"title": job_target.title}
+            if job_focus is not None:
+                context_payload["job_focus"] = job_focus.model_dump()
+            else:
+                context_payload["description"] = job_target.description
             payload = {
-                "context": {
-                    "title": job_target.title,
-                    "description": job_target.description,
-                },
+                "context": context_payload,
                 "project": project.model_dump(),
                 **bullet_config,
             }
@@ -140,6 +144,7 @@ def generate_experience_bullet_points(
     experience: Iterable[ExperienceRecord],
     config: ResumeGenerationConfig,
     job_target: JobTarget,
+    job_focus: JobFocusResult | None = None,
     cache: ResumeGenerationStageCache | None = None,
     token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
     stage_response_records: list[dict] | None = None,
@@ -154,11 +159,13 @@ def generate_experience_bullet_points(
         for item in experience:
             if not item.active:
                 continue
+            context_payload: dict[str, Any] = {"title": job_target.title}
+            if job_focus is not None:
+                context_payload["job_focus"] = job_focus.model_dump()
+            else:
+                context_payload["description"] = job_target.description
             payload = {
-                "context": {
-                    "title": job_target.title,
-                    "description": job_target.description,
-                },
+                "context": context_payload,
                 "experience": item.model_dump(),
                 **bullet_config,
             }
