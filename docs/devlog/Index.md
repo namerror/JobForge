@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `07-16-2026-Codex-fastapi-service-transition-docs.md` - 2026-07-16 - Document FastAPI resume service transition
 - `07-16-2026-Codex-job-focus-generation.md` - 2026-07-16 - Add job focus generation stage
 - `07-16-2026-Codex-bullet-cache-key-normalization.md` - 2026-07-16 - Bullet cache key normalization
 - `07-16-2026-Codex-selection-cache-key-normalization.md` - 2026-07-16 - Selection cache key normalization

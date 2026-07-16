@@ -12,21 +12,25 @@ Use this file as the primary navigation index for coding agents.
 ## Core Project Context
 
 1. `README.md`
-   - current product framing, implemented capabilities, and project vision
+   - current product framing, implemented capabilities, service-transition direction, and project vision
 2. `docs/architecture-overview.md`
-   - module relationships, startup flow, skill/project-selection runtime flows, and the implemented evidence layer
-3. `docs/branch-03-grounded-resume-generation.md`
-   - current Branch 03 milestone plus future grounded resume pipeline direction
-4. `docs/project-selection-plan.md`
-   - project ranking milestone for job-targeted grounded resume evidence
-5. `docs/decisions/003-grounded-resume-evidence-pipeline.md`
+   - module relationships, startup flow, runtime flows, implemented evidence/generation layers, and planned service facade
+3. `docs/decisions/003-grounded-resume-evidence-pipeline.md`
    - original architecture decision for the grounded evidence pipeline
-6. `docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md`
+4. `docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md`
    - superseding decision for the `user/resume_evidence/` root and the implemented projects-evidence milestone
-7. `docs/decisions/005-subsystem-package-organization.md`
+5. `docs/decisions/005-subsystem-package-organization.md`
    - current subsystem layout and legacy import compatibility policy
-8. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
-   - current top-level evidence package and future generation-orchestration boundary
+6. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
+   - top-level evidence and generation package boundary
+7. `docs/decisions/009-bullet-point-generation-api-boundary.md`
+   - current grounded bullet-point generation API boundary
+8. `docs/decisions/012-fastapi-resume-service-transition.md`
+   - recommended FastAPI facade, file-adapter, and async-run transition path
+9. `docs/archive/branch-03-grounded-resume-generation.md`
+   - historical Branch 03 plan; use only as background, not current implementation truth
+10. `docs/archive/project-selection-plan.md`
+   - historical project-selection plan; use implemented code and current ADRs first
 
 ## Recommended Read Order
 
@@ -42,12 +46,12 @@ Use this file as the primary navigation index for coding agents.
 10. `app/project_selection/selector.py`
 11. `resume_evidence/loader.py`
 12. `resume_evidence/session.py`
-13. `docs/branch-03-grounded-resume-generation.md`
-14. `docs/project-selection-plan.md`
-15. `docs/decisions/003-grounded-resume-evidence-pipeline.md`
-16. `docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md`
-17. `docs/decisions/005-subsystem-package-organization.md`
-18. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
+13. `resume_generation/main.py`
+14. `resume_generation/selection.py`
+15. `resume_generation/bullet_points.py`
+16. `resume_generation/assembly.py`
+17. `docs/decisions/012-fastapi-resume-service-transition.md`
+18. `docs/archive/branch-03-grounded-resume-generation.md`
 
 ## Skill Selection Entry Points
 
@@ -78,6 +82,10 @@ Use this file as the primary navigation index for coding agents.
   - implemented project source-of-truth evidence file
 - `user/resume_evidence/skills.yaml`
   - implemented skills source-of-truth evidence file
+- `user/resume_evidence/education.yaml`
+  - implemented education source-of-truth evidence file
+- `user/resume_evidence/experience.yaml`
+  - implemented experience source-of-truth evidence file
 - `user/resume_evidence/user.yaml`
   - implemented basic user contact source-of-truth evidence file
 
@@ -86,11 +94,17 @@ Use this file as the primary navigation index for coding agents.
 - `resume_generation/`
   - implemented resume generation orchestration package
 - `resume_generation/main.py`
-  - pipeline owner for config, job target, evidence loading, selection, and bullet-point generation stages
+  - pipeline owner for config, job target, evidence loading, selection, job focus, bullet generation, assembly, manifest, and artifacts
 - `resume_generation/selection.py`
   - `generate_selection_context(...)` HTTP selection stage over `/select-skills` and `/select-projects`
+- `resume_generation/job_focus.py`
+  - cached HTTP job-focus stage over `/derive-job-focus`
 - `resume_generation/bullet_points.py`
-  - `generate_project_bullet_points(...)` HTTP bullet generation stage over `/generate-bulletpoints`
+  - project and experience HTTP bullet generation stages over `/generate-bulletpoints`
+- `resume_generation/assembly.py`
+  - deterministic assembly into the intermediate resume result schema
+- `resume_generation/latex.py`
+  - LaTeX artifact rendering from the intermediate resume result
 - `resume_generation/config.py`
   - strict loading for `user/resume_generation/config.yaml` and `job_target.yaml`
 - `user/resume_generation/config.yaml`

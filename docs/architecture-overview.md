@@ -1,13 +1,13 @@
 # Architecture Overview
 
-This document maps the current JobForge structure so agents can move quickly across the resume-engine subsystems: skill selection, project selection, standalone resume evidence, and the future resume-generation orchestration layer.
+This document maps the current JobForge structure so agents can move quickly across the resume-engine subsystems: FastAPI backend capabilities, grounded resume evidence, local resume-generation orchestration, and the planned service facade.
 
 ## 1) High-Level Structure
 
 - `app/main.py`
   - FastAPI app composition, lifespan setup, HTTP routes, startup evidence loading
 - `app/config.py`
-  - scoped runtime settings loaded from environment for skill selection and project selection
+  - scoped runtime settings loaded from environment for selection, generation, link scanning, and observability
 - `app/metrics.py`
   - in-memory aggregate and per-subsystem request, error, latency, and token counters
 - `app/logging_config.py`
@@ -16,10 +16,16 @@ This document maps the current JobForge structure so agents can move quickly acr
   - skill-selection models, service wrapper, baseline filter, model clients, scoring logic, role profiles, synonym map, and embedding caches
 - `app/project_selection/`
   - project-selection models, API service wrapper, selector, baseline/LLM rankers, and project LLM client
+- `app/job_focus_generation/`
+  - job-focus derivation models, service wrapper, and LLM client
+- `app/bulletpoints_generation/`
+  - grounded bullet-point generation models, service wrapper, and LLM client
+- `app/link_scanning/`
+  - standalone evidence enrichment models, service wrapper, and LLM client
 - `resume_evidence/`
   - strict evidence schemas, registry loading, staged CRUD/session logic, and CLI
 - `resume_generation/`
-  - top-level package for orchestration code that loads evidence, calls selection services over HTTP, and prepares structured selection context
+  - top-level orchestration package that loads evidence, calls backend capabilities over HTTP, caches stages, assembles intermediate resume results, and renders LaTeX artifacts
 - `app/skill_selection/selector.py`
   - API orchestration for method selection, metrics, logging, and response shaping
 - `app/models.py`, `app/scoring/*`, `app/services/*`
@@ -34,6 +40,9 @@ app.main
   -> app.logging_config
   -> app.skill_selection
   -> app.project_selection
+  -> app.job_focus_generation
+  -> app.bulletpoints_generation
+  -> app.link_scanning
   -> resume_evidence
 
 app.skill_selection.selector
@@ -65,9 +74,23 @@ app.project_selection
   -> app.skill_selection.scoring.baseline
   -> app.project_selection.llm_client
 
+app.job_focus_generation
+  -> app.metrics
+  -> app.job_focus_generation.llm_client
+
+app.bulletpoints_generation
+  -> app.metrics
+  -> resume_evidence.models
+  -> app.bulletpoints_generation.llm_client
+
+app.link_scanning
+  -> app.metrics
+  -> resume_evidence.models
+  -> app.link_scanning.llm_client
+
 resume_generation
   -> resume_evidence
-  -> app.skill_selection / app.project_selection HTTP contracts
+  -> app skill/project/focus/bullet HTTP contracts
   -> user/resume_generation/config.yaml
   -> user/resume_generation/job_target.yaml
 
@@ -78,8 +101,11 @@ resume_evidence
 
 resume_evidence.loader
   -> resume_evidence.models
+  -> user/resume_evidence/education.yaml
+  -> user/resume_evidence/experience.yaml
   -> user/resume_evidence/projects.yaml
   -> user/resume_evidence/skills.yaml
+  -> user/resume_evidence/user.yaml
 
 resume_evidence.session
   -> resume_evidence.loader
@@ -99,14 +125,14 @@ flowchart TD
     A[FastAPI lifespan start] --> B[setup_logging]
     B --> C[load_registered_evidence]
     C --> D[loader resolves DEFAULT_EVIDENCE_PATHS]
-    D --> E[load user/resume_evidence/projects.yaml]
-    E --> F[validate into ProjectsFile]
+    D --> E[load all registered user/resume_evidence/*.yaml]
+    E --> F[validate into strict evidence models]
     F --> G[store on app.state.resume_evidence]
 ```
 
 - Startup currently loads the registered evidence set into `app.state.resume_evidence`.
-- Today that registry contains the `projects` and `skills` schemas.
-- This is the current runtime evidence hook while the standalone generation layer remains future work.
+- Today that registry contains `education`, `experience`, `projects`, `skills`, and `user`.
+- This startup hook validates local file-backed evidence for the current backend runtime. A future product-facing facade should route evidence access through a storage adapter instead of reading `user/` paths directly.
 
 ### Skill-selection request flow
 
@@ -149,6 +175,23 @@ flowchart TD
     J --> K[project_selection metrics and structured log event]
 ```
 
+### Local resume-generation flow
+
+```mermaid
+flowchart TD
+    A[python -m resume_generation.main] --> B[load config and job target]
+    B --> C[load registered evidence]
+    C --> D[call FastAPI selection endpoints]
+    D --> E[derive job focus]
+    E --> F[generate project and experience bullets]
+    F --> G[assemble intermediate resume result]
+    G --> H[write JSON manifest/result and LaTeX artifact]
+```
+
+- The current full pipeline is local orchestration in `resume_generation/`, not a product-facing HTTP endpoint.
+- Stage calls go through the running FastAPI app over HTTP, which keeps selection and generation capabilities reusable.
+- Generated artifacts under `user/resume_generation/` are derived runtime state, not source evidence.
+
 ## 4) Current Skill-Selection Logic
 
 ### Baseline scorer
@@ -187,17 +230,23 @@ Implemented now:
 
 ## 6) Currently Implemented Evidence Layer
 
-This repo is no longer only a skill-selection codebase. It now contains an implemented first evidence milestone for grounded resume generation.
+This repo is no longer only a skill-selection codebase. It contains an implemented evidence layer for grounded resume generation.
 
 ### Implemented now
 
 - canonical evidence root: `user/resume_evidence/`
 - implemented schemas:
+  - `user/resume_evidence/education.yaml`
+  - `user/resume_evidence/experience.yaml`
   - `user/resume_evidence/projects.yaml`
   - `user/resume_evidence/skills.yaml`
+  - `user/resume_evidence/user.yaml`
 - runtime models:
+  - `EducationFile` containing validated education records
+  - `ExperienceFile` containing validated experience records
   - `ProjectsFile` containing validated `ProjectRecord` items
   - `SkillsFile` containing validated categorized skills
+  - `UserInfoFile` containing validated contact/header fields
 - startup loading: `load_registered_evidence()` in `app.main`
 - local CRUD/session workflows:
   - `ProjectsEvidenceSession`
@@ -275,18 +324,18 @@ Validation guarantees:
 - `reload()` discards staged changes and reloads from disk
 - the CLI switches schemas with `python -m resume_evidence.cli --schema <education|experience|projects|skills|user>`
 
-## 7) Future Resume Pipeline
+## 7) Resume Generation Pipeline
 
-The evidence layer, explicit-candidate project selector, and first resume-generation selection orchestration are implemented. The broader resume-generation pipeline below is still planned:
+The evidence layer, explicit-candidate project selector, job-focus derivation, bullet generation, intermediate assembly, stage cache, run manifest, and LaTeX rendering are implemented for local orchestration:
 
 ```text
 user/resume_evidence/*.yaml
   -> deterministic load/validate/index
-  -> resume_generation selection orchestration
-  -> future synthesis/extraction
-  -> structured fill data with provenance
+  -> resume_generation stage orchestration
+  -> FastAPI backend capability calls
+  -> structured intermediate resume result
   -> deterministic assembly
-  -> generated resume artifact
+  -> JSON, manifest, and LaTeX artifacts
 ```
 
 Implemented now:
@@ -294,22 +343,36 @@ Implemented now:
 - `user/resume_generation/config.yaml` stores user-level HTTP and selection request options.
 - `user/resume_generation/job_target.yaml` stores the target job title and optional description.
 - `resume_generation/main.py` owns the pipeline-level loading of config, job target, and evidence.
-- `resume_generation.generate_selection_context(...)` adapts already-loaded evidence into `/select-skills` and `/select-projects` JSON payloads, and posts to a running app with `httpx`.
-- `resume_generation.generate_project_bullet_points(...)` posts selected project records to `/generate-bulletpoints`.
+- `resume_generation.generate_selection_context(...)` adapts already-loaded evidence into `/select-skills` and `/select-projects` JSON payloads, then posts to a running app with `httpx`.
+- `resume_generation.derive_job_focus(...)` posts the target role context to `/derive-job-focus`.
+- `resume_generation.generate_project_bullet_points(...)` and `generate_experience_bullet_points(...)` post selected evidence records to `/generate-bulletpoints`.
+- `resume_generation.assembly` builds the typed intermediate resume result.
+- `resume_generation.latex` renders the current LaTeX artifact.
+- `resume_generation.cache` can reuse compatible stage responses across runs.
 - The generation config becomes explicit request fields, so it takes precedence over app `.env` defaults for supported per-request options.
 
-Planned but not yet implemented:
+Still not implemented:
 
-- additional evidence files
-  - `user/resume_evidence/profile.yaml`
-  - `user/resume_evidence/experience.yaml`
-- resume format definitions owned by the generation layer
-- synthesis/extraction logic under `resume_generation/`
-- deterministic full-resume assembly
+- a product-facing full-resume generation HTTP API
+- durable multi-user persistence
+- user/account isolation, auth, and production artifact storage
+- richer resume format management beyond the current structured JSON and LaTeX output
 
-Skill selection is expected to remain one prioritization signal for the future Skills section, not the whole source of truth for resume generation.
+Skill selection remains one prioritization signal for the Skills section, not the whole source of truth for resume generation.
 
-## 8) Data And State
+## 8) Service Transition Direction
+
+The recommended service path is to keep FastAPI and add a product-facing facade over the implemented evidence and generation layers.
+
+- `app/` remains the backend capability layer for selection, focus derivation, bullet generation, link enrichment, metrics, and health.
+- `resume_evidence/` remains the evidence domain layer: schema contracts, validation, loading, and staged local CRUD behavior.
+- `resume_generation/` remains the orchestration layer: it decides which evidence is sent to which backend capability and assembles the responses.
+- Future public product APIs should expose evidence CRUD, async generation-run creation, run status, structured results, and artifacts.
+- Existing stage endpoints should become internal or separately documented from the product API as the web-app boundary matures.
+- File-backed `user/` storage should be wrapped behind repository/adapter interfaces before adding database persistence.
+- Full generation should use async runs: create run, poll status, then fetch result/artifacts.
+
+## 9) Data And State
 
 - Configuration state
   - loaded from `.env` and environment variables through `app/config.py`
@@ -323,27 +386,43 @@ Skill selection is expected to remain one prioritization signal for the future S
 - Disk-backed derived state
   - embedding caches under `app/skill_selection/data/embeddings/{model}/`
 - User-authored source-of-truth state
+  - `user/resume_evidence/education.yaml`
+  - `user/resume_evidence/experience.yaml`
   - `user/resume_evidence/projects.yaml`
   - `user/resume_evidence/skills.yaml`
+  - `user/resume_evidence/user.yaml`
+- Local generation state
   - `user/resume_generation/config.yaml`
   - `user/resume_generation/job_target.yaml`
+  - `user/resume_generation/cache/`
+  - `user/resume_generation/resume_result.json`
+  - `user/resume_generation/resume_run_manifest.json`
+  - `user/resume_generation/resume.tex`
 
-## 9) Routes And Interfaces
+## 10) Routes And Interfaces
 
 - `GET /health`
   - returns liveness plus effective config values
 - `GET /metrics-lite`
-  - returns aggregate plus `skill_selection` and `project_selection` request, error, latency, token, and method-usage metrics
+  - returns aggregate plus per-subsystem request, error, latency, token, and method-usage metrics
 - `POST /select-skills`
-  - current public business API for skill ranking
+  - current skill-ranking capability API
 - `POST /select-projects`
-  - public project-ranking API for explicit project candidates
+  - current project-ranking capability API for explicit project candidates
+- `POST /derive-job-focus`
+  - current job-focus derivation capability API
+- `POST /generate-bulletpoints`
+  - current grounded bullet-point generation capability API
+- `POST /scan-link` and `POST /enrich-link-evidence`
+  - current standalone evidence-enrichment capability APIs
 - `python -m resume_evidence.cli`
-  - current local interface for project evidence CRUD/session management
+  - current local interface for evidence CRUD/session management
 - `resume_generation/`
-  - local orchestration layer for evidence-to-selection context workflows
+  - local orchestration layer for full evidence-to-artifact workflows
 
-## 10) Agent Quick-Read Sequence
+Future product-facing routes should sit above these capability APIs rather than requiring clients to coordinate every stage call directly.
+
+## 11) Agent Quick-Read Sequence
 
 1. `AGENTS.md`
 2. `CLAUDE.md`
@@ -356,8 +435,9 @@ Skill selection is expected to remain one prioritization signal for the future S
 9. `app/project_selection/selector.py`
 10. `resume_evidence/loader.py`
 11. `resume_evidence/session.py`
-12. `docs/branch-03-grounded-resume-generation.md`
-13. `docs/decisions/003-grounded-resume-evidence-pipeline.md`
-14. `docs/decisions/004-user-resume-evidence-root-and-projects-milestone.md`
-15. `docs/decisions/005-subsystem-package-organization.md`
-16. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
+12. `resume_generation/main.py`
+13. `resume_generation/selection.py`
+14. `resume_generation/bullet_points.py`
+15. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
+16. `docs/decisions/012-fastapi-resume-service-transition.md`
+17. `docs/archive/branch-03-grounded-resume-generation.md`
