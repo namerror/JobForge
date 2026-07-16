@@ -200,22 +200,7 @@ all candidates. `dev_mode` controls details in responses and does not change
 the LLM request. These fields are currently cache-key relevant because the cache
 stores the endpoint response, not the raw reusable model result.
 
-`llm_max_output_tokens` is more nuanced. It can affect truncation and success,
-so it should not simply be ignored in every case. However, when a sufficient
-token cap has already produced a complete raw result, changing the cap should
-not necessarily force regeneration.
-
-**Recommended design changes:**
-
-- Introduce semantic cache layers:
-  - raw LLM score cache keyed by model + prompt-relevant inputs
-  - presentation cache or deterministic post-processing for `top_n`
-  - response shaping for `dev_mode`
-- Store superset results when possible, then slice/strip locally.
-- Consider output-budget fields as execution parameters rather than semantic
-  request inputs after a successful complete response.
-- Keep model, prompt version, schema version, job target, candidate/evidence
-  digest, and enrichment digest in the semantic key.
+`llm_max_output_tokens` also shouldn't be cache-key relevant, because although it affets truncation, it's primary purpose is to avoid token waste. When a cached result already exists, no token cost is incurred, so the field is irrelevant to the semantic request. It should only be used to compute a output budget for the LLM request when no cache entry exists.
 
 ### 6. Bullet generation is completion-heavy and unconstrained
 

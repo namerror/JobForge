@@ -57,7 +57,9 @@ class ResumeGenerationStageCache:
         stage: str,
         payload: dict[str, Any],
         fetch: Callable[[], dict[str, Any]],
+        cache_payload: dict[str, Any] | None = None,
         namespace: str | None = None,
+        should_use_cached: Callable[[dict[str, Any]], bool] | None = None,
         should_store: Callable[[dict[str, Any]], bool] | None = None,
     ) -> dict[str, Any]:
         '''
@@ -69,7 +71,9 @@ class ResumeGenerationStageCache:
             stage=stage,
             payload=payload,
             fetch=fetch,
+            cache_payload=cache_payload,
             namespace=namespace,
+            should_use_cached=should_use_cached,
             should_store=should_store,
         ).data
 
@@ -79,15 +83,22 @@ class ResumeGenerationStageCache:
         stage: str,
         payload: dict[str, Any],
         fetch: Callable[[], dict[str, Any]],
+        cache_payload: dict[str, Any] | None = None,
         namespace: str | None = None,
+        should_use_cached: Callable[[dict[str, Any]], bool] | None = None,
         should_store: Callable[[dict[str, Any]], bool] | None = None,
     ) -> ResumeGenerationStageCacheResult:
-        cache_key = self.cache_key(stage=stage, payload=payload)
+        cache_key = self.cache_key(
+            stage=stage,
+            payload=cache_payload if cache_payload is not None else payload,
+        )
         path = self._entry_path(stage=stage, cache_key=cache_key, namespace=namespace)
 
         if not self.force_refresh:
             cached_data = self._read(path=path, stage=stage, cache_key=cache_key)
-            if cached_data is not None:
+            if cached_data is not None and (
+                should_use_cached is None or should_use_cached(cached_data)
+            ):
                 return ResumeGenerationStageCacheResult(
                     data=cached_data,
                     source="cache",

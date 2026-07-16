@@ -13,6 +13,8 @@
 
 ## Session Index
 
+- `07-16-2026-Codex-bullet-cache-key-normalization.md` - 2026-07-16 - Bullet cache key normalization
+- `07-16-2026-Codex-selection-cache-key-normalization.md` - 2026-07-16 - Selection cache key normalization
 - `07-15-2026-Codex-standalone-link-enrichment.md` - 2026-07-15 - Standalone link evidence enrichment
 - `07-15-2026-Codex-skill-llm-retry-cache-logging.md` - 2026-07-15 - Skill LLM retry cache logging
 - `07-09-2026-Codex-fix-resume-generation-agentic-issues.md` - 2026-07-09 - Fix resume generation agentic issues

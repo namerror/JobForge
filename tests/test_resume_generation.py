@@ -350,10 +350,15 @@ def _install_successful_pipeline_client(monkeypatch, calls: list[dict]) -> None:
                 )
             if endpoint == "/generate-bulletpoints":
                 evidence_id = project_id or experience_id
+                bullet_count_range = json.get("bullet_count_range") or {}
+                bullet_count = bullet_count_range.get("min", 1)
                 return httpx.Response(
                     200,
                     json={
-                        "bullet_points": [f"Generated bullet for {evidence_id}."],
+                        "bullet_points": [
+                            f"Generated bullet {index} for {evidence_id}."
+                            for index in range(1, bullet_count + 1)
+                        ],
                         "details": {
                             "_bulletpoints_llm": {
                                 "prompt_tokens": 4,
@@ -467,6 +472,30 @@ def test_resume_generation_stage_cache_reuses_exact_payload(tmp_path):
     assert first == {"technology": ["FastAPI"]}
     assert second == {"technology": ["FastAPI"]}
     assert calls == ["fetch"]
+
+
+def test_resume_generation_stage_cache_uses_cache_payload_for_lookup(tmp_path):
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    first_payload = {"job_role": "Backend Engineer", "top_n": 1}
+    second_payload = {"job_role": "Backend Engineer", "top_n": 3}
+    calls: list[int] = []
+
+    first = cache.get_or_store(
+        stage="skill_selection",
+        payload=first_payload,
+        cache_payload={"job_role": "Backend Engineer"},
+        fetch=lambda: calls.append(first_payload["top_n"]) or {"top_n_seen": 1},
+    )
+    second = cache.get_or_store(
+        stage="skill_selection",
+        payload=second_payload,
+        cache_payload={"job_role": "Backend Engineer"},
+        fetch=lambda: calls.append(second_payload["top_n"]) or {"top_n_seen": 3},
+    )
+
+    assert first == {"top_n_seen": 1}
+    assert second == {"top_n_seen": 1}
+    assert calls == [1]
 
 
 def test_resume_generation_stage_cache_invalidates_changed_payload(tmp_path):
@@ -845,7 +874,10 @@ def test_cached_project_bullet_generation_logs_response_source(
             return httpx.Response(
                 200,
                 json={
-                    "bullet_points": ["Generated bullet for active-project."],
+                    "bullet_points": [
+                        "Generated bullet 1 for active-project.",
+                        "Generated bullet 2 for active-project.",
+                    ],
                     "details": {
                         "_bulletpoints_llm": {
                             "prompt_tokens": 6,
@@ -901,6 +933,345 @@ def test_cached_project_bullet_generation_logs_response_source(
         (6, 4, 10, 1, 50.5),
     ]
     assert all(record.cache_key for record in response_records)
+
+
+def test_project_bullet_cache_reuses_across_dev_mode_and_output_token_changes(
+    monkeypatch,
+    tmp_path,
+):
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    first_config_payload = _config_payload()
+    first_config_payload["project_bullet_point_generation"]["dev_mode"] = False
+    first_config_payload["project_bullet_point_generation"]["llm_max_output_tokens"] = 111
+    first_config_path = _write_yaml(tmp_path / "first-config.yaml", first_config_payload)
+    second_config_payload = _config_payload()
+    second_config_payload["project_bullet_point_generation"]["dev_mode"] = True
+    second_config_payload["project_bullet_point_generation"]["llm_max_output_tokens"] = 222
+    second_config_path = _write_yaml(tmp_path / "second-config.yaml", second_config_payload)
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    selected_project = _loaded_evidence(projects_path, skills_path)[
+        "projects"
+    ].projects_by_id()["active-project"]
+    requests: list[dict] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            requests.append(json)
+            return httpx.Response(
+                200,
+                json={
+                    "bullet_points": ["Project bullet one.", "Project bullet two."],
+                    "details": {"method": "llm", "_bulletpoints_llm": {"total_tokens": 12}},
+                },
+            )
+
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+
+    first_result = generate_project_bullet_points(
+        selected_projects=[selected_project],
+        config=load_generation_config(first_config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+    second_result = generate_project_bullet_points(
+        selected_projects=[selected_project],
+        config=load_generation_config(second_config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+
+    assert len(requests) == 1
+    assert requests[0]["dev_mode"] is True
+    assert requests[0]["llm_max_output_tokens"] == 111
+    assert first_result[0].details is None
+    assert second_result[0].details == {
+        "method": "llm",
+        "_bulletpoints_llm": {"total_tokens": 12},
+    }
+
+
+def test_experience_bullet_cache_reuses_across_dev_mode_and_output_token_changes(
+    monkeypatch,
+    tmp_path,
+):
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    first_config_payload = _config_payload()
+    first_config_payload["experience_bullet_point_generation"]["dev_mode"] = False
+    first_config_payload["experience_bullet_point_generation"]["llm_max_output_tokens"] = 111
+    first_config_path = _write_yaml(tmp_path / "first-config.yaml", first_config_payload)
+    second_config_payload = _config_payload()
+    second_config_payload["experience_bullet_point_generation"]["dev_mode"] = True
+    second_config_payload["experience_bullet_point_generation"]["llm_max_output_tokens"] = 222
+    second_config_path = _write_yaml(tmp_path / "second-config.yaml", second_config_payload)
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    active_experience = _loaded_evidence(projects_path, skills_path)[
+        "experience"
+    ].experience
+    requests: list[dict] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            requests.append(json)
+            return httpx.Response(
+                200,
+                json={
+                    "bullet_points": ["Experience bullet."],
+                    "details": {"method": "llm", "_bulletpoints_llm": {"total_tokens": 13}},
+                },
+            )
+
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+
+    first_result = generate_experience_bullet_points(
+        experience=active_experience,
+        config=load_generation_config(first_config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+    second_result = generate_experience_bullet_points(
+        experience=active_experience,
+        config=load_generation_config(second_config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+
+    assert len(requests) == 1
+    assert requests[0]["dev_mode"] is True
+    assert requests[0]["llm_max_output_tokens"] == 111
+    assert first_result[0].details is None
+    assert second_result[0].details == {
+        "method": "llm",
+        "_bulletpoints_llm": {"total_tokens": 13},
+    }
+
+
+def test_project_bullet_cache_reuses_when_count_is_inside_requested_range(
+    monkeypatch,
+    tmp_path,
+):
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    first_config_payload = _config_payload()
+    first_config_payload["project_bullet_point_generation"]["bullet_count_range"] = {
+        "min": 3,
+        "max": 3,
+    }
+    first_config_path = _write_yaml(tmp_path / "first-config.yaml", first_config_payload)
+    second_config_payload = _config_payload()
+    second_config_payload["project_bullet_point_generation"]["bullet_count_range"] = {
+        "min": 2,
+        "max": 4,
+    }
+    second_config_path = _write_yaml(tmp_path / "second-config.yaml", second_config_payload)
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    selected_project = _loaded_evidence(projects_path, skills_path)[
+        "projects"
+    ].projects_by_id()["active-project"]
+    requests: list[dict] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            requests.append(json)
+            return httpx.Response(
+                200,
+                json={
+                    "bullet_points": [
+                        "Project bullet one.",
+                        "Project bullet two.",
+                        "Project bullet three.",
+                    ],
+                    "details": {"_bulletpoints_llm": {"total_tokens": 21}},
+                },
+            )
+
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+
+    first_result = generate_project_bullet_points(
+        selected_projects=[selected_project],
+        config=load_generation_config(first_config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+    second_result = generate_project_bullet_points(
+        selected_projects=[selected_project],
+        config=load_generation_config(second_config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+
+    assert len(requests) == 1
+    assert requests[0]["bullet_count_range"] == {"min": 3, "max": 3}
+    assert len(first_result[0].bullet_points) == 3
+    assert len(second_result[0].bullet_points) == 3
+
+
+def test_project_bullet_cache_refreshes_when_count_is_outside_requested_range(
+    monkeypatch,
+    tmp_path,
+):
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    first_config_payload = _config_payload()
+    first_config_payload["project_bullet_point_generation"]["bullet_count_range"] = {
+        "min": 2,
+        "max": 2,
+    }
+    first_config_path = _write_yaml(tmp_path / "first-config.yaml", first_config_payload)
+    second_config_payload = _config_payload()
+    second_config_payload["project_bullet_point_generation"]["bullet_count_range"] = {
+        "min": 3,
+        "max": 3,
+    }
+    second_config_path = _write_yaml(tmp_path / "second-config.yaml", second_config_payload)
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    selected_project = _loaded_evidence(projects_path, skills_path)[
+        "projects"
+    ].projects_by_id()["active-project"]
+    requests: list[dict] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            requests.append(json)
+            bullet_count = json["bullet_count_range"]["min"]
+            return httpx.Response(
+                200,
+                json={
+                    "bullet_points": [
+                        f"Project bullet {index}."
+                        for index in range(1, bullet_count + 1)
+                    ],
+                    "details": {"_bulletpoints_llm": {"total_tokens": 21}},
+                },
+            )
+
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+
+    first_result = generate_project_bullet_points(
+        selected_projects=[selected_project],
+        config=load_generation_config(first_config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+    second_result = generate_project_bullet_points(
+        selected_projects=[selected_project],
+        config=load_generation_config(second_config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+    third_result = generate_project_bullet_points(
+        selected_projects=[selected_project],
+        config=load_generation_config(second_config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+
+    assert [request["bullet_count_range"] for request in requests] == [
+        {"min": 2, "max": 2},
+        {"min": 3, "max": 3},
+    ]
+    assert len(first_result[0].bullet_points) == 2
+    assert len(second_result[0].bullet_points) == 3
+    assert len(third_result[0].bullet_points) == 3
+
+
+def test_project_bullet_cache_invalidates_when_evidence_payload_changes(
+    monkeypatch,
+    tmp_path,
+):
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    selected_project = _loaded_evidence(projects_path, skills_path)[
+        "projects"
+    ].projects_by_id()["active-project"]
+    updated_project = selected_project.model_copy(
+        update={"summary": "FastAPI backend service with Redis caching."}
+    )
+    requests: list[dict] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            requests.append(json)
+            return httpx.Response(
+                200,
+                json={
+                    "bullet_points": ["Project bullet one.", "Project bullet two."],
+                    "details": {"_bulletpoints_llm": {"total_tokens": 21}},
+                },
+            )
+
+    monkeypatch.setattr("resume_generation.bullet_points.httpx.Client", FakeClient)
+
+    generate_project_bullet_points(
+        selected_projects=[selected_project],
+        config=load_generation_config(config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+    generate_project_bullet_points(
+        selected_projects=[updated_project],
+        config=load_generation_config(config_path),
+        job_target=load_job_target(job_path),
+        cache=cache,
+    )
+
+    assert [request["project"]["summary"] for request in requests] == [
+        "FastAPI backend service.",
+        "FastAPI backend service with Redis caching.",
+    ]
 
 
 def test_extract_response_token_usage_reads_stage_metadata():
@@ -1817,10 +2188,15 @@ def test_resume_generation_pipeline_reuses_cached_stage_results(monkeypatch, tmp
                     },
                 )
             if endpoint == "/generate-bulletpoints":
+                bullet_count_range = json.get("bullet_count_range") or {}
+                bullet_count = bullet_count_range.get("min", 1)
                 return httpx.Response(
                     200,
                     json={
-                        "bullet_points": ["Cached generated bullet."],
+                        "bullet_points": [
+                            f"Cached generated bullet {index}."
+                            for index in range(1, bullet_count + 1)
+                        ],
                     },
                 )
             raise AssertionError(f"unexpected endpoint: {endpoint}")
@@ -1848,6 +2224,152 @@ def test_resume_generation_pipeline_reuses_cached_stage_results(monkeypatch, tmp
         "/generate-bulletpoints",
         "/generate-bulletpoints",
     ]
+
+
+def test_selection_cache_reuses_scores_across_response_shaping_fields(
+    monkeypatch,
+    tmp_path,
+):
+    cache_path = tmp_path / "cache"
+    cache_config = {
+        "enabled": True,
+        "path": str(cache_path),
+        "force_refresh": False,
+    }
+    first_config_payload = _config_payload(cache=cache_config)
+    first_config_payload["skill_selection"]["top_n"] = 1
+    first_config_payload["skill_selection"]["dev_mode"] = False
+    first_config_payload["skill_selection"]["llm_max_output_tokens"] = 111
+    first_config_payload["project_selection"]["top_n"] = 1
+    first_config_payload["project_selection"]["dev_mode"] = False
+    first_config_payload["project_selection"]["llm_max_output_tokens"] = 222
+    first_config_path = _write_yaml(tmp_path / "first-config.yaml", first_config_payload)
+
+    second_config_payload = _config_payload(cache=cache_config)
+    second_config_payload["skill_selection"]["top_n"] = 2
+    second_config_payload["skill_selection"]["dev_mode"] = True
+    second_config_payload["skill_selection"]["llm_max_output_tokens"] = 333
+    second_config_payload["project_selection"]["top_n"] = 2
+    second_config_payload["project_selection"]["dev_mode"] = True
+    second_config_payload["project_selection"]["llm_max_output_tokens"] = 444
+    second_config_path = _write_yaml(tmp_path / "second-config.yaml", second_config_payload)
+
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    skills_payload = _skills_payload()
+    skills_payload["skills"]["technology"].append("Flask")
+    skills_payload["skills"]["programming"].append("Go")
+    skills_payload["skills"]["concepts"].append("Caching")
+    skills_path = _write_yaml(tmp_path / "skills.yaml", skills_payload)
+    projects_payload = _projects_payload()
+    projects_payload["projects"][1]["id"] = "second-project"
+    projects_payload["projects"][1]["name"] = "Second Project"
+    projects_payload["projects"][1]["active"] = True
+    projects_path = _write_yaml(tmp_path / "projects.yaml", projects_payload)
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    job_target = load_job_target(job_path)
+    cache = ResumeGenerationStageCache(cache_path)
+    requests: list[tuple[str, dict]] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            requests.append((endpoint, json))
+            if endpoint == "/select-skills":
+                return httpx.Response(
+                    200,
+                    json={
+                        "technology": ["FastAPI", "Django", "Flask"],
+                        "programming": ["Python", "Go"],
+                        "concepts": ["API", "Caching"],
+                        "details": {"method": "llm", "_llm": {"total_tokens": 10}},
+                    },
+                )
+            if endpoint == "/select-projects":
+                return httpx.Response(
+                    200,
+                    json={
+                        "selected_project_ids": ["active-project", "second-project"],
+                        "ranked_projects": [
+                            {
+                                "project_id": "active-project",
+                                "score": 1.0,
+                                "method": "llm",
+                            },
+                            {
+                                "project_id": "second-project",
+                                "score": 0.8,
+                                "method": "llm",
+                            },
+                        ],
+                        "details": {
+                            "method": "llm",
+                            "_project_llm": {"total_tokens": 20},
+                        },
+                    },
+                )
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+
+    first_context = generate_selection_context(
+        loaded_evidence=loaded_evidence,
+        config=load_generation_config(first_config_path),
+        job_target=job_target,
+        config_path=first_config_path,
+        job_target_path=job_path,
+        evidence_paths={
+            "projects": projects_path,
+            "skills": skills_path,
+        },
+        cache=cache,
+    )
+    second_context = generate_selection_context(
+        loaded_evidence=loaded_evidence,
+        config=load_generation_config(second_config_path),
+        job_target=job_target,
+        config_path=second_config_path,
+        job_target_path=job_path,
+        evidence_paths={
+            "projects": projects_path,
+            "skills": skills_path,
+        },
+        cache=cache,
+    )
+
+    assert [endpoint for endpoint, _ in requests] == ["/select-skills", "/select-projects"]
+    assert requests[0][1]["top_n"] == 3
+    assert requests[0][1]["dev_mode"] is True
+    assert requests[0][1]["llm_max_output_tokens"] == 111
+    assert requests[1][1]["top_n"] == 2
+    assert requests[1][1]["dev_mode"] is True
+    assert requests[1][1]["llm_max_output_tokens"] == 222
+    assert first_context.selected_skills.technology == ["FastAPI"]
+    assert first_context.selected_skills.programming == ["Python"]
+    assert first_context.selected_skills.concepts == ["API"]
+    assert first_context.selected_skills.details is None
+    assert [project.id for project in first_context.selected_projects] == ["active-project"]
+    assert first_context.project_selection.details is None
+    assert second_context.selected_skills.technology == ["FastAPI", "Django"]
+    assert second_context.selected_skills.programming == ["Python", "Go"]
+    assert second_context.selected_skills.concepts == ["API", "Caching"]
+    assert second_context.selected_skills.details == {"method": "llm", "_llm": {"total_tokens": 10}}
+    assert [project.id for project in second_context.selected_projects] == [
+        "active-project",
+        "second-project",
+    ]
+    assert second_context.project_selection.details == {
+        "method": "llm",
+        "_project_llm": {"total_tokens": 20},
+    }
 
 
 def test_resume_generation_pipeline_does_not_cache_skill_llm_fallback(
@@ -1933,10 +2455,15 @@ def test_resume_generation_pipeline_does_not_cache_skill_llm_fallback(
                 )
             if endpoint == "/generate-bulletpoints":
                 evidence = json.get("project") or json.get("experience")
+                bullet_count_range = json.get("bullet_count_range") or {}
+                bullet_count = bullet_count_range.get("min", 1)
                 return httpx.Response(
                     200,
                     json={
-                        "bullet_points": [f"Generated bullet for {evidence['id']}."],
+                        "bullet_points": [
+                            f"Generated bullet {index} for {evidence['id']}."
+                            for index in range(1, bullet_count + 1)
+                        ],
                     },
                 )
             raise AssertionError(f"unexpected endpoint: {endpoint}")
@@ -1986,6 +2513,109 @@ def test_resume_generation_pipeline_does_not_cache_skill_llm_fallback(
     ] == [
         ("http", "skipped", 777, 23, 2),
         ("http", "skipped", 777, 23, 2),
+    ]
+
+
+def test_selection_cache_does_not_store_project_llm_fallback(
+    monkeypatch,
+    tmp_path,
+):
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            cache={
+                "enabled": True,
+                "path": str(tmp_path / "cache"),
+                "force_refresh": False,
+            }
+        ),
+    )
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_path)
+    cache = ResumeGenerationStageCache(tmp_path / "cache")
+    calls: list[str] = []
+    stage_response_records: list[dict] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            if endpoint == "/select-skills":
+                return httpx.Response(
+                    200,
+                    json={
+                        "technology": ["FastAPI"],
+                        "programming": ["Python"],
+                        "concepts": ["API"],
+                        "details": {"method": "llm"},
+                    },
+                )
+            if endpoint == "/select-projects":
+                return httpx.Response(
+                    200,
+                    json={
+                        "selected_project_ids": ["active-project"],
+                        "ranked_projects": [
+                            {
+                                "project_id": "active-project",
+                                "score": 1.0,
+                                "method": "baseline",
+                            }
+                        ],
+                        "details": {
+                            "_fallback_method": "baseline",
+                            "_project_llm": {
+                                "fallback": "baseline",
+                                "reason": "Project LLM selection failed",
+                                "total_tokens": 12,
+                            },
+                        },
+                    },
+                )
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+
+    for _ in range(2):
+        generate_selection_context(
+            loaded_evidence=loaded_evidence,
+            config=config,
+            job_target=job_target,
+            config_path=config_path,
+            job_target_path=job_path,
+            evidence_paths={
+                "projects": projects_path,
+                "skills": skills_path,
+            },
+            cache=cache,
+            stage_response_records=stage_response_records,
+        )
+
+    assert calls == ["/select-skills", "/select-projects", "/select-projects"]
+    project_records = [
+        record
+        for record in stage_response_records
+        if record["stage"] == "project_selection"
+    ]
+    assert [
+        (record["source"], record["cache_status"], record["total_tokens"])
+        for record in project_records
+    ] == [
+        ("http", "skipped", 12),
+        ("http", "skipped", 12),
     ]
 
 
@@ -2458,10 +3088,15 @@ def test_resume_generation_pipeline_resumes_after_project_bullet_failure(
             if endpoint == "/generate-bulletpoints":
                 if project_id == "second-project" and fail_second_project:
                     raise httpx.ConnectError("simulated failure")
+                bullet_count_range = json.get("bullet_count_range") or {}
+                bullet_count = bullet_count_range.get("min", 1)
                 return httpx.Response(
                     200,
                     json={
-                        "bullet_points": [f"Generated bullet for {evidence_id}."],
+                        "bullet_points": [
+                            f"Generated bullet {index} for {evidence_id}."
+                            for index in range(1, bullet_count + 1)
+                        ],
                     },
                 )
             raise AssertionError(f"unexpected endpoint: {endpoint}")
