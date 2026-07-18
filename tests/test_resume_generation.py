@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import subprocess
+import sys
 from pathlib import Path
 
 import httpx
@@ -16,9 +18,11 @@ from app.main import app
 from app.project_selection.llm_client import LLMProjectScoreResult
 from app.skill_selection.llm_client import LLMScoreResult
 from resume_generation import (
+    DEFAULT_RESUME_PDF_ARTIFACT_PATH,
     DEFAULT_RESUME_TEX_ARTIFACT_PATH,
     ExperienceBulletPointResult,
     IntermediateResumeResult,
+    LatexPdfRenderError,
     ProjectBulletPointResult,
     ProjectSelectionResult,
     ResumeGenerationConfig,
@@ -34,15 +38,19 @@ from resume_generation import (
     latex_escape,
     load_generation_config,
     load_job_target,
+    render_latex_pdf,
     render_resume_latex,
+    resolve_resume_pdf_output_path,
     resolve_resume_latex_output_path,
     run_link_evidence_enrichment,
     write_resume_latex_artifact,
 )
 from resume_generation.cache import ResumeGenerationStageCache
+import resume_generation.pdf as resume_pdf
 from resume_generation.main import (
     run_resume_generation_pipeline,
     write_resume_latex_from_config,
+    write_resume_pdf_from_config,
     write_resume_result_artifact,
 )
 from resume_generation.token_usage import extract_response_token_usage
@@ -446,8 +454,14 @@ def test_load_generation_config_returns_typed_config(tmp_path):
     assert config.cache.enabled is False
     assert config.cache.force_refresh is False
     assert config.resume_output.path is None
+    assert config.resume_output.pdf_path is None
+    assert config.resume_output.render_pdf is False
+    assert config.resume_output.pdf_timeout_seconds == 60.0
     assert resolve_resume_latex_output_path(config.resume_output.path) == (
         DEFAULT_RESUME_TEX_ARTIFACT_PATH
+    )
+    assert resolve_resume_pdf_output_path(config.resume_output.pdf_path) == (
+        DEFAULT_RESUME_PDF_ARTIFACT_PATH
     )
 
 
@@ -495,6 +509,58 @@ def test_load_generation_config_defaults_blank_resume_output_path(tmp_path):
     assert resolve_resume_latex_output_path(config.resume_output.path) == (
         DEFAULT_RESUME_TEX_ARTIFACT_PATH
     )
+
+
+def test_load_generation_config_accepts_pdf_resume_output_settings(tmp_path):
+    tex_path = tmp_path / "resume.tex"
+    pdf_path = tmp_path / "resume.pdf"
+    path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            resume_output={
+                "path": str(tex_path),
+                "pdf_path": str(pdf_path),
+                "render_pdf": True,
+                "pdf_timeout_seconds": 45,
+            }
+        ),
+    )
+
+    config = load_generation_config(path)
+
+    assert config.resume_output.path == str(tex_path)
+    assert config.resume_output.pdf_path == str(pdf_path)
+    assert config.resume_output.render_pdf is True
+    assert config.resume_output.pdf_timeout_seconds == 45.0
+    assert resolve_resume_pdf_output_path(config.resume_output.pdf_path) == pdf_path
+
+
+def test_load_generation_config_defaults_blank_pdf_resume_output_path(tmp_path):
+    path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(resume_output={"pdf_path": "   "}),
+    )
+
+    config = load_generation_config(path)
+
+    assert config.resume_output.pdf_path is None
+    assert resolve_resume_pdf_output_path(config.resume_output.pdf_path) == (
+        DEFAULT_RESUME_PDF_ARTIFACT_PATH
+    )
+
+
+def test_load_generation_config_rejects_invalid_pdf_resume_output_settings(tmp_path):
+    path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            resume_output={
+                "pdf_timeout_seconds": 0,
+            }
+        ),
+    )
+
+    with pytest.raises(ValidationError):
+        load_generation_config(path)
 
 
 def test_resume_generation_stage_cache_reuses_exact_payload(tmp_path):
@@ -1796,6 +1862,198 @@ def test_write_resume_latex_from_config_writes_configured_output(
     ]
     assert len(records) == 1
     assert records[0].path == str(output_path)
+
+
+def test_render_latex_pdf_local_runs_latexmk_and_writes_pdf(monkeypatch, tmp_path):
+    tex_path = tmp_path / "resume.tex"
+    pdf_path = tmp_path / "out" / "resume.pdf"
+    tex_path.write_text("\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    captured: dict[str, object] = {}
+
+    def fake_run(command, *, cwd, check, capture_output, text, timeout):
+        captured["command"] = command
+        captured["cwd"] = cwd
+        captured["check"] = check
+        captured["capture_output"] = capture_output
+        captured["text"] = text
+        captured["timeout"] = timeout
+        output_dir_arg = next(part for part in command if part.startswith("-outdir="))
+        output_dir = Path(output_dir_arg.removeprefix("-outdir="))
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "resume.pdf").write_bytes(b"%PDF-1.4\n")
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr("resume_generation.pdf.subprocess.run", fake_run)
+
+    written_path = render_latex_pdf(
+        tex_path,
+        pdf_path,
+        timeout_seconds=12,
+    )
+
+    assert written_path == pdf_path
+    assert pdf_path.read_bytes() == b"%PDF-1.4\n"
+    assert captured["command"] == [
+        "latexmk",
+        "-pdf",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        captured["command"][4],
+        "resume.tex",
+    ]
+    assert str(captured["command"][4]).startswith("-outdir=")
+    assert captured["cwd"] == tmp_path
+    assert captured["check"] is False
+    assert captured["capture_output"] is True
+    assert captured["text"] is True
+    assert captured["timeout"] == 12
+
+
+def test_render_latex_pdf_local_raises_for_compile_failure(monkeypatch, tmp_path):
+    tex_path = tmp_path / "resume.tex"
+    tex_path.write_text("\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+
+    def fake_run(command, *, cwd, check, capture_output, text, timeout):
+        output_dir_arg = next(part for part in command if part.startswith("-outdir="))
+        output_dir = Path(output_dir_arg.removeprefix("-outdir="))
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "resume.log").write_text("Undefined control sequence")
+        return subprocess.CompletedProcess(
+            command,
+            12,
+            stdout="latexmk stdout",
+            stderr="latexmk stderr",
+        )
+
+    monkeypatch.setattr("resume_generation.pdf.subprocess.run", fake_run)
+
+    with pytest.raises(LatexPdfRenderError, match="Undefined control sequence"):
+        render_latex_pdf(tex_path, tmp_path / "resume.pdf")
+
+
+def test_render_latex_pdf_local_raises_for_missing_command(monkeypatch, tmp_path):
+    tex_path = tmp_path / "resume.tex"
+    tex_path.write_text("\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+
+    def fake_run(command, *, cwd, check, capture_output, text, timeout):
+        raise FileNotFoundError(command[0])
+
+    monkeypatch.setattr("resume_generation.pdf.subprocess.run", fake_run)
+
+    with pytest.raises(LatexPdfRenderError, match="command not found: latexmk"):
+        render_latex_pdf(tex_path, tmp_path / "resume.pdf")
+
+
+def test_write_resume_pdf_from_config_skips_when_disabled(tmp_path, caplog):
+    tex_path = tmp_path / "resume.tex"
+    tex_path.write_text("\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+
+    with caplog.at_level(logging.INFO, logger="resume_generation"):
+        written_path = write_resume_pdf_from_config(tex_path, config_path=config_path)
+
+    assert written_path is None
+    records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "resume_generation_pdf_render_skipped"
+    ]
+    assert len(records) == 1
+
+
+def test_write_resume_pdf_from_config_renders_when_enabled(
+    monkeypatch,
+    tmp_path,
+    caplog,
+):
+    tex_path = tmp_path / "resume.tex"
+    pdf_path = tmp_path / "resume.pdf"
+    tex_path.write_text("\\documentclass{article}\\begin{document}Hi\\end{document}\n")
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            resume_output={
+                "render_pdf": True,
+                "pdf_path": str(pdf_path),
+                "pdf_timeout_seconds": 22,
+            }
+        ),
+    )
+    calls: list[dict[str, object]] = []
+
+    def fake_render_latex_pdf(
+        tex_arg,
+        pdf_arg,
+        *,
+        timeout_seconds,
+    ):
+        calls.append(
+            {
+                "tex_arg": tex_arg,
+                "pdf_arg": pdf_arg,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        pdf_path.parent.mkdir(parents=True, exist_ok=True)
+        pdf_path.write_bytes(b"%PDF-1.4\n")
+        return pdf_path
+
+    monkeypatch.setattr(
+        "resume_generation.main.render_latex_pdf",
+        fake_render_latex_pdf,
+    )
+
+    with caplog.at_level(logging.INFO, logger="resume_generation"):
+        written_path = write_resume_pdf_from_config(tex_path, config_path=config_path)
+
+    assert written_path == pdf_path
+    assert calls == [
+        {
+            "tex_arg": tex_path,
+            "pdf_arg": str(pdf_path),
+            "timeout_seconds": 22.0,
+        }
+    ]
+    records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "resume_generation_pdf_artifact_written"
+    ]
+    assert len(records) == 1
+    assert records[0].path == str(pdf_path)
+
+
+def test_resume_pdf_main_uses_default_paths(monkeypatch):
+    calls: list[dict[str, object]] = []
+
+    def fake_render_latex_pdf(
+        tex_path,
+        pdf_path,
+        *,
+        timeout_seconds,
+    ):
+        calls.append(
+            {
+                "tex_path": tex_path,
+                "pdf_path": pdf_path,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return Path(pdf_path)
+
+    monkeypatch.setattr(sys, "argv", ["python -m resume_generation.pdf"])
+    monkeypatch.setattr(resume_pdf, "render_latex_pdf", fake_render_latex_pdf)
+
+    result = resume_pdf.main()
+
+    assert result == resume_pdf.DEFAULT_RESUME_PDF_ARTIFACT_PATH
+    assert calls == [
+        {
+            "tex_path": str(resume_pdf.DEFAULT_RESUME_TEX_INPUT_PATH),
+            "pdf_path": str(resume_pdf.DEFAULT_RESUME_PDF_ARTIFACT_PATH),
+            "timeout_seconds": resume_pdf.DEFAULT_LATEX_PDF_TIMEOUT_SECONDS,
+        }
+    ]
 
 
 def test_generate_project_bullet_points_wraps_http_errors(monkeypatch, tmp_path):

@@ -42,3 +42,6 @@ cache:
   force_refresh: false
 resume_output:
   path: null
+  pdf_path: null
+  render_pdf: false
+  pdf_timeout_seconds: 60

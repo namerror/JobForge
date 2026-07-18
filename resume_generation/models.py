@@ -228,6 +228,9 @@ class ResumeGenerationCacheConfig(StrictSchemaModel):
 
 class ResumeOutputConfig(StrictSchemaModel):
     path: str | None = None
+    pdf_path: str | None = None
+    render_pdf: bool = False
+    pdf_timeout_seconds: float = 60.0
 
     @field_validator("path")
     @classmethod
@@ -236,6 +239,21 @@ class ResumeOutputConfig(StrictSchemaModel):
             return None
         normalized = value.strip()
         return normalized or None
+
+    @field_validator("pdf_path")
+    @classmethod
+    def validate_pdf_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("pdf_timeout_seconds")
+    @classmethod
+    def validate_pdf_timeout_seconds(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("pdf_timeout_seconds must be greater than 0")
+        return value
 
 
 class ResumeGenerationConfig(StrictSchemaModel):

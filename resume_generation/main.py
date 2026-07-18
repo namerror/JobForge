@@ -31,6 +31,7 @@ from resume_generation.models import (
     JobFocusResult,
     ResumeSelectionContext,
 )
+from resume_generation.pdf import render_latex_pdf
 from resume_generation.selection import generate_selection_context
 from resume_generation.token_usage import ResumeGenerationTokenUsageMonitor, TokenUsage
 
@@ -362,6 +363,38 @@ def write_resume_latex_from_config(
     return artifact_path
 
 
+def write_resume_pdf_from_config(
+    tex_path: Path | str,
+    *,
+    config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
+) -> Path | None:
+    config = load_generation_config(config_path)
+    if not config.resume_output.render_pdf:
+        logger.info(
+            "resume_generation_pdf_render_skipped",
+            extra={
+                "event": "resume_generation_pdf_render_skipped",
+                "reason": "disabled",
+            },
+        )
+        return None
+
+    artifact_path = render_latex_pdf(
+        tex_path,
+        config.resume_output.pdf_path,
+        timeout_seconds=config.resume_output.pdf_timeout_seconds,
+    )
+    logger.info(
+        "resume_generation_pdf_artifact_written",
+        extra={
+            "event": "resume_generation_pdf_artifact_written",
+            "path": str(artifact_path),
+        },
+    )
+    return artifact_path
+
+
 if __name__ == "__main__":
     resume_result = run_resume_generation_pipeline()
-    write_resume_latex_from_config(resume_result)
+    latex_path = write_resume_latex_from_config(resume_result)
+    write_resume_pdf_from_config(latex_path)

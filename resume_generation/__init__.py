@@ -50,6 +50,14 @@ from resume_generation.latex import (
     resolve_resume_latex_output_path,
     write_resume_latex_artifact,
 )
+from resume_generation.pdf import (
+    DEFAULT_LATEX_LOCAL_COMMAND,
+    DEFAULT_RESUME_PDF_ARTIFACT_PATH,
+    DEFAULT_RESUME_TEX_INPUT_PATH,
+    LatexPdfRenderError,
+    render_latex_pdf,
+    resolve_resume_pdf_output_path,
+)
 from resume_generation.enrich import (
     LinkEvidenceEnrichmentRecordResult,
     LinkEvidenceEnrichmentResult,
@@ -60,6 +68,7 @@ from resume_generation.main import (
     DEFAULT_RESUME_RUN_MANIFEST_ARTIFACT_PATH,
     build_resume_run_manifest,
     run_resume_generation_pipeline,
+    write_resume_pdf_from_config,
     write_resume_result_artifact,
     write_resume_run_manifest_artifact,
 )
@@ -71,10 +80,13 @@ from resume_generation.selection import (
 
 __all__ = [
     "DEFAULT_GENERATION_CONFIG_PATH",
+    "DEFAULT_LATEX_LOCAL_COMMAND",
     "DEFAULT_JOB_TARGET_PATH",
+    "DEFAULT_RESUME_PDF_ARTIFACT_PATH",
     "DEFAULT_RESUME_RESULT_ARTIFACT_PATH",
     "DEFAULT_RESUME_RUN_MANIFEST_ARTIFACT_PATH",
     "DEFAULT_RESUME_TEX_ARTIFACT_PATH",
+    "DEFAULT_RESUME_TEX_INPUT_PATH",
     "BulletCountRangeConfig",
     "BulletPointGenerationConfig",
     "ExperienceBulletPointResult",
@@ -86,6 +98,7 @@ __all__ = [
     "LinkEvidenceEnrichmentRecordResult",
     "LinkEvidenceEnrichmentResult",
     "LinkScanningConfig",
+    "LatexPdfRenderError",
     "ProjectBulletPointResult",
     "ProjectLinkScanResult",
     "ProjectSelectionConfig",
@@ -115,10 +128,13 @@ __all__ = [
     "load_generation_config",
     "load_job_target",
     "render_resume_latex",
+    "render_latex_pdf",
+    "resolve_resume_pdf_output_path",
     "resolve_resume_latex_output_path",
     "run_link_evidence_enrichment",
     "run_resume_generation_pipeline",
     "write_resume_result_artifact",
     "write_resume_latex_artifact",
+    "write_resume_pdf_from_config",
     "write_resume_run_manifest_artifact",
 ]

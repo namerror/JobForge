@@ -225,6 +225,15 @@ The direct module entrypoint writes:
 
 - `user/resume_generation/resume_result.json` - intermediate structured resume data
 - `user/resume_generation/resume.tex` - LaTeX resume output, unless `resume_output.path` overrides it
+- `user/resume_generation/resume.pdf` - optional rendered PDF when `resume_output.render_pdf: true`
+
+To render an existing `.tex` file without rerunning the full pipeline:
+
+```bash
+PYTHONPATH=. python -m resume_generation.pdf
+```
+
+The PDF renderer uses local `latexmk`, so the runtime environment needs TeX Live plus `latexmk` installed when `resume_output.render_pdf: true`.
 
 `user/resume_generation/config.yaml` controls the local orchestration:
 
@@ -236,7 +245,7 @@ The direct module entrypoint writes:
 - `project_bullet_point_generation` - bullet count range, debug mode, and LLM overrides for selected projects
 - `experience_bullet_point_generation` - bullet count range, debug mode, and LLM overrides for active experience records
 - `cache` - stage cache toggle, path override, and force-refresh behavior
-- `resume_output` - optional `.tex` output path
+- `resume_output` - optional `.tex` output path plus opt-in PDF rendering settings
 
 `user/resume_generation/job_target.yaml` supplies the target role:
 

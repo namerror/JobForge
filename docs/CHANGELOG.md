@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Optional LaTeX PDF rendering through local `latexmk` via `python -m resume_generation.pdf` or `resume_output.render_pdf`.
 - `POST /derive-job-focus` API and resume-generation job-focus stage that distills long job descriptions into compact resume-relevant context before bullet generation.
 - LaTeX resume output generation from `resume_generation` runtime resume results, using the configured `resume_output.path` with a default `.tex` artifact path.
 - Standalone link evidence enrichment through `POST /enrich-link-evidence` and `python -m resume_generation.enrich`, with project and experience support, configurable requested highlight count, and dynamic scanner output-token budgeting.

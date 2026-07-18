@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `07-18-2026-Codex-latex-pdf-rendering.md` - 2026-07-18 - LaTeX PDF rendering
 - `07-16-2026-Codex-fastapi-service-transition-docs.md` - 2026-07-16 - Document FastAPI resume service transition
 - `07-16-2026-Codex-job-focus-generation.md` - 2026-07-16 - Add job focus generation stage
 - `07-16-2026-Codex-bullet-cache-key-normalization.md` - 2026-07-16 - Bullet cache key normalization
