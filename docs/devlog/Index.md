@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `07-19-2026-Codex-raw-evidence-bullet-prompt.md` - 2026-07-19 - Raw evidence bullet prompt
 - `07-18-2026-Codex-latex-pdf-rendering.md` - 2026-07-18 - LaTeX PDF rendering
 - `07-16-2026-Codex-fastapi-service-transition-docs.md` - 2026-07-16 - Document FastAPI resume service transition
 - `07-16-2026-Codex-job-focus-generation.md` - 2026-07-16 - Add job focus generation stage
