@@ -35,6 +35,7 @@ def _fallback_to_baseline(
         job_text=job_text,
         top_n=top_n,
         dev_mode=dev_mode,
+        include_zero=True,
     )
     if dev_mode:
         details = details or {}

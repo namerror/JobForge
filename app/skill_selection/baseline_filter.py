@@ -124,6 +124,7 @@ def _full_baseline_filter_fallback(
         concepts=req.concepts,
         top_n=top_n,
         dev_mode=True,
+        include_zero=True,
     )
     meta = meta or {}
     _extend_warnings(meta, second_pass_meta)

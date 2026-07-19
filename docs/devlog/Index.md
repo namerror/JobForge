@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `07-19-2026-Codex-skill-top-n-fallback-fill.md` - 2026-07-19 - Skill top_n fallback fill
 - `07-19-2026-Codex-latex-project-heading-width.md` - 2026-07-19 - LaTeX project heading width
 - `07-19-2026-Codex-latex-header-contact-line.md` - 2026-07-19 - LaTeX header contact line
 - `07-19-2026-Codex-latex-heading-wrap.md` - 2026-07-19 - LaTeX heading wrap

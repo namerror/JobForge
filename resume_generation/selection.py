@@ -236,6 +236,14 @@ def _should_cache_stage_response(
     return True
 
 
+def _should_use_cached_stage_response(
+    *,
+    stage: str,
+    response_data: dict[str, Any],
+) -> bool:
+    return _should_cache_stage_response(stage=stage, response_data=response_data)
+
+
 def _cached_post_json(
     *,
     cache: ResumeGenerationStageCache | None,
@@ -370,6 +378,10 @@ def generate_selection_context(
             payload=skill_payload,
             cache_payload=skill_cache_payload,
             fetch_payload=skill_fetch_payload,
+            should_use_cached=lambda data: _should_use_cached_stage_response(
+                stage="skill_selection",
+                response_data=data,
+            ),
             token_usage_monitor=token_usage_monitor,
             stage_response_records=stage_response_records,
         )
@@ -397,6 +409,10 @@ def generate_selection_context(
             payload=project_payload,
             cache_payload=project_cache_payload,
             fetch_payload=project_fetch_payload,
+            should_use_cached=lambda data: _should_use_cached_stage_response(
+                stage="project_selection",
+                response_data=data,
+            ),
             token_usage_monitor=token_usage_monitor,
             stage_response_records=stage_response_records,
         )

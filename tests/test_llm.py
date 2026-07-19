@@ -185,6 +185,30 @@ def test_llm_select_skills_client_failure_falls_back_to_baseline(monkeypatch):
     ]
 
 
+def test_llm_fallback_fills_top_n_with_zero_score_skills(monkeypatch):
+    def raise_client_error(**_kwargs):
+        raise LLMClientError("bad response", metadata={"total_tokens": 1})
+
+    monkeypatch.setattr(llm, "score_skills_with_llm", raise_client_error)
+
+    selected, details = llm_select_skills(
+        job_role="Backend Engineer",
+        technology=["Django", "Photoshop", "Blender"],
+        programming=["Python", "COBOL", "Logo"],
+        concepts=["API", "Branding", "Animation"],
+        top_n=3,
+        dev_mode=True,
+    )
+
+    assert selected == {
+        "technology": ["Django", "Blender", "Photoshop"],
+        "programming": ["Python", "COBOL", "Logo"],
+        "concepts": ["API", "Animation", "Branding"],
+    }
+    assert details["technology"]["Photoshop"]["score"] == 0.0
+    assert details["_fallback_method"] == "baseline"
+
+
 def test_llm_select_skills_top_n_after_validation(monkeypatch):
     monkeypatch.setattr(
         llm,

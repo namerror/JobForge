@@ -46,6 +46,7 @@ from resume_generation import (
     write_resume_latex_artifact,
 )
 from resume_generation.cache import ResumeGenerationStageCache
+import resume_generation.selection as resume_selection
 import resume_generation.pdf as resume_pdf
 from resume_generation.main import (
     run_resume_generation_pipeline,
@@ -2971,6 +2972,114 @@ def test_resume_generation_pipeline_does_not_cache_skill_llm_fallback(
         ("http", "skipped", 777, 23, 2),
         ("http", "skipped", 777, 23, 2),
     ]
+
+
+def test_selection_context_bypasses_cached_skill_llm_fallback(monkeypatch, tmp_path):
+    cache_path = tmp_path / "cache"
+    config_path = _write_yaml(
+        tmp_path / "config.yaml",
+        _config_payload(
+            cache={
+                "enabled": True,
+                "path": str(cache_path),
+                "force_refresh": False,
+            }
+        ),
+    )
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_payload = _skills_payload()
+    skills_payload["skills"]["technology"].append("Flask")
+    skills_payload["skills"]["programming"].append("Go")
+    skills_payload["skills"]["concepts"].append("Caching")
+    skills_path = _write_yaml(tmp_path / "skills.yaml", skills_payload)
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    config = load_generation_config(config_path)
+    job_target = load_job_target(job_path)
+    cache = ResumeGenerationStageCache(cache_path)
+
+    skill_payload = build_skill_selection_payload(
+        job_target=job_target,
+        skills_file=loaded_evidence["skills"],
+        config=config,
+    )
+    skill_cache_payload = resume_selection._selection_cache_payload(skill_payload)
+    skill_fetch_payload = resume_selection._canonical_selection_fetch_payload(
+        skill_payload,
+        full_top_n=resume_selection._skill_selection_full_top_n(skill_payload),
+    )
+    cache.get_or_store_result(
+        stage="skill_selection",
+        payload=skill_fetch_payload,
+        cache_payload=skill_cache_payload,
+        fetch=lambda: {
+            "technology": ["StaleFallback"],
+            "programming": [],
+            "concepts": [],
+            "details": {
+                "_fallback_method": "baseline",
+                "_llm": {"fallback": "baseline"},
+            },
+        },
+    )
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, *, base_url: str, timeout: float):
+            assert base_url == "http://jobforge.test"
+            assert timeout == 5
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def post(self, endpoint: str, json: dict):
+            calls.append(endpoint)
+            if endpoint == "/select-skills":
+                return httpx.Response(
+                    200,
+                    json={
+                        "technology": ["FastAPI", "Django", "Flask"],
+                        "programming": ["Python", "Go"],
+                        "concepts": ["API", "Caching"],
+                        "details": {"method": "llm", "_llm": {"total_tokens": 10}},
+                    },
+                )
+            if endpoint == "/select-projects":
+                return httpx.Response(
+                    200,
+                    json={
+                        "selected_project_ids": ["active-project"],
+                        "ranked_projects": [
+                            {
+                                "project_id": "active-project",
+                                "score": 1.0,
+                                "method": "llm",
+                            }
+                        ],
+                    },
+                )
+            raise AssertionError(f"unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("resume_generation.selection.httpx.Client", FakeClient)
+
+    context = generate_selection_context(
+        loaded_evidence=loaded_evidence,
+        config=config,
+        job_target=job_target,
+        config_path=config_path,
+        job_target_path=job_path,
+        evidence_paths={
+            "projects": projects_path,
+            "skills": skills_path,
+        },
+        cache=cache,
+    )
+
+    assert calls == ["/select-skills", "/select-projects"]
+    assert context.selected_skills.technology == ["FastAPI", "Django", "Flask"]
 
 
 def test_selection_cache_does_not_store_project_llm_fallback(
