@@ -57,6 +57,18 @@ _LATEX_HEADER = r"""\documentclass[letterpaper,9pt]{article}
 \raggedbottom
 \raggedright
 \setlength{\tabcolsep}{0in}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+\newcommand{\resumeHeadingRightWidth}{1.75in}
+\newsavebox{\resumeHeaderBox}
+\newcommand{\resumeHeaderLine}[1]{%
+\sbox{\resumeHeaderBox}{\small #1}%
+\ifdim\wd\resumeHeaderBox>\textwidth
+\resizebox{\textwidth}{!}{\usebox{\resumeHeaderBox}}%
+\else
+\usebox{\resumeHeaderBox}%
+\fi
+}
 
 % Sections formatting
 \titleformat{\section}{
@@ -78,24 +90,24 @@ _LATEX_HEADER = r"""\documentclass[letterpaper,9pt]{article}
 
 \newcommand{\resumeSubheading}[4]{
 \vspace{-2pt}\item
-\begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+\begin{tabularx}{0.97\textwidth}[t]{@{}L R{\resumeHeadingRightWidth}@{}}
 \textbf{#1} & #2 \\
 \textit{\small#3} & \textit{\small #4} \\
-\end{tabular*}\vspace{-7pt}
+\end{tabularx}\vspace{-7pt}
 }
 
 \newcommand{\resumeSubSubheading}[2]{
 \item
-\begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+\begin{tabularx}{0.97\textwidth}{@{}L R{\resumeHeadingRightWidth}@{}}
 \textit{\small#1} & \textit{\small #2} \\
-\end{tabular*}\vspace{-7pt}
+\end{tabularx}\vspace{-7pt}
 }
 
 \newcommand{\resumeProjectHeading}[2]{
 \item
-\begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
-\small#1 & #2 \\
-\end{tabular*}\vspace{-7pt}
+\begin{tabularx}{0.97\textwidth}{@{}L@{}}
+\small#1 \\
+\end{tabularx}\vspace{-7pt}
 }
 
 \newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
@@ -164,7 +176,7 @@ def resolve_resume_latex_output_path_from_config(config: ResumeOutputConfig) -> 
 def render_heading(top: ResumeTopSection) -> str:
     contact_items = [
         rf"{{\seticon{{faEnvelope}} {latex_escape(top.email)}}}",
-        rf"\small\seticon{{faPhone}} {latex_escape(top.phone)}",
+        rf"{{\seticon{{faPhone}} {latex_escape(top.phone)}}}",
     ]
     profile_items: list[str] = []
     if top.linkedin:
@@ -180,15 +192,15 @@ def render_heading(top: ResumeTopSection) -> str:
             rf"{{\seticon{{faGlobe}} \underline{{{latex_escape(display_url(top.website))}}}}}"
         )
 
+    header_items = contact_items + profile_items
+    header_separator = r"\hspace{0.75em}"
     lines = [
         r"%----------HEADING----------%",
         r"\begin{tabularx}{\textwidth}{@{} X r @{}}",
         r"    \begin{minipage}[t]{\textwidth}",
         rf"        \textbf{{\Large \scshape {latex_escape(top.name)}}} \\[0.5em]",
-        f"        {' \\quad '.join(contact_items)} \\\\",
+        f"        \\resumeHeaderLine{{{header_separator.join(header_items)}}}",
     ]
-    if profile_items:
-        lines.append(f"        {' \\quad '.join(profile_items)}")
     lines.extend(
         [
             r"    \end{minipage} &",

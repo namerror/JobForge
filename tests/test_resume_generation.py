@@ -1795,8 +1795,11 @@ def test_render_resume_latex_uses_template_sections_and_runtime_result():
     assert "\\section{Experience}" in rendered
     assert "\\section{Projects}" in rendered
     assert "\\section{Technical Skills}" in rendered
+    assert r"\newsavebox{\resumeHeaderBox}" in rendered
+    assert r"\newcommand{\resumeHeaderLine}[1]" in rendered
     assert r"\textbf{\Large \scshape Example Candidate}" in rendered
     assert r"{\seticon{faEnvelope} candidate\_name@example.com}" in rendered
+    assert r"{\seticon{faPhone} +1 555-0100}" in rendered
     assert r"{\seticon{faGithub} \underline{github.com/example-candidate}}" in rendered
     assert "faLinkedin" not in rendered
     assert "faGlobe" not in rendered
@@ -1821,6 +1824,103 @@ def test_render_resume_latex_uses_template_sections_and_runtime_result():
         < rendered.index("\\section{Projects}")
         < rendered.index("\\section{Technical Skills}")
     )
+
+
+def test_render_resume_latex_keeps_contact_and_profiles_on_one_header_line():
+    payload = _sample_intermediate_resume_result().model_dump()
+    payload["top"].update(
+        {
+            "linkedin": "https://www.linkedin.com/in/example-candidate/",
+            "website": "https://www.example.dev/",
+        }
+    )
+    resume_result = IntermediateResumeResult.model_validate(payload)
+
+    rendered = render_resume_latex(resume_result)
+
+    header_line = next(
+        line.strip()
+        for line in rendered.splitlines()
+        if line.strip().startswith(r"\resumeHeaderLine")
+    )
+    assert header_line == (
+        r"\resumeHeaderLine{{\seticon{faEnvelope} candidate\_name@example.com}"
+        r"\hspace{0.75em}{\seticon{faPhone} +1 555-0100}"
+        r"\hspace{0.75em}{\seticon{faLinkedin} "
+        r"\underline{linkedin.com/in/example-candidate}}"
+        r"\hspace{0.75em}{\seticon{faGithub} "
+        r"\underline{github.com/example-candidate}}"
+        r"\hspace{0.75em}{\seticon{faGlobe} \underline{example.dev}}}"
+    )
+    assert r"\\quad" not in header_line
+    assert r"\resizebox{\textwidth}{!}{\usebox{\resumeHeaderBox}}" in rendered
+
+
+def test_render_resume_latex_uses_wrapping_heading_columns_for_long_skill_suffixes():
+    payload = _sample_intermediate_resume_result().model_dump()
+    long_experience_skills = [
+        "Julia",
+        "Python",
+        "Error Correcting Codes",
+        "Quantum Error Correction",
+        "Distributed Computing",
+        "High Performance Computing",
+        "Slurm Cluster",
+        "Benchmarking",
+        "System Administration",
+        "DevOps",
+        "Web Development",
+        "Database Management",
+    ]
+    long_project_skills = [
+        "FastAPI",
+        "Supabase",
+        "NextJS",
+        "Pydantic",
+        "Docker",
+        "Python",
+        "TypeScript",
+        "SQL",
+        "REST API",
+        "Authentication",
+        "Database Management",
+        "LLM",
+    ]
+    payload["experience"][0].update(
+        {
+            "role": "Research Software Engineer - Quantum Information",
+            "skills": long_experience_skills,
+            "location": "Nuremberg, Bavaria, Germany",
+            "start": "June 2025",
+            "end": "August 2025",
+        }
+    )
+    payload["projects"][0].update(
+        {
+            "name": "Capital Ready - Business Lending Tool",
+            "skills": long_project_skills,
+        }
+    )
+    resume_result = IntermediateResumeResult.model_validate(payload)
+
+    rendered = render_resume_latex(resume_result)
+
+    assert r"\newcolumntype{L}{>{\raggedright\arraybackslash}X}" in rendered
+    assert r"\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}" in rendered
+    assert r"\newcommand{\resumeHeadingRightWidth}{1.75in}" in rendered
+    assert (
+        r"\begin{tabularx}{0.97\textwidth}[t]{@{}L R{\resumeHeadingRightWidth}@{}}"
+        in rendered
+    )
+    assert (
+        r"\begin{tabularx}{0.97\textwidth}{@{}L R{\resumeHeadingRightWidth}@{}}"
+        in rendered
+    )
+    assert r"\begin{tabularx}{0.97\textwidth}{@{}L@{}}" in rendered
+    assert r"\small#1 & #2 \\" not in rendered
+    assert r"\begin{tabular*}{0.97\textwidth}" not in rendered
+    for skill in long_experience_skills + long_project_skills:
+        assert latex_escape(skill) in rendered
 
 
 def test_write_resume_latex_artifact_writes_tex_file(tmp_path):
