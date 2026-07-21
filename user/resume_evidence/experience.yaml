@@ -133,13 +133,17 @@ experience:
     PersoSim. These are conformity testing software for smart cards and readers, with
     use cases in eMRTDs and ePassports.
   highlights:
-  - Clean up legacy code to perform input/plausibility validation on certain test configuration
-    parameters that were unclear with hex string format. I developed user facing input
-    validation and input format enforcement on hex inputs, and traced down globally
-    to verify the optimal/risk-free format to enforce in the test configurations.
+  - Clean up legacy code to perform input/plausibility validation on certain test
+    configuration parameters that were unclear with hex string format. I developed
+    user facing input validation and input format enforcement on hex inputs, and traced
+    down globally to verify the optimal/risk-free format to enforce in the test configurations.
   - Write crossover and integration tests for eMRTDs following cryptographic rules
     and internationalssport/travel document requirements.
   - Maintain and develop features for GlobalTester and PersoSim.
+  - Work on feature to support new formats for ePassport testing/validation. Specifically,
+    I debugged the program to support edge cases with passport document number with
+    extra digits, in which I had to research about secure messaging, cryptography
+    used in chip communication, key derivation, APDU etc.
   active: true
   skills:
     technology:
