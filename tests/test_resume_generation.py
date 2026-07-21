@@ -46,6 +46,7 @@ from resume_generation import (
     write_resume_latex_artifact,
 )
 from resume_generation.cache import ResumeGenerationStageCache
+import resume_generation.enrich as resume_enrich
 import resume_generation.selection as resume_selection
 import resume_generation.pdf as resume_pdf
 from resume_generation.main import (
@@ -1580,6 +1581,120 @@ def test_run_link_evidence_enrichment_dry_run_does_not_write_yaml(tmp_path):
     assert projects_file.projects_by_id()["active-project"].highlights == [
         "Built the service."
     ]
+
+
+def test_enrich_main_uses_link_scanning_config_defaults(tmp_path, monkeypatch):
+    payload = _config_payload()
+    payload["link_scanning"] = {
+        "enabled": False,
+        "dev_mode": False,
+        "llm_model": "configured-link-model",
+        "llm_max_output_tokens": None,
+        "highlight_count": 4,
+        "max_tokens_per_highlight": 80,
+    }
+    config_path = _write_yaml(tmp_path / "config.yaml", payload)
+    captured: dict[str, object] = {}
+
+    def fake_run_link_evidence_enrichment(**kwargs):
+        captured.update(kwargs)
+        return resume_enrich.LinkEvidenceEnrichmentResult(
+            dry_run=bool(kwargs["dry_run"]),
+            records=(),
+            updated_paths=(),
+        )
+
+    monkeypatch.setattr(
+        resume_enrich,
+        "run_link_evidence_enrichment",
+        fake_run_link_evidence_enrichment,
+    )
+
+    exit_code = resume_enrich.main(["--config-path", str(config_path), "--dry-run"])
+
+    assert exit_code == 0
+    assert isinstance(captured["config"], ResumeGenerationConfig)
+    assert captured["dev_mode"] is False
+    assert captured["llm_model"] == "configured-link-model"
+    assert captured["llm_max_output_tokens"] is None
+    assert captured["highlight_count"] == 4
+    assert captured["max_tokens_per_highlight"] == 80
+
+
+def test_enrich_main_cli_args_override_link_scanning_config(tmp_path, monkeypatch):
+    payload = _config_payload()
+    payload["link_scanning"] = {
+        "enabled": False,
+        "dev_mode": True,
+        "llm_model": "configured-link-model",
+        "llm_max_output_tokens": 660,
+        "highlight_count": 4,
+        "max_tokens_per_highlight": 80,
+    }
+    config_path = _write_yaml(tmp_path / "config.yaml", payload)
+    captured: dict[str, object] = {}
+
+    def fake_run_link_evidence_enrichment(**kwargs):
+        captured.update(kwargs)
+        return resume_enrich.LinkEvidenceEnrichmentResult(
+            dry_run=bool(kwargs["dry_run"]),
+            records=(),
+            updated_paths=(),
+        )
+
+    monkeypatch.setattr(
+        resume_enrich,
+        "run_link_evidence_enrichment",
+        fake_run_link_evidence_enrichment,
+    )
+
+    exit_code = resume_enrich.main(
+        [
+            "--config-path",
+            str(config_path),
+            "--no-dev-mode",
+            "--llm-model",
+            "cli-link-model",
+            "--llm-max-output-tokens",
+            "222",
+            "--highlight-count",
+            "9",
+            "--max-tokens-per-highlight",
+            "77",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["dev_mode"] is False
+    assert captured["llm_model"] == "cli-link-model"
+    assert captured["llm_max_output_tokens"] == 222
+    assert captured["highlight_count"] == 9
+    assert captured["max_tokens_per_highlight"] == 77
+
+
+def test_enrich_module_help_does_not_emit_runpy_warning(tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-W",
+            "error",
+            "-m",
+            "resume_generation.enrich",
+            "--config-path",
+            str(config_path),
+            "--help",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "RuntimeWarning" not in completed.stderr
+    assert "Enrich project and experience evidence" in completed.stdout
 
 
 def test_assemble_intermediate_resume_result_builds_deterministic_schema(tmp_path):

@@ -270,7 +270,14 @@ def run_link_evidence_enrichment(
     )
 
 
-def _build_arg_parser() -> argparse.ArgumentParser:
+def _build_config_path_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--config-path", default=str(DEFAULT_GENERATION_CONFIG_PATH))
+    return parser
+
+
+def _build_arg_parser(config: ResumeGenerationConfig | None = None) -> argparse.ArgumentParser:
+    link_config = config.link_scanning if config is not None else None
     parser = argparse.ArgumentParser(
         description="Enrich project and experience evidence by scanning configured links."
     )
@@ -280,18 +287,40 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default="all",
     )
     parser.add_argument("--config-path", default=str(DEFAULT_GENERATION_CONFIG_PATH))
-    parser.add_argument("--projects-path")
-    parser.add_argument("--experience-path")
-    parser.add_argument("--highlight-count", type=int)
-    parser.add_argument("--llm-model")
-    parser.add_argument("--llm-max-output-tokens", type=int)
-    parser.add_argument("--max-tokens-per-highlight", type=int)
+    parser.add_argument("--projects-path", default=str(DEFAULT_EVIDENCE_PATHS["projects"]))
+    parser.add_argument("--experience-path", default=str(DEFAULT_EVIDENCE_PATHS["experience"]))
+    parser.add_argument(
+        "--dev-mode",
+        action=argparse.BooleanOptionalAction,
+        default=None if link_config is None else link_config.dev_mode,
+    )
+    parser.add_argument(
+        "--highlight-count",
+        type=int,
+        default=None if link_config is None else link_config.highlight_count,
+    )
+    parser.add_argument(
+        "--llm-model",
+        default=None if link_config is None else link_config.llm_model,
+    )
+    parser.add_argument(
+        "--llm-max-output-tokens",
+        type=int,
+        default=None if link_config is None else link_config.llm_max_output_tokens,
+    )
+    parser.add_argument(
+        "--max-tokens-per-highlight",
+        type=int,
+        default=None if link_config is None else link_config.max_tokens_per_highlight,
+    )
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _build_arg_parser().parse_args(argv)
+    config_path_args, _ = _build_config_path_parser().parse_known_args(argv)
+    config = load_generation_config(config_path_args.config_path)
+    args = _build_arg_parser(config).parse_args(argv)
     evidence_paths: dict[str, Path | str] = {}
     if args.projects_path:
         evidence_paths["projects"] = args.projects_path
@@ -302,7 +331,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         evidence_type=args.evidence_type,
         evidence_paths=evidence_paths or None,
         config_path=args.config_path,
+        config=config,
         dry_run=args.dry_run,
+        dev_mode=args.dev_mode,
         llm_model=args.llm_model,
         llm_max_output_tokens=args.llm_max_output_tokens,
         highlight_count=args.highlight_count,

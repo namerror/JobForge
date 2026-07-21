@@ -13,6 +13,10 @@
 
 ## Session Index
 
+- `07-21-2026-Codex-llm-response-cycle-guard.md` - 2026-07-21 - Guard LLM response text extraction cycles
+- `07-21-2026-Codex-link-scanning-structured-output.md` - 2026-07-21 - Link scanning structured output
+- `07-21-2026-Codex-gpt-terra-temperature-compatibility.md` - 2026-07-21 - GPT Terra temperature compatibility
+- `07-21-2026-Codex-enrich-config-defaults.md` - 2026-07-21 - Enrich CLI config defaults
 - `07-19-2026-Codex-skill-top-n-fallback-fill.md` - 2026-07-19 - Skill top_n fallback fill
 - `07-19-2026-Codex-latex-project-heading-width.md` - 2026-07-19 - LaTeX project heading width
 - `07-19-2026-Codex-latex-header-contact-line.md` - 2026-07-19 - LaTeX header contact line

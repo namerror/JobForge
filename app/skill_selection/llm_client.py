@@ -13,7 +13,12 @@ from app.config import settings
 logger = logging.getLogger("llm_client")
 
 CATEGORIES = ("technology", "programming", "concepts")
-TEMPERATURE_UNSUPPORTED_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
+TEMPERATURE_UNSUPPORTED_MODELS = {
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-5.6-terra",
+}
 
 
 class LLMClientError(RuntimeError):
@@ -121,14 +126,24 @@ def _extract_output_text(response: Any) -> str | None:
     return _extract_text_from_part(getattr(response, "output", None))
 
 
-def _extract_text_from_part(part: Any) -> str | None:
+def _extract_text_from_part(part: Any, seen: set[int] | None = None) -> str | None:
+    if part is None:
+        return None
+
     if isinstance(part, str):
         stripped = part.strip()
         return stripped or None
 
+    if seen is None:
+        seen = set()
+    part_id = id(part)
+    if part_id in seen:
+        return None
+    seen.add(part_id)
+
     if isinstance(part, list):
         for item in part:
-            extracted = _extract_text_from_part(item)
+            extracted = _extract_text_from_part(item, seen)
             if extracted is not None:
                 return extracted
         return None
@@ -139,7 +154,7 @@ def _extract_text_from_part(part: Any) -> str | None:
             if isinstance(value, str) and value.strip():
                 return value
         for key in ("content", "output"):
-            extracted = _extract_text_from_part(part.get(key))
+            extracted = _extract_text_from_part(part.get(key), seen)
             if extracted is not None:
                 return extracted
         return None
@@ -149,7 +164,7 @@ def _extract_text_from_part(part: Any) -> str | None:
         if isinstance(value, str) and value.strip():
             return value
     for key in ("content", "output"):
-        extracted = _extract_text_from_part(getattr(part, key, None))
+        extracted = _extract_text_from_part(getattr(part, key, None), seen)
         if extracted is not None:
             return extracted
     return None

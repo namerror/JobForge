@@ -5,7 +5,6 @@ temp/
 __pycache__/
 *.pyc
 
-user/resume_evidence/*
 !user/resume_evidence/
 !user/resume_evidence/experience.yaml
 user/resume_generation/cache/

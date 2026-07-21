@@ -361,6 +361,90 @@ def test_scan_evidence_links_with_llm_omits_temperature_for_gpt_5_mini(monkeypat
     assert "temperature" not in captured["kwargs"]
 
 
+def test_scan_evidence_links_with_llm_omits_temperature_for_gpt_5_6_terra(monkeypatch):
+    captured = {}
+
+    class DummyResponses:
+        def create(self, **kwargs):
+            captured["kwargs"] = kwargs
+            return SimpleNamespace(
+                output_text='{"highlights":[]}',
+                output=[],
+                usage=None,
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            self.responses = DummyResponses()
+
+    monkeypatch.setattr(link_llm_client, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        link_llm_client.settings,
+        "LINK_SCANNING_LLM_MODEL",
+        "gpt-5.6-terra",
+    )
+
+    scan_evidence_links_with_llm(
+        evidence_type="project",
+        evidence=_project(),
+    )
+
+    assert "temperature" not in captured["kwargs"]
+
+
+def test_scan_evidence_links_with_llm_reads_structured_output_when_output_text_missing(
+    monkeypatch,
+):
+    class DummyResponses:
+        def create(self, **_kwargs):
+            return SimpleNamespace(
+                output=[
+                    SimpleNamespace(
+                        content=[
+                            SimpleNamespace(
+                                text=json.dumps(
+                                    {
+                                        "highlights": [
+                                            {
+                                                "text": "README documents a FastAPI link scanning workflow.",
+                                                "source_url": "https://github.com/openai/jobforge/blob/main/README.md",
+                                            }
+                                        ]
+                                    }
+                                )
+                            )
+                        ]
+                    ),
+                    SimpleNamespace(
+                        action=SimpleNamespace(
+                            sources=[
+                                SimpleNamespace(
+                                    url="https://github.com/openai/jobforge/blob/main/README.md"
+                                )
+                            ]
+                        )
+                    ),
+                ],
+                usage=SimpleNamespace(input_tokens=12, output_tokens=8, total_tokens=20),
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            self.responses = DummyResponses()
+
+    monkeypatch.setattr(link_llm_client, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(link_llm_client.settings, "OPENAI_API_KEY", "test-key")
+
+    result = scan_evidence_links_with_llm(
+        evidence_type="project",
+        evidence=_github_project(),
+    )
+
+    assert result.highlights[0].text == "README documents a FastAPI link scanning workflow."
+    assert result.metadata["total_tokens"] == 20
+
+
 def test_scan_evidence_links_with_llm_rejects_invalid_json(monkeypatch):
     class DummyResponses:
         def create(self, **_kwargs):

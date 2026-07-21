@@ -4,6 +4,8 @@ This package is reserved for code that loads resume evidence, calls the
 selection services, and prepares structured resume fill data.
 """
 
+import importlib
+
 from resume_generation.config import (
     DEFAULT_GENERATION_CONFIG_PATH,
     DEFAULT_JOB_TARGET_PATH,
@@ -58,11 +60,6 @@ from resume_generation.pdf import (
     render_latex_pdf,
     resolve_resume_pdf_output_path,
 )
-from resume_generation.enrich import (
-    LinkEvidenceEnrichmentRecordResult,
-    LinkEvidenceEnrichmentResult,
-    run_link_evidence_enrichment,
-)
 from resume_generation.main import (
     DEFAULT_RESUME_RESULT_ARTIFACT_PATH,
     DEFAULT_RESUME_RUN_MANIFEST_ARTIFACT_PATH,
@@ -77,6 +74,21 @@ from resume_generation.selection import (
     build_skill_selection_payload,
     generate_selection_context,
 )
+
+_LAZY_ENRICH_EXPORTS = {
+    "LinkEvidenceEnrichmentRecordResult",
+    "LinkEvidenceEnrichmentResult",
+    "run_link_evidence_enrichment",
+}
+
+
+def __getattr__(name: str):
+    if name in _LAZY_ENRICH_EXPORTS:
+        enrich = importlib.import_module(".enrich", __name__)
+        value = getattr(enrich, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "DEFAULT_GENERATION_CONFIG_PATH",

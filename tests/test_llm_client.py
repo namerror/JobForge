@@ -4,7 +4,11 @@ from types import SimpleNamespace
 import pytest
 
 from app.skill_selection import llm_client
-from app.skill_selection.llm_client import LLMClientError, score_skills_with_llm
+from app.skill_selection.llm_client import (
+    LLMClientError,
+    _extract_output_text,
+    score_skills_with_llm,
+)
 
 
 def test_score_skills_with_llm_sends_responses_schema(monkeypatch):
@@ -85,6 +89,10 @@ def test_score_skills_with_llm_omits_temperature_for_gpt_5_mini(monkeypatch):
     assert "temperature" not in captured["kwargs"]
 
 
+def test_supports_temperature_returns_false_for_gpt_5_6_terra():
+    assert llm_client.supports_temperature("gpt-5.6-terra") is False
+
+
 def test_score_skills_with_llm_reads_structured_output_when_output_text_missing(monkeypatch):
     class DummyResponses:
         def create(self, **_kwargs):
@@ -118,6 +126,25 @@ def test_score_skills_with_llm_reads_structured_output_when_output_text_missing(
 
     assert result.scores["technology"]["FastAPI"] == 3
     assert result.metadata["total_tokens"] == 20
+
+
+def test_extract_output_text_skips_cyclic_response_parts():
+    cyclic_part = SimpleNamespace()
+    cyclic_part.content = cyclic_part
+    output_text = '{"technology":{"FastAPI":3},"programming":{},"concepts":{}}'
+    response = SimpleNamespace(
+        output=[
+            cyclic_part,
+            SimpleNamespace(content=[SimpleNamespace(text=output_text)]),
+        ]
+    )
+
+    assert _extract_output_text(response) == output_text
+
+    cyclic_response = SimpleNamespace()
+    cyclic_response.output = cyclic_response
+
+    assert _extract_output_text(cyclic_response) is None
 
 
 def test_score_skills_with_llm_rejects_invalid_json(monkeypatch):

@@ -11,7 +11,7 @@ from openai import OpenAI
 
 from app.config import settings
 from app.link_scanning.models import LinkScanHighlight
-from app.skill_selection.llm_client import supports_temperature
+from app.skill_selection.llm_client import _extract_output_text, supports_temperature
 from resume_evidence.models import ExperienceRecord, ProjectRecord
 
 logger = logging.getLogger("link_scanning_llm_client")
@@ -491,7 +491,7 @@ def scan_evidence_links_with_llm(
         raise LinkScanningLLMClientError(f"Link-scanning LLM request failed: {exc}") from exc
 
     latency_ms = (time.perf_counter() - start) * 1000.0
-    output_text = getattr(response, "output_text", None)
+    output_text = _extract_output_text(response)
     if not output_text:
         raise LinkScanningLLMClientError("Link-scanning LLM response did not include output_text")
 
@@ -534,4 +534,3 @@ def scan_evidence_links_with_llm(
         **_usage_metadata(response),
     }
     return LLMLinkScanResult(highlights=highlights, metadata=metadata)
-

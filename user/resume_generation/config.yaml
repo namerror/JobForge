@@ -7,13 +7,13 @@ skill_selection:
   top_n: 20
   baseline_filter: false
   dev_mode: true
-  llm_model: gpt-5-mini
+  llm_model: gpt-5-nano
   llm_max_output_tokens: 1200
 project_selection:
   method: llm
   top_n: null
   dev_mode: true
-  llm_model: gpt-5-mini
+  llm_model: gpt-5-nano
   llm_max_output_tokens: 1200
 job_focus_generation:
   dev_mode: true
@@ -22,10 +22,10 @@ job_focus_generation:
 link_scanning:
   enabled: false
   dev_mode: true
-  llm_model: gpt-5-mini
+  llm_model: gpt-5.6-terra
   llm_max_output_tokens: null
   highlight_count: 6
-  max_tokens_per_highlight: 120
+  max_tokens_per_highlight: 500
 project_bullet_point_generation:
   bullet_count_range: null
   dev_mode: true
