@@ -23,6 +23,24 @@ projects:
     acceleration that introduces noise to data.
   - Programmed a visualization software in python to enable control interface and
     map visualization.
+  - Firmware implements a newline-delimited serial command protocol for forward, backward,
+    left, right, brake, stop, PWM-speed, IMU-requirement, calibration, and wheel-ramp
+    controls; it also emits timestamped IMU, distance, and status telemetry.
+  - Motor commands are blocked while IMU calibration is running or, when required,
+    until calibration succeeds; calibration samples accelerometer/gyro readings, rejects
+    unstable measurements, computes a Z-axis gyro bias, and resets yaw.
+  - 'Implemented two selectable no-encoder pose-estimation paths: command-based differential-drive
+    estimation derived from wheel diameter, track width, motor RPM, and PWM scaling;
+    and IMU-based estimation from acceleration and gyro samples.'
+  - Externalized serial settings, control timing, PWM/braking behavior, sensor mounting
+    offset, wheel-ramp settings, and pose-estimation parameters into YAML configuration
+    rather than hard-coding robot-specific assumptions.
+  - Built a Pygame map view that renders a grid, robot pose and heading, ultrasonic
+    sensor beam, and accumulated angled-wall detections; auto-scan adds wall points
+    only after movement exceeds a threshold and enforces a scan cooldown.
+  - Added automated Python tests covering configuration loading, wheel-ramp validation,
+    serial control-command behavior, and both command-based and IMU-based pose-estimator
+    modes.
   active: true
   skills:
     technology:
@@ -51,6 +69,24 @@ projects:
     evaluation and llm enabled evaluation
   - Agentic automatic testing for generation strategies
   - Grounded synthesis/extraction of evidence into structured data
+  - FastAPI service exposes separate endpoints for skill selection, project selection,
+    job-focus derivation, bullet generation, and link-evidence enrichment; startup
+    loads registered resume evidence into application state.
+  - Resume evidence uses strict Pydantic-backed YAML schemas with deterministic loading;
+    the CLI stages CRUD edits in memory, validates before mutation, and applies changes
+    through atomic disk writes.
+  - The generation pipeline calls the running backend over HTTP for selection, job-focus
+    derivation, and bullet generation, then writes an intermediate JSON resume result
+    and renders LaTeX, with optional PDF output via local latexmk.
+  - Implemented a stage cache that derives SHA-256 keys from canonical JSON payloads,
+    validates cached entry version/stage/key before use, supports force refresh and
+    namespaces, and atomically replaces cache files after writes.
+  - Implemented lightweight service observability through a metrics endpoint reporting
+    request and error totals, average latency, model-token usage, effective method
+    usage, and per-subsystem snapshots.
+  - Added API-level tests using an in-process HTTPX ASGI transport for link enrichment
+    and bullet generation, including configurable output counts, token-accounting
+    assertions, schema rejection cases, and LLM-failure responses mapped to HTTP 502.
   active: true
   skills:
     technology:
@@ -91,6 +127,19 @@ projects:
     closing deal agreement'
   - Interest matching between lenders and applicants with filtering on region, industry
     and funding ranges etc. performed automatically by algorithm
+  - Public landing page presents CapitalReady as an AI-powered business lending platform
+    supporting an application-to-funding workflow.
+  - Applicant intake is implemented as a guided, step-by-step form that collects business
+    information, financials, and founder background for lender review.
+  - The platform describes an AI analysis stage that produces executive summaries,
+    strengths-and-weaknesses assessments, risk flags, and revision checklists for
+    submitted applications.
+  - Capital matching considers industry, location, risk profile, and funding needs
+    when connecting applicants with lenders.
+  - 'The product flow is organized into three stages: guided application, AI analysis,
+    and capital matching.'
+  - The landing page states an average AI analysis time of two minutes and positions
+    the assessment as covering both risk and business strengths.
   active: true
   skills:
     technology:
@@ -121,6 +170,23 @@ projects:
   highlights:
   - Use smart contracts to mint tokens and develop the backend logic for Solana
   - Use NextJS frontend.
+  - Rust/Anchor Solana program initializes a hackathon PDA with an admin, voting-phase
+    state, and a dedicated voting-token mint.
+  - Participant registration stores wallet authority and metadata URI on-chain, creates
+    a participant NFT through Metaplex Token Metadata, and issues an initial allocation
+    of 100 voting tokens.
+  - "Project creation accepts project metadata and a GitHub repository reference,\
+    \ validates team size from 1\u201310, creates project state, and associates the\
+    \ creator's participant record with the project."
+  - Token-based voting enforces positive vote amounts, blocks voting for a participant's
+    own project, requires submitted projects and sufficient token balance, transfers
+    tokens into the project account, and uses checked arithmetic for vote totals.
+  - Next.js Solana integration deterministically derives hackathon, participant, project,
+    and voting-mint PDAs; creates associated token accounts; and submits project-creation
+    and token-voting transactions through program RPC calls.
+  - Shared TypeScript library centralizes IPFS upload/download, NFT metadata templates,
+    image URL helpers, metadata/storage types, and a storage test suite for use by
+    both the frontend and Solana-program workflow.
   active: true
   skills:
     technology:
@@ -148,6 +214,22 @@ projects:
   - Wrote a Python script to automate data generation and achieve manual page breaks
     on the LCD with simple text editing.
   - Optimized memory usage using assigned pointers and indirect addressing with registers.
+  - Implements a software-driven SPI byte-transfer routine that shifts eight bits
+    through KIM-1 output pins, controls MOSI, slave-select, and clock signals, and
+    restores slave-select after each transfer.
+  - Configures KIM-1 Port A as output for the LCD interface and Port B as input for
+    keypad polling during initialization.
+  - 'Implements the game interaction loop in 6502 assembly: display a question page,
+    wait for keypad input, display the option page, compare the captured answer against
+    an answer key, and render correct/incorrect feedback.'
+  - Stores display-page data and answer keys in separate assembly memory regions and
+    advances the answer pointer with carry handling between questions.
+  - Python content generator preserves whole words while wrapping text to 20-character
+    lines, accepts `---` as a manual page separator, and limits generated LCD pages
+    to four display lines.
+  - Generates assembler `.byte` directives for LCD cursor-address commands and null-terminated
+    page data, then writes the generated content to `file.txt` for inclusion by the
+    assembly program.
   active: true
   skills:
     technology:
