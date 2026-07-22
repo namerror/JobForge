@@ -5,7 +5,7 @@ JobForge is in a transition from a resume-generation prototype into a FastAPI-ba
 Today the repo ships three capability tracks:
 
 - a FastAPI backend in `app/` with reusable data-processing and generation capabilities
-- a grounded evidence engine in `resume_evidence/` for strict schemas, deterministic loading, and local CRUD workflows
+- a grounded evidence engine in `app/resume_evidence/` for strict schemas, deterministic loading, REST CRUD, and local YAML-backed workflows
 - a resume orchestration pipeline in `resume_generation/` that reads `user/resume_generation/` and `user/resume_evidence/`, calls the FastAPI backend, and assembles resume artifacts
 
 The current `user/` tree is local development data and runtime output. It is useful for prototyping and file-backed operation, but it should be treated as a storage adapter target rather than the final production persistence model.
@@ -50,14 +50,18 @@ Skill selection remains constrained by the repo invariants:
 
 ### Grounded resume evidence foundation
 
-The first implemented milestone is the `resume_evidence` package.
+The first implemented milestone is the app-owned resume evidence package with legacy CLI compatibility.
 
-- `resume_evidence/models.py`
+- `app/resume_evidence/models.py`
   - strict Pydantic models for all registered evidence YAML schemas
-- `resume_evidence/loader.py`
-  - schema registry and deterministic YAML loading
-- `resume_evidence/session.py`
+- `app/resume_evidence/loader.py`
+  - schema registry and deterministic YAML loading from `RESUME_EVIDENCE_ROOT`
+- `app/resume_evidence/session.py`
   - staged in-memory CRUD with validation-before-mutation and atomic apply-to-disk writes
+- `app/resume_evidence/service.py`
+  - ID-oriented backend helpers over the session layer
+- `app/resume_evidence/api.py`
+  - REST CRUD routes under `/resume-evidence`
 - `resume_evidence/cli/`
   - CLI entrypoint and schema dispatcher
 - `resume_evidence/cli/base.py`
@@ -79,7 +83,7 @@ The currently implemented evidence schemas are:
   - strict categorized skill lists under `technology`, `programming`, and `concepts`
 - `user/resume_evidence/education.yaml`
   - `schema_version: 1`
-  - strict education records with `name`, `degree`, `grade`, `start`, optional `end`, `location`, and `relevant_coursework`
+  - strict education records with `id`, `name`, `degree`, `grade`, `start`, optional `end`, `location`, and `relevant_coursework`
 - `user/resume_evidence/experience.yaml`
   - `schema_version: 1`
   - strict experience records with `id`, `name`, `role`, `summary`, `highlights`, `active`, `skills`, `location`, `start`, optional `end`, and optional `links`
@@ -87,7 +91,17 @@ The currently implemented evidence schemas are:
   - `schema_version: 1`
   - strict basic contact info with required `name`, `email`, and `phone`, plus optional `linkedin`, `github`, and `website`
 
-Resume evidence should be managed by users via the CLI or by other tools that write to the `user/resume_evidence/` directory.
+Resume evidence can be managed through `/resume-evidence` REST routes, the legacy CLI, or other tools that write to the configured evidence root.
+
+Evidence REST routes:
+
+- `GET /resume-evidence`
+- `GET /resume-evidence/{projects|experience|education|skills|user}`
+- `POST /resume-evidence/{projects|experience|education}`
+- `GET /resume-evidence/{projects|experience|education}/{id}`
+- `PUT /resume-evidence/{projects|experience|education}/{id}`
+- `DELETE /resume-evidence/{projects|experience|education}/{id}`
+- `PUT /resume-evidence/{skills|user}`
 
 ### Project selection API
 
@@ -151,7 +165,7 @@ JobForge now has a broader resume-engine shape:
 - the FastAPI `app/` layer provides reusable backend capabilities for selection, focus derivation, bullet generation, enrichment, metrics, and health checks
 - the skills API helps prioritize and rank skills for the Skills section
 - the project-selection API helps prioritize grounded projects for a target job
-- the top-level resume-evidence package establishes grounded source-of-truth data under `user/resume_evidence/`
+- the app-owned resume-evidence package exposes grounded source-of-truth data from `user/resume_evidence/`
 - the `resume_generation/` layer combines target job context, evidence, and selected service outputs into an intermediate resume result
 - deterministic assembly and LaTeX rendering turn that structured result into resume artifacts without inventing claims
 
@@ -159,13 +173,12 @@ Skill selection is no longer the whole project. It is one subsystem inside the l
 
 ## Recommended Service Architecture
 
-The recommended next phase is to integrate the evidence and generation layers into the FastAPI backend through a product-facing facade while keeping the existing stage endpoints as internal backend capabilities.
+The recommended next phase is to integrate generation runs into the FastAPI backend through a product-facing facade while keeping the existing stage endpoints as internal backend capabilities.
 
 ### Product-facing facade
 
-Future product clients should call higher-level resume service APIs, not orchestrate every generation stage themselves. The facade should own:
+Future product clients should call higher-level resume service APIs, not orchestrate every generation stage themselves. The facade now owns evidence CRUD and should next own:
 
-- evidence CRUD over the schemas currently implemented by `resume_evidence`
 - generation-run creation with a job target and selected evidence scope
 - generation-run status and artifact retrieval
 - structured resume result retrieval for web-app editing or rendering

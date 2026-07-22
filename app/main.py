@@ -30,7 +30,8 @@ from app.job_focus_generation.service import (
     derive_job_focus_service,
     record_job_focus_generation_error,
 )
-from resume_evidence import load_registered_evidence
+from app.resume_evidence import load_registered_evidence
+from app.resume_evidence.api import router as resume_evidence_router
 
 
 logger = logging.getLogger("app_main")
@@ -44,6 +45,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="JobForge Resume Engine", lifespan=lifespan)
+app.include_router(resume_evidence_router)
 
 
 @app.get("/health")

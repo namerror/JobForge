@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `/resume-evidence` REST CRUD API for file-backed resume evidence, with ID-based project, experience, and education routes plus singleton user and skills updates.
 - Optional LaTeX PDF rendering through local `latexmk` via `python -m resume_generation.pdf` or `resume_output.render_pdf`.
 - `POST /derive-job-focus` API and resume-generation job-focus stage that distills long job descriptions into compact resume-relevant context before bullet generation.
 - LaTeX resume output generation from `resume_generation` runtime resume results, using the configured `resume_output.path` with a default `.tex` artifact path.
@@ -21,9 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged resume evidence CLI workflows for `education`, `experience`, and `user` schemas via `python -m resume_evidence.cli --schema <schema>`.
 
 ### Changed
+- Resume evidence domain code now lives under `app/resume_evidence`; top-level `resume_evidence` modules remain compatibility shims for legacy imports and CLI usage.
 - Resume-generation bullet requests now use derived `job_focus` context from the pipeline instead of repeating the full job description for every selected project and active experience.
 - Resume generation no longer runs link scanning or web search in the normal pipeline; it consumes already-enriched evidence for selection and bullet generation.
-- Resume evidence is now a top-level package with CLI entrypoint `python -m resume_evidence.cli`; the FastAPI app imports it for startup validation instead of owning it under `app/`.
 - Resume evidence CLI components now live under the standalone `resume_evidence/cli/` package.
 - Runtime selection configuration is now subsystem-scoped: use `SKILL_METHOD`, `SKILL_TOP_N`, `SKILL_BASELINE_FILTER`, `PROJ_METHOD`, and `PROJ_TOP_N` instead of generic selection env vars.
 - Skill-selection and project-selection LLM defaults are configured separately with `SKILL_LLM_*` and `PROJ_LLM_*` settings; legacy `LLM_MODEL` and `LLM_MAX_OUTPUT_TOKENS` are no longer read.

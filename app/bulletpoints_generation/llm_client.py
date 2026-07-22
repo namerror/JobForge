@@ -12,7 +12,7 @@ from app.bulletpoints_generation.models import BulletCountRange, BulletJobContex
 from app.config import settings
 from app.skill_selection.llm_client import _extract_output_text
 from app.skill_selection.llm_client import supports_temperature
-from resume_evidence.models import ExperienceRecord, ProjectRecord
+from app.resume_evidence.models import ExperienceRecord, ProjectRecord
 
 logger = logging.getLogger("bulletpoints_llm_client")
 

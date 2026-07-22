@@ -22,14 +22,16 @@ Use this file as the primary navigation index for coding agents.
 5. `docs/decisions/005-subsystem-package-organization.md`
    - current subsystem layout and legacy import compatibility policy
 6. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
-   - top-level evidence and generation package boundary
+   - historical top-level evidence and generation package boundary
 7. `docs/decisions/009-bullet-point-generation-api-boundary.md`
    - current grounded bullet-point generation API boundary
 8. `docs/decisions/012-fastapi-resume-service-transition.md`
    - recommended FastAPI facade, file-adapter, and async-run transition path
-9. `docs/archive/branch-03-grounded-resume-generation.md`
+9. `docs/decisions/013-app-owned-resume-evidence-crud-api.md`
+   - current app-owned evidence package, REST CRUD API, and YAML storage boundary
+10. `docs/archive/branch-03-grounded-resume-generation.md`
    - historical Branch 03 plan; use only as background, not current implementation truth
-10. `docs/archive/project-selection-plan.md`
+11. `docs/archive/project-selection-plan.md`
    - historical project-selection plan; use implemented code and current ADRs first
 
 ## Recommended Read Order
@@ -44,14 +46,16 @@ Use this file as the primary navigation index for coding agents.
 8. `app/skill_selection/scoring/role_profiles.py`
 9. `app/project_selection/service.py`
 10. `app/project_selection/selector.py`
-11. `resume_evidence/loader.py`
-12. `resume_evidence/session.py`
-13. `resume_generation/main.py`
-14. `resume_generation/selection.py`
-15. `resume_generation/bullet_points.py`
-16. `resume_generation/assembly.py`
-17. `docs/decisions/012-fastapi-resume-service-transition.md`
-18. `docs/archive/branch-03-grounded-resume-generation.md`
+11. `app/resume_evidence/api.py`
+12. `app/resume_evidence/service.py`
+13. `app/resume_evidence/loader.py`
+14. `app/resume_evidence/session.py`
+15. `resume_generation/main.py`
+16. `resume_generation/selection.py`
+17. `resume_generation/bullet_points.py`
+18. `resume_generation/assembly.py`
+19. `docs/decisions/012-fastapi-resume-service-transition.md`
+20. `docs/decisions/013-app-owned-resume-evidence-crud-api.md`
 
 ## Skill Selection Entry Points
 
@@ -66,14 +70,20 @@ Use this file as the primary navigation index for coding agents.
 
 ## Resume Evidence Entry Points
 
-- `resume_evidence/models.py`
+- `app/resume_evidence/models.py`
   - strict runtime models for all registered evidence YAML schemas
-- `resume_evidence/loader.py`
-  - evidence registry and startup loading
-- `resume_evidence/session.py`
-  - staged CRUD/session logic for resume evidence schemas
+- `app/resume_evidence/loader.py`
+  - evidence registry and configurable YAML loading
+- `app/resume_evidence/session.py`
+  - staged CRUD/session logic and atomic YAML writes for resume evidence schemas
+- `app/resume_evidence/service.py`
+  - ID-oriented backend helpers over the session layer
+- `app/resume_evidence/api.py`
+  - FastAPI CRUD routes under `/resume-evidence`
 - `resume_evidence/cli/`
   - CLI entrypoint and schema dispatcher
+- `resume_evidence/{models,loader,session}.py`
+  - legacy compatibility shims that re-export `app.resume_evidence`
 - `resume_evidence/cli/base.py`
   - shared interactive CLI prompt and command helpers
 - `resume_evidence/cli/{projects,skills,education,experience,user}.py`

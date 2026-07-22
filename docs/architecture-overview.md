@@ -22,8 +22,10 @@ This document maps the current JobForge structure so agents can move quickly acr
   - grounded bullet-point generation models, service wrapper, and LLM client
 - `app/link_scanning/`
   - standalone evidence enrichment models, service wrapper, and LLM client
+- `app/resume_evidence/`
+  - strict evidence schemas, registry loading, ID-oriented service helpers, FastAPI CRUD routes, and staged CRUD/session logic
 - `resume_evidence/`
-  - strict evidence schemas, registry loading, staged CRUD/session logic, and CLI
+  - legacy compatibility shims plus the local CLI entrypoint
 - `resume_generation/`
   - top-level orchestration package that loads evidence, calls backend capabilities over HTTP, caches stages, assembles intermediate resume results, and renders LaTeX artifacts
 - `app/skill_selection/selector.py`
@@ -43,7 +45,7 @@ app.main
   -> app.job_focus_generation
   -> app.bulletpoints_generation
   -> app.link_scanning
-  -> resume_evidence
+  -> app.resume_evidence
 
 app.skill_selection.selector
   -> app.config
@@ -70,7 +72,7 @@ app.project_selection.service
   -> app.project_selection.selector
 
 app.project_selection
-  -> resume_evidence.models
+  -> app.resume_evidence.models
   -> app.skill_selection.scoring.baseline
   -> app.project_selection.llm_client
 
@@ -80,36 +82,38 @@ app.job_focus_generation
 
 app.bulletpoints_generation
   -> app.metrics
-  -> resume_evidence.models
+  -> app.resume_evidence.models
   -> app.bulletpoints_generation.llm_client
 
 app.link_scanning
   -> app.metrics
-  -> resume_evidence.models
+  -> app.resume_evidence.models
   -> app.link_scanning.llm_client
 
+app.resume_evidence
+  -> app.resume_evidence.loader
+  -> app.resume_evidence.models
+  -> app.resume_evidence.session
+  -> app.resume_evidence.service
+  -> user/resume_evidence/*.yaml
+
 resume_generation
-  -> resume_evidence
+  -> app.resume_evidence
   -> app skill/project/focus/bullet HTTP contracts
   -> user/resume_generation/config.yaml
   -> user/resume_generation/job_target.yaml
 
-resume_evidence
-  -> resume_evidence.loader
-  -> resume_evidence.models
-  -> resume_evidence.session
-
-resume_evidence.loader
-  -> resume_evidence.models
+app.resume_evidence.loader
+  -> app.resume_evidence.models
   -> user/resume_evidence/education.yaml
   -> user/resume_evidence/experience.yaml
   -> user/resume_evidence/projects.yaml
   -> user/resume_evidence/skills.yaml
   -> user/resume_evidence/user.yaml
 
-resume_evidence.session
-  -> resume_evidence.loader
-  -> resume_evidence.models
+app.resume_evidence.session
+  -> app.resume_evidence.loader
+  -> app.resume_evidence.models
 
 legacy compatibility shims
   -> app.skill_selection.*
@@ -124,7 +128,7 @@ legacy compatibility shims
 flowchart TD
     A[FastAPI lifespan start] --> B[setup_logging]
     B --> C[load_registered_evidence]
-    C --> D[loader resolves DEFAULT_EVIDENCE_PATHS]
+    C --> D[loader resolves paths from RESUME_EVIDENCE_ROOT]
     D --> E[load all registered user/resume_evidence/*.yaml]
     E --> F[validate into strict evidence models]
     F --> G[store on app.state.resume_evidence]
@@ -132,7 +136,25 @@ flowchart TD
 
 - Startup currently loads the registered evidence set into `app.state.resume_evidence`.
 - Today that registry contains `education`, `experience`, `projects`, `skills`, and `user`.
-- This startup hook validates local file-backed evidence for the current backend runtime. A future product-facing facade should route evidence access through a storage adapter instead of reading `user/` paths directly.
+- This startup hook validates local file-backed evidence for the current backend runtime. The product-facing evidence CRUD API now routes access through `app.resume_evidence` service helpers while still using configurable local YAML storage by default.
+
+### Resume-evidence CRUD flow
+
+```mermaid
+flowchart TD
+    A[HTTP request under /resume-evidence] --> B[FastAPI validates typed input]
+    B --> C[app.resume_evidence.service]
+    C --> D[load current YAML-backed session]
+    D --> E[mutate by stable id or singleton field set]
+    E --> F[validate full schema]
+    F --> G[atomic YAML replace]
+    G --> H[refresh app.state.resume_evidence entry]
+    H --> I[typed response model]
+```
+
+- `projects`, `experience`, and `education` expose collection and item routes with stable ID URLs.
+- `user` and `skills` are singleton resources with `GET` and `PUT`.
+- Top-level `resume_evidence` imports remain as legacy compatibility shims for the CLI.
 
 ### Skill-selection request flow
 
@@ -248,6 +270,10 @@ This repo is no longer only a skill-selection codebase. It contains an implement
   - `SkillsFile` containing validated categorized skills
   - `UserInfoFile` containing validated contact/header fields
 - startup loading: `load_registered_evidence()` in `app.main`
+- REST CRUD:
+  - `app/resume_evidence/api.py`
+  - `/resume-evidence` collection and resource routes
+  - immediate validation and atomic YAML persistence
 - local CRUD/session workflows:
   - `ProjectsEvidenceSession`
   - `SkillsEvidenceSession`
@@ -365,9 +391,10 @@ Skill selection remains one prioritization signal for the Skills section, not th
 The recommended service path is to keep FastAPI and add a product-facing facade over the implemented evidence and generation layers.
 
 - `app/` remains the backend capability layer for selection, focus derivation, bullet generation, link enrichment, metrics, and health.
-- `resume_evidence/` remains the evidence domain layer: schema contracts, validation, loading, and staged local CRUD behavior.
+- `app/resume_evidence/` owns the evidence domain layer: schema contracts, validation, loading, ID-oriented REST CRUD, and staged local CRUD behavior.
+- `resume_evidence/` remains only as legacy compatibility shims plus the CLI package.
 - `resume_generation/` remains the orchestration layer: it decides which evidence is sent to which backend capability and assembles the responses.
-- Future public product APIs should expose evidence CRUD, async generation-run creation, run status, structured results, and artifacts.
+- Future public product APIs should add async generation-run creation, run status, structured results, and artifacts.
 - Existing stage endpoints should become internal or separately documented from the product API as the web-app boundary matures.
 - File-backed `user/` storage should be wrapped behind repository/adapter interfaces before adding database persistence.
 - Full generation should use async runs: create run, poll status, then fetch result/artifacts.
@@ -415,6 +442,12 @@ The recommended service path is to keep FastAPI and add a product-facing facade 
   - current grounded bullet-point generation capability API
 - `POST /scan-link` and `POST /enrich-link-evidence`
   - current standalone evidence-enrichment capability APIs
+- `GET /resume-evidence`
+  - current product-facing API for reading all registered evidence
+- `/resume-evidence/projects`, `/resume-evidence/experience`, and `/resume-evidence/education`
+  - current product-facing collection and ID-based item CRUD APIs
+- `GET` and `PUT /resume-evidence/skills` and `/resume-evidence/user`
+  - current product-facing singleton evidence APIs
 - `python -m resume_evidence.cli`
   - current local interface for evidence CRUD/session management
 - `resume_generation/`
@@ -433,11 +466,13 @@ Future product-facing routes should sit above these capability APIs rather than 
 7. `app/skill_selection/selector.py`
 8. `app/project_selection/service.py`
 9. `app/project_selection/selector.py`
-10. `resume_evidence/loader.py`
-11. `resume_evidence/session.py`
-12. `resume_generation/main.py`
-13. `resume_generation/selection.py`
-14. `resume_generation/bullet_points.py`
+10. `app/resume_evidence/api.py`
+11. `app/resume_evidence/service.py`
+12. `app/resume_evidence/loader.py`
+13. `app/resume_evidence/session.py`
+14. `resume_generation/main.py`
+15. `resume_generation/selection.py`
+16. `resume_generation/bullet_points.py`
 15. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
 16. `docs/decisions/012-fastapi-resume-service-transition.md`
 17. `docs/archive/branch-03-grounded-resume-generation.md`

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from resume_evidence.models import (
+from app.resume_evidence.models import (
     EducationFile,
     ExperienceFile,
     ProjectRecord,

@@ -12,8 +12,13 @@ import yaml
 
 from app.link_scanning.models import LinkScanRequest, LinkScanResponse
 from app.link_scanning.service import scan_link_evidence_service
-from resume_evidence.loader import DEFAULT_EVIDENCE_PATHS, load_evidence_yaml
-from resume_evidence.models import ExperienceFile, ExperienceRecord, ProjectRecord, ProjectsFile
+from app.resume_evidence.loader import default_evidence_paths, load_evidence_yaml
+from app.resume_evidence.models import (
+    ExperienceFile,
+    ExperienceRecord,
+    ProjectRecord,
+    ProjectsFile,
+)
 from resume_generation.config import DEFAULT_GENERATION_CONFIG_PATH, load_generation_config
 from resume_generation.models import ResumeGenerationConfig
 
@@ -74,7 +79,7 @@ def _write_yaml_atomic(path: Path, data: dict[str, Any]) -> None:
 def _resolve_evidence_paths(
     evidence_paths: Mapping[str, Path | str] | None,
 ) -> dict[str, Path]:
-    resolved = dict(DEFAULT_EVIDENCE_PATHS)
+    resolved = default_evidence_paths()
     if evidence_paths is not None:
         resolved.update({schema_name: Path(path) for schema_name, path in evidence_paths.items()})
     return resolved
@@ -278,6 +283,7 @@ def _build_config_path_parser() -> argparse.ArgumentParser:
 
 def _build_arg_parser(config: ResumeGenerationConfig | None = None) -> argparse.ArgumentParser:
     link_config = config.link_scanning if config is not None else None
+    evidence_paths = default_evidence_paths()
     parser = argparse.ArgumentParser(
         description="Enrich project and experience evidence by scanning configured links."
     )
@@ -287,8 +293,8 @@ def _build_arg_parser(config: ResumeGenerationConfig | None = None) -> argparse.
         default="all",
     )
     parser.add_argument("--config-path", default=str(DEFAULT_GENERATION_CONFIG_PATH))
-    parser.add_argument("--projects-path", default=str(DEFAULT_EVIDENCE_PATHS["projects"]))
-    parser.add_argument("--experience-path", default=str(DEFAULT_EVIDENCE_PATHS["experience"]))
+    parser.add_argument("--projects-path", default=str(evidence_paths["projects"]))
+    parser.add_argument("--experience-path", default=str(evidence_paths["experience"]))
     parser.add_argument(
         "--dev-mode",
         action=argparse.BooleanOptionalAction,

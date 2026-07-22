@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from resume_evidence import (
+from app.resume_evidence import (
     EducationFile,
     ExperienceFile,
     UserInfoFile,

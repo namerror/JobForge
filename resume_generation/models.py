@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.job_focus_generation.models import JobFocus as JobFocusResult
-from resume_evidence.models import ProjectRecord
+from app.resume_evidence.models import ProjectRecord
 
 
 class StrictSchemaModel(BaseModel):

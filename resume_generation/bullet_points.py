@@ -5,7 +5,7 @@ from typing import Any, Iterable
 import httpx
 
 from app.config import settings
-from resume_evidence.models import ExperienceRecord, ProjectRecord
+from app.resume_evidence.models import ExperienceRecord, ProjectRecord
 from resume_generation.cache import ResumeGenerationStageCache
 from resume_generation.models import (
     ExperienceBulletPointResult,

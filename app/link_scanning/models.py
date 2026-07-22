@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from resume_evidence.models import ExperienceRecord, ProjectRecord
+from app.resume_evidence.models import ExperienceRecord, ProjectRecord
 
 
 class StrictSchemaModel(BaseModel):

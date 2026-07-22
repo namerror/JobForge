@@ -185,6 +185,7 @@ def _education_payload() -> dict:
         "schema_version": 1,
         "education": [
             {
+                "id": "example-university",
                 "name": "Example University",
                 "degree": "Bachelor of Science in Computer Science",
                 "grade": "3.8 GPA",

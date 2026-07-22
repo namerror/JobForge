@@ -12,7 +12,7 @@ from openai import OpenAI
 from app.config import settings
 from app.link_scanning.models import LinkScanHighlight
 from app.skill_selection.llm_client import _extract_output_text, supports_temperature
-from resume_evidence.models import ExperienceRecord, ProjectRecord
+from app.resume_evidence.models import ExperienceRecord, ProjectRecord
 
 logger = logging.getLogger("link_scanning_llm_client")
 

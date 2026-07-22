@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 
 from pydantic import field_validator
@@ -6,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SkillSelectionMethod = Literal["baseline", "embeddings", "llm"]
 ProjectSelectionMethod = Literal["baseline", "llm"]
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -22,6 +25,7 @@ class Settings(BaseSettings):
     PROJ_METHOD: ProjectSelectionMethod = "llm"
     DEV_MODE: bool = True
     LOG_LEVEL: str = "INFO"
+    RESUME_EVIDENCE_ROOT: Path = _REPO_ROOT / "user" / "resume_evidence"
 
     # Embedding-related settings, only relevant if SKILL_METHOD=embeddings
     EMBEDDING_MODEL: str = "text-embedding-3-small"

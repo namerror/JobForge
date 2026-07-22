@@ -4,6 +4,7 @@ import asyncio
 from copy import deepcopy
 
 import pytest
+import app.resume_evidence as app_resume_evidence
 import resume_evidence
 import yaml
 from pydantic import ValidationError
@@ -24,9 +25,14 @@ from resume_evidence import (
 )
 
 
-def test_resume_evidence_package_is_top_level():
+def test_app_resume_evidence_package_owns_runtime_models():
+    assert "/app/resume_evidence/" in str(app_resume_evidence.__file__)
+
+
+def test_legacy_resume_evidence_package_reexports_app_models():
     assert "/resume_evidence/" in str(resume_evidence.__file__)
-    assert "/app/resume_evidence/" not in str(resume_evidence.__file__)
+    assert resume_evidence.ProjectRecord is app_resume_evidence.ProjectRecord
+    assert resume_evidence.load_registered_evidence is app_resume_evidence.load_registered_evidence
 
 
 def _valid_projects_payload() -> dict:
@@ -117,6 +123,7 @@ def _valid_education_payload() -> dict:
         "schema_version": 1,
         "education": [
             {
+                "id": "example-university",
                 "name": "Example University",
                 "degree": "Bachelor of Science in Computer Science",
                 "grade": "3.8 GPA",
@@ -187,12 +194,24 @@ def test_load_education_yaml_returns_typed_runtime_object(tmp_path):
     assert isinstance(parsed, EducationFile)
     assert isinstance(parsed.education[0], EducationRecord)
     assert parsed.schema_version == 1
+    assert parsed.education[0].id == "example-university"
     assert parsed.education[0].name == "Example University"
     assert parsed.education[0].relevant_coursework == [
         "Data Structures",
         "Algorithms",
         "Software Engineering",
     ]
+
+
+def test_load_education_yaml_generates_missing_legacy_id(tmp_path):
+    payload = _valid_education_payload()
+    del payload["education"][0]["id"]
+    path = _write_yaml(tmp_path, payload, filename="education.yaml")
+
+    parsed = load_evidence_yaml(path, "education")
+
+    assert isinstance(parsed, EducationFile)
+    assert parsed.education[0].id == "example-university"
 
 
 def test_load_projects_yaml_rejects_missing_required_field(tmp_path):

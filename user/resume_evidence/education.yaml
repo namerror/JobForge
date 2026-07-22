@@ -1,6 +1,7 @@
 schema_version: 1
 education:
-- name: University of Massachusetts Amherst
+- id: university-of-massachusetts-amherst
+  name: University of Massachusetts Amherst
   degree: Bachelor of Science in Computer Science
   grade: 3.938 GPA
   start: '2024'

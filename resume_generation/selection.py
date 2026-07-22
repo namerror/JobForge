@@ -8,7 +8,7 @@ import httpx
 from pydantic import BaseModel
 
 from app.config import settings
-from resume_evidence import DEFAULT_EVIDENCE_PATHS, ProjectsFile, SkillsFile
+from app.resume_evidence import ProjectsFile, SkillsFile, default_evidence_paths
 from resume_generation.config import (
     DEFAULT_GENERATION_CONFIG_PATH,
     DEFAULT_JOB_TARGET_PATH,
@@ -343,7 +343,7 @@ def generate_selection_context(
     token_usage_monitor: ResumeGenerationTokenUsageMonitor | None = None,
     stage_response_records: list[dict[str, Any]] | None = None,
 ) -> ResumeSelectionContext:
-    merged_evidence_paths = dict(DEFAULT_EVIDENCE_PATHS)
+    merged_evidence_paths = default_evidence_paths()
     if evidence_paths is not None:
         merged_evidence_paths.update(
             {schema_name: Path(path) for schema_name, path in evidence_paths.items()}
