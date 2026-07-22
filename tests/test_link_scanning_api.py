@@ -141,24 +141,16 @@ def test_enrich_link_evidence_api_accepts_experience_records(monkeypatch):
     assert captured["evidence"].role == "Backend Engineer"
 
 
-def test_scan_link_api_accepts_legacy_project_payload(monkeypatch):
-    captured = {}
+def test_scan_link_api_is_removed():
+    response = api_request("POST", "/scan-link", json=_request_payload())
 
-    def fake_scan_evidence_links_with_llm(**kwargs):
-        captured.update(kwargs)
-        return LLMLinkScanResult(
-            highlights=[],
-            metadata={"model": "test-model", "api_calls": 1, "total_tokens": 0},
-        )
+    assert response.status_code == 404
 
-    monkeypatch.setattr(
-        "app.link_scanning.service.scan_evidence_links_with_llm",
-        fake_scan_evidence_links_with_llm,
-    )
 
+def test_enrich_link_evidence_api_rejects_legacy_project_payload():
     response = api_request(
         "POST",
-        "/scan-link",
+        "/enrich-link-evidence",
         json={
             "context": {"title": "Backend Engineer"},
             "project": _project_payload(),
@@ -166,12 +158,12 @@ def test_scan_link_api_accepts_legacy_project_payload(monkeypatch):
         },
     )
 
-    assert response.status_code == 200
-    assert response.json()["evidence_id"] == "jobforge"
-    assert captured["evidence_type"] == "project"
+    assert response.status_code == 422
+    assert "evidence_type" in response.text
+    assert "evidence" in response.text
 
 
-def test_scan_link_api_omits_details_when_dev_mode_false(monkeypatch):
+def test_enrich_link_evidence_api_omits_details_when_dev_mode_false(monkeypatch):
     def fake_scan_evidence_links_with_llm(**_kwargs):
         return LLMLinkScanResult(
             highlights=[],
@@ -189,7 +181,7 @@ def test_scan_link_api_omits_details_when_dev_mode_false(monkeypatch):
     assert response.json()["details"] is None
 
 
-def test_scan_link_api_passes_llm_overrides(monkeypatch):
+def test_enrich_link_evidence_api_passes_llm_overrides(monkeypatch):
     captured = {}
 
     def fake_scan_evidence_links_with_llm(**kwargs):
@@ -222,7 +214,7 @@ def test_scan_link_api_passes_llm_overrides(monkeypatch):
     assert captured["max_tokens_per_highlight"] == 90
 
 
-def test_scan_link_api_returns_502_when_llm_fails(monkeypatch):
+def test_enrich_link_evidence_api_returns_502_when_llm_fails(monkeypatch):
     def fake_scan_evidence_links_with_llm(**_kwargs):
         raise LinkScanningLLMClientError("web scan failed")
 
@@ -237,7 +229,7 @@ def test_scan_link_api_returns_502_when_llm_fails(monkeypatch):
     assert "web scan failed" in response.text
 
 
-def test_scan_link_api_rejects_unknown_project_skill_category():
+def test_enrich_link_evidence_api_rejects_unknown_project_skill_category():
     project = _project_payload()
     project["skills"]["design"] = ["UX"]
 

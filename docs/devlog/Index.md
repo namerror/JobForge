@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `07-22-2026-Codex-remove-scan-link-endpoint.md` - 2026-07-22 - Remove legacy scan link endpoint
 - `07-22-2026-Codex-resume-evidence-crud-api.md` - 2026-07-22 - Resume evidence CRUD API
 - `07-21-2026-Codex-llm-response-cycle-guard.md` - 2026-07-21 - Guard LLM response text extraction cycles
 - `07-21-2026-Codex-link-scanning-structured-output.md` - 2026-07-21 - Link scanning structured output

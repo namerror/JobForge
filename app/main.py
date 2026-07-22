@@ -183,18 +183,6 @@ async def enrich_link_evidence(payload: LinkScanRequest) -> LinkScanResponse:
         raise HTTPException(status_code=502, detail=str(exc))
 
 
-@app.post("/scan-link", response_model=LinkScanResponse)
-async def scan_link(payload: LinkScanRequest) -> LinkScanResponse:
-    logger.info(
-        "app_content_stage_request",
-        extra=_link_scan_log_extra(payload, "/scan-link"),
-    )
-    try:
-        return scan_link_evidence_service(payload)
-    except LinkScanningError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
-
-
 @app.post("/select-projects", response_model=ProjectSelectionResult)
 async def select_projects(payload: dict[str, Any]) -> ProjectSelectionResult:
     logger.info(

@@ -64,3 +64,4 @@ Files are named: `NNN-short-kebab-case-title.md`
 - `011-modular-bullet-generation-cache-config.md`
 - `012-fastapi-resume-service-transition.md`
 - `013-app-owned-resume-evidence-crud-api.md`
+- `014-canonical-link-evidence-enrichment-endpoint.md`

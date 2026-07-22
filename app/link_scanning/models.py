@@ -20,17 +20,6 @@ class LinkScanRequest(StrictSchemaModel):
     requested_highlight_count: int | None = None
     max_tokens_per_highlight: int | None = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def accept_legacy_project_payload(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "project" in data and "evidence" not in data:
-            normalized = dict(data)
-            normalized["evidence_type"] = "project"
-            normalized["evidence"] = normalized.pop("project")
-            normalized.pop("context", None)
-            return normalized
-        return data
-
     @field_validator("llm_model")
     @classmethod
     def validate_llm_model(cls, value: str | None) -> str | None:

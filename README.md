@@ -193,7 +193,7 @@ The existing FastAPI routes are useful backend building blocks:
 - `/select-projects`
 - `/derive-job-focus`
 - `/generate-bulletpoints`
-- `/scan-link` and `/enrich-link-evidence`
+- `/enrich-link-evidence`
 
 As the service boundary matures, these routes should either move behind an internal namespace or be documented separately from the product API. That keeps the future web app from depending on orchestration details such as cache keys, prompt-specific payloads, or per-stage retry behavior.
 

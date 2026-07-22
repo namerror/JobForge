@@ -440,8 +440,8 @@ The recommended service path is to keep FastAPI and add a product-facing facade 
   - current job-focus derivation capability API
 - `POST /generate-bulletpoints`
   - current grounded bullet-point generation capability API
-- `POST /scan-link` and `POST /enrich-link-evidence`
-  - current standalone evidence-enrichment capability APIs
+- `POST /enrich-link-evidence`
+  - current standalone evidence-enrichment capability API
 - `GET /resume-evidence`
   - current product-facing API for reading all registered evidence
 - `/resume-evidence/projects`, `/resume-evidence/experience`, and `/resume-evidence/education`
