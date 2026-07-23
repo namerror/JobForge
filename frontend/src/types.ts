@@ -98,3 +98,52 @@ export interface ResumeEvidenceRegistry {
 }
 
 export type CollectionRecord = ProjectRecord | ExperienceRecord | EducationRecord;
+
+export interface JobTargetOverride {
+  schema_version: 1;
+  title: string;
+  description: string | null;
+}
+
+export interface ResumeTexGenerationRequest {
+  job_target?: JobTargetOverride | null;
+}
+
+export interface ResumeTexGenerationResponse {
+  resume_result: unknown;
+  resume_result_path: string;
+  manifest_path: string;
+  tex_path: string;
+  tex_content: string;
+}
+
+export type ResumeLinkEnrichmentEvidenceType = "projects" | "experience" | "all";
+
+export interface ResumeLinkEnrichmentRequest {
+  evidence_type: ResumeLinkEnrichmentEvidenceType;
+  evidence_id?: string | null;
+  dry_run?: boolean;
+  dev_mode?: boolean | null;
+  llm_model?: string | null;
+  llm_max_output_tokens?: number | null;
+  highlight_count?: number | null;
+  max_tokens_per_highlight?: number | null;
+}
+
+export interface ResumeLinkEnrichmentRecordResponse {
+  evidence_type: "project" | "experience";
+  evidence_id: string;
+  name: string;
+  scanned: boolean;
+  added_highlights: string[];
+  skipped_reason: string | null;
+  details: Record<string, unknown> | null;
+}
+
+export interface ResumeLinkEnrichmentResponse {
+  dry_run: boolean;
+  scanned_count: number;
+  total_added_highlights: number;
+  updated_paths: string[];
+  records: ResumeLinkEnrichmentRecordResponse[];
+}

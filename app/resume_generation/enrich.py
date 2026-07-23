@@ -145,6 +145,7 @@ def _enrich_records_data(
     schema_name: Literal["projects", "experience"],
     data: dict[str, Any],
     config: ResumeGenerationConfig,
+    evidence_id: str | None,
     dry_run: bool,
     dev_mode: bool | None,
     llm_model: str | None,
@@ -152,7 +153,7 @@ def _enrich_records_data(
     highlight_count: int | None,
     max_tokens_per_highlight: int | None,
     scan_service: LinkScanService,
-) -> tuple[dict[str, Any], tuple[LinkEvidenceEnrichmentRecordResult, ...], bool]:
+) -> tuple[dict[str, Any], tuple[LinkEvidenceEnrichmentRecordResult, ...], bool, bool]:
     evidence_type: EvidenceType = "project" if schema_name == "projects" else "experience"
     list_key = "projects" if schema_name == "projects" else "experience"
     file_model = (
@@ -166,9 +167,14 @@ def _enrich_records_data(
 
     results: list[LinkEvidenceEnrichmentRecordResult] = []
     changed = False
+    matched_target = evidence_id is None
     updated_data = file_model.model_dump(mode="python")
 
     for index, record in enumerate(records):
+        if evidence_id is not None and record.id != evidence_id:
+            continue
+
+        matched_target = True
         if not record.links:
             results.append(
                 LinkEvidenceEnrichmentRecordResult(
@@ -223,12 +229,13 @@ def _enrich_records_data(
         else:
             ExperienceFile.model_validate(updated_data)
 
-    return updated_data, tuple(results), changed
+    return updated_data, tuple(results), changed, matched_target
 
 
 def run_link_evidence_enrichment(
     *,
     evidence_type: EvidenceSchema = "all",
+    evidence_id: str | None = None,
     evidence_paths: Mapping[str, Path | str] | None = None,
     config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
     config: ResumeGenerationConfig | None = None,
@@ -240,10 +247,19 @@ def run_link_evidence_enrichment(
     max_tokens_per_highlight: int | None = None,
     scan_service: LinkScanService = scan_link_evidence_service,
 ) -> LinkEvidenceEnrichmentResult:
+    if evidence_id is not None:
+        normalized_evidence_id = evidence_id.strip()
+        if not normalized_evidence_id:
+            raise ValueError("evidence_id must not be empty")
+        if evidence_type == "all":
+            raise ValueError("evidence_id requires evidence_type to be projects or experience")
+        evidence_id = normalized_evidence_id
+
     effective_config = config if config is not None else load_generation_config(config_path)
     resolved_paths = _resolve_evidence_paths(evidence_paths)
     all_results: list[LinkEvidenceEnrichmentRecordResult] = []
     updated_paths: list[str] = []
+    found_target = evidence_id is None
 
     for schema_name in _selected_schemas(evidence_type):
         path = resolved_paths[schema_name]
@@ -251,10 +267,11 @@ def run_link_evidence_enrichment(
         if not isinstance(loaded, (ProjectsFile, ExperienceFile)):
             raise TypeError(f"Expected {schema_name} evidence file")
 
-        data, schema_results, changed = _enrich_records_data(
+        data, schema_results, changed, matched_target = _enrich_records_data(
             schema_name=schema_name,
             data=loaded.model_dump(mode="python"),
             config=effective_config,
+            evidence_id=evidence_id,
             dry_run=dry_run,
             dev_mode=dev_mode,
             llm_model=llm_model,
@@ -263,10 +280,14 @@ def run_link_evidence_enrichment(
             max_tokens_per_highlight=max_tokens_per_highlight,
             scan_service=scan_service,
         )
+        found_target = found_target or matched_target
         all_results.extend(schema_results)
         if changed and not dry_run:
             _write_yaml_atomic(path, data)
             updated_paths.append(str(path))
+
+    if not found_target:
+        raise ValueError(f"No {evidence_type} evidence record found with id: {evidence_id}")
 
     return LinkEvidenceEnrichmentResult(
         dry_run=dry_run,

@@ -29,6 +29,7 @@ from app.resume_generation.latex import write_resume_latex_artifact
 from app.resume_generation.models import (
     IntermediateResumeResult,
     JobFocusResult,
+    JobTarget,
     ResumeSelectionContext,
 )
 from app.resume_generation.pdf import render_latex_pdf
@@ -89,6 +90,7 @@ def build_resume_run_manifest(
     *,
     config_path: Path | str,
     job_target_path: Path | str,
+    job_target_source: str,
     context: ResumeSelectionContext,
     job_focus: JobFocusResult,
     stage_response_records: list[dict[str, Any]],
@@ -100,6 +102,8 @@ def build_resume_run_manifest(
         "inputs": {
             "config_path": str(config_path),
             "job_target_path": str(job_target_path),
+            "job_target_source": job_target_source,
+            "job_target": context.job_target.model_dump(mode="json"),
             "evidence_paths": {
                 schema_name: str(path)
                 for schema_name, path in sorted(context.evidence_paths.items())
@@ -123,6 +127,7 @@ def run_resume_generation_pipeline(
     *,
     config_path: Path | str = DEFAULT_GENERATION_CONFIG_PATH,
     job_target_path: Path | str = DEFAULT_JOB_TARGET_PATH,
+    job_target_override: JobTarget | None = None,
     evidence_paths: dict[str, Path | str] | None = None,
     resume_result_artifact_path: Path | str = DEFAULT_RESUME_RESULT_ARTIFACT_PATH,
     resume_run_manifest_artifact_path: Path | str = (
@@ -138,7 +143,10 @@ def run_resume_generation_pipeline(
         },
     )
     config = load_generation_config(config_path)
-    job_target = load_job_target(job_target_path)
+    job_target_source = "request" if job_target_override is not None else "file"
+    job_target = job_target_override
+    if job_target is None:
+        job_target = load_job_target(job_target_path)
     loaded_evidence = load_registered_evidence(evidence_paths)
     cache = ResumeGenerationStageCache.from_config(
         config.cache,
@@ -309,6 +317,7 @@ def run_resume_generation_pipeline(
     manifest = build_resume_run_manifest(
         config_path=config_path,
         job_target_path=job_target_path,
+        job_target_source=job_target_source,
         context=context,
         job_focus=job_focus,
         stage_response_records=stage_response_records,

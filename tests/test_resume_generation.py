@@ -28,6 +28,7 @@ from resume_generation import (
     DEFAULT_RESUME_TEX_ARTIFACT_PATH,
     ExperienceBulletPointResult,
     IntermediateResumeResult,
+    JobTarget,
     LatexPdfRenderError,
     ProjectBulletPointResult,
     ProjectSelectionResult,
@@ -1588,6 +1589,87 @@ def test_run_link_evidence_enrichment_dry_run_does_not_write_yaml(tmp_path):
     assert projects_file.projects_by_id()["active-project"].highlights == [
         "Built the service."
     ]
+
+
+def test_run_link_evidence_enrichment_scans_only_target_record(tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    projects_payload = _projects_payload()
+    projects_payload["projects"].append(
+        {
+            "id": "second-project",
+            "name": "Second Project",
+            "summary": "Second FastAPI backend service.",
+            "highlights": ["Built another service."],
+            "active": True,
+            "skills": {
+                "technology": ["FastAPI"],
+                "programming": ["Python"],
+                "concepts": ["API"],
+            },
+            "links": ["https://example.com/second"],
+        }
+    )
+    projects_path = _write_yaml(tmp_path / "projects.yaml", projects_payload)
+    config = load_generation_config(config_path)
+    requests = []
+
+    def fake_scan_service(req):
+        requests.append(req)
+        return LinkScanResponse(
+            evidence_type=req.evidence_type,
+            evidence_id=req.evidence.id,
+            added_highlights=[
+                LinkScanHighlight(
+                    text="Second project scanned detail.",
+                    source_url="https://example.com/second",
+                )
+            ],
+            details=None,
+        )
+
+    result = run_link_evidence_enrichment(
+        evidence_type="projects",
+        evidence_id="second-project",
+        evidence_paths={"projects": projects_path},
+        config=config,
+        scan_service=fake_scan_service,
+    )
+
+    assert [(req.evidence_type, req.evidence.id) for req in requests] == [
+        ("project", "second-project")
+    ]
+    assert result.scanned_count == 1
+    assert result.total_added_highlights == 1
+    projects_file = load_evidence_yaml(projects_path, "projects")
+    assert projects_file.projects_by_id()["active-project"].highlights == [
+        "Built the service."
+    ]
+    assert projects_file.projects_by_id()["second-project"].highlights == [
+        "Built another service.",
+        "Second project scanned detail.",
+    ]
+
+
+def test_run_link_evidence_enrichment_rejects_invalid_targeting(tmp_path):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    config = load_generation_config(config_path)
+
+    with pytest.raises(ValueError, match="evidence_id requires"):
+        run_link_evidence_enrichment(
+            evidence_type="all",
+            evidence_id="active-project",
+            evidence_paths={"projects": projects_path},
+            config=config,
+        )
+
+    with pytest.raises(ValueError, match="No projects evidence record found"):
+        run_link_evidence_enrichment(
+            evidence_type="projects",
+            evidence_id="missing-project",
+            evidence_paths={"projects": projects_path},
+            config=config,
+        )
 
 
 def test_enrich_main_uses_link_scanning_config_defaults(tmp_path, monkeypatch):
@@ -4154,6 +4236,64 @@ def test_resume_generation_enrich_link_evidence_route_returns_batch_result_and_r
     assert data["records"][1]["skipped_reason"] == "no_links"
 
 
+def test_resume_generation_enrich_link_evidence_route_passes_target_record_id(
+    monkeypatch,
+):
+    captured: dict = {}
+
+    def fake_run_link_evidence_enrichment(**kwargs):
+        captured.update(kwargs)
+        return resume_enrich.LinkEvidenceEnrichmentResult(
+            dry_run=bool(kwargs["dry_run"]),
+            records=(
+                resume_enrich.LinkEvidenceEnrichmentRecordResult(
+                    evidence_type="project",
+                    evidence_id="jobforge",
+                    name="JobForge",
+                    scanned=True,
+                    added_highlights=("Scanned project highlight.",),
+                ),
+            ),
+            updated_paths=("user/resume_evidence/projects.yaml",),
+        )
+
+    monkeypatch.setattr(
+        "app.resume_generation.api.run_link_evidence_enrichment",
+        fake_run_link_evidence_enrichment,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.api.load_registered_evidence",
+        lambda: {"projects": "reloaded"},
+    )
+
+    response = api_request(
+        "POST",
+        "/resume-generation/enrich-link-evidence",
+        json={
+            "evidence_type": "projects",
+            "evidence_id": "jobforge",
+            "dry_run": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["evidence_type"] == "projects"
+    assert captured["evidence_id"] == "jobforge"
+    assert response.json()["records"][0]["evidence_id"] == "jobforge"
+    assert app.state.resume_evidence == {"projects": "reloaded"}
+
+
+def test_resume_generation_enrich_link_evidence_route_rejects_all_with_target_id():
+    response = api_request(
+        "POST",
+        "/resume-generation/enrich-link-evidence",
+        json={"evidence_type": "all", "evidence_id": "jobforge"},
+    )
+
+    assert response.status_code == 400
+    assert "evidence_id requires" in response.text
+
+
 def test_resume_generation_tex_route_runs_pipeline_and_returns_tex_content(
     monkeypatch,
     tmp_path,
@@ -4191,6 +4331,51 @@ def test_resume_generation_tex_route_runs_pipeline_and_returns_tex_content(
     assert data["tex_content"] == "rendered tex\n"
     assert data["resume_result_path"].endswith("user/resume_generation/resume_result.json")
     assert data["manifest_path"].endswith("user/resume_generation/resume_run_manifest.json")
+
+
+def test_resume_generation_tex_route_accepts_job_target_override(
+    monkeypatch,
+    tmp_path,
+):
+    resume_result = _sample_intermediate_resume_result()
+    tex_path = tmp_path / "resume.tex"
+    tex_path.write_text("rendered tex\n", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_run_resume_generation_pipeline(**kwargs):
+        captured.update(kwargs)
+        return resume_result
+
+    def fake_write_resume_latex_from_config(result):
+        assert result is resume_result
+        return tex_path
+
+    monkeypatch.setattr(
+        "app.resume_generation.api.run_resume_generation_pipeline",
+        fake_run_resume_generation_pipeline,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.api.write_resume_latex_from_config",
+        fake_write_resume_latex_from_config,
+    )
+
+    response = api_request(
+        "POST",
+        "/resume-generation/tex",
+        json={
+            "job_target": {
+                "schema_version": 1,
+                "title": "Frontend Engineer",
+                "description": "Build React interfaces.",
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    job_target = captured["job_target_override"]
+    assert isinstance(job_target, JobTarget)
+    assert job_target.title == "Frontend Engineer"
+    assert job_target.description == "Build React interfaces."
 
 
 def test_resume_generation_pdf_route_returns_rendered_pdf(monkeypatch, tmp_path):
@@ -4388,3 +4573,118 @@ def test_resume_generation_pipeline_uses_local_stage_services_by_default(
     assert result.experience[0].bullet_points == [
         "Generated bullet for backend-engineer."
     ]
+
+
+def test_resume_generation_pipeline_job_target_override_reaches_stage_services(
+    monkeypatch,
+    tmp_path,
+):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    captured: dict[str, object] = {}
+    override = JobTarget(
+        schema_version=1,
+        title="Frontend Engineer",
+        description="Build React interfaces.",
+    )
+
+    def fake_select_skills_service(req):
+        captured["skill_target"] = (req.job_role, req.job_text)
+        return SkillSelectResponse(
+            technology=["FastAPI"],
+            programming=["Python"],
+            concepts=["API"],
+            details={"method": "llm"},
+        )
+
+    def fake_select_projects_service(req):
+        captured["project_target"] = (req.context.title, req.context.description)
+        return AppProjectSelectionResult(
+            selected_project_ids=["active-project"],
+            ranked_projects=[
+                RankedProject(project_id="active-project", score=1.0, method="llm")
+            ],
+            details={"method": "llm"},
+        )
+
+    def fake_derive_job_focus_service(req):
+        captured["job_focus_target"] = (req.title, req.description)
+        return JobFocusResponse(
+            job_focus=JobFocus(
+                summary="Frontend role.",
+                required_skills=["React"],
+                preferred_skills=[],
+                responsibilities=["Build interfaces"],
+                domain_emphasis=[],
+                resume_relevant_constraints=[],
+                excluded_context=[],
+            ),
+            details={"method": "llm"},
+        )
+
+    def fake_generate_bulletpoints_service(req):
+        captured.setdefault("bullet_targets", []).append(
+            (req.context.title, req.context.description, req.context.job_focus.summary)
+        )
+        return BulletGenerationResponse(
+            bullet_points=[f"Generated bullet for {req.evidence_id}."],
+            details={"method": "llm"},
+        )
+
+    monkeypatch.setattr(
+        "app.resume_generation.selection.select_skills_service",
+        fake_select_skills_service,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.selection.select_projects_service",
+        fake_select_projects_service,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.selection.derive_job_focus_service",
+        fake_derive_job_focus_service,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.selection.generate_bulletpoints_service",
+        fake_generate_bulletpoints_service,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    manifest_path = tmp_path / "resume_run_manifest.json"
+    run_resume_generation_pipeline(
+        config_path=config_path,
+        job_target_path=job_path,
+        job_target_override=override,
+        evidence_paths={"projects": projects_path, "skills": skills_path},
+        resume_result_artifact_path=tmp_path / "resume_result.json",
+        resume_run_manifest_artifact_path=manifest_path,
+    )
+
+    assert captured["skill_target"] == (
+        "Frontend Engineer",
+        "Build React interfaces.",
+    )
+    assert captured["project_target"] == (
+        "Frontend Engineer",
+        "Build React interfaces.",
+    )
+    assert captured["job_focus_target"] == (
+        "Frontend Engineer",
+        "Build React interfaces.",
+    )
+    assert captured["bullet_targets"] == [
+        ("Frontend Engineer", None, "Frontend role."),
+        ("Frontend Engineer", None, "Frontend role."),
+    ]
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest_payload["inputs"]["job_target_source"] == "request"
+    assert manifest_payload["inputs"]["job_target"] == {
+        "schema_version": 1,
+        "title": "Frontend Engineer",
+        "description": "Build React interfaces.",
+    }

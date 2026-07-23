@@ -8,7 +8,11 @@ import type {
   ProjectRecord,
   ProjectRecordInput,
   ProjectsFile,
+  ResumeLinkEnrichmentRequest,
+  ResumeLinkEnrichmentResponse,
   ResumeEvidenceRegistry,
+  ResumeTexGenerationRequest,
+  ResumeTexGenerationResponse,
   SkillsFile,
   SkillsInput,
   UserInfoFile,
@@ -38,6 +42,11 @@ export interface EvidenceApi {
   deleteEducation(id: string): Promise<EducationRecord>;
   updateSkills(payload: SkillsInput): Promise<SkillsFile>;
   updateUser(payload: UserInfoInput): Promise<UserInfoFile>;
+  generateResumeTex(payload?: ResumeTexGenerationRequest): Promise<ResumeTexGenerationResponse>;
+  generateResumePdf(): Promise<Blob>;
+  enrichResumeLinkEvidence(
+    payload: ResumeLinkEnrichmentRequest,
+  ): Promise<ResumeLinkEnrichmentResponse>;
 }
 
 export class ApiError extends Error {
@@ -77,6 +86,24 @@ export function createEvidenceApi(options: ApiOptions = {}): EvidenceApi {
     }
 
     return (await response.json()) as T;
+  }
+
+  async function requestBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+    const headers = new Headers(init.headers);
+    if (init.body && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    const response = await fetchImpl(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, await readErrorDetail(response));
+    }
+
+    return response.blob();
   }
 
   return {
@@ -135,6 +162,21 @@ export function createEvidenceApi(options: ApiOptions = {}): EvidenceApi {
     updateUser: (payload) =>
       request<UserInfoFile>("/resume-evidence/user", {
         method: "PUT",
+        body: JSON.stringify(payload),
+      }),
+    generateResumeTex: (payload = {}) =>
+      request<ResumeTexGenerationResponse>("/resume-generation/tex", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    generateResumePdf: () =>
+      requestBlob("/resume-generation/pdf", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    enrichResumeLinkEvidence: (payload) =>
+      request<ResumeLinkEnrichmentResponse>("/resume-generation/enrich-link-evidence", {
+        method: "POST",
         body: JSON.stringify(payload),
       }),
   };

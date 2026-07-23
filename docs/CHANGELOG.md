@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Frontend resume generation controls for request-scoped job targets, `.tex` generation, PDF download, and per-project/per-experience link enrichment.
 - Local-first React/Vite resume evidence workbench that stages edits in browser state and applies them through the existing `/resume-evidence` FastAPI CRUD endpoints.
 
 ## [0.3.0] - 2026-07-23

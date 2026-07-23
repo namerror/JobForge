@@ -2,6 +2,8 @@ import {
   AlertCircle,
   BriefcaseBusiness,
   CheckCircle2,
+  Download,
+  FileText,
   FolderKanban,
   GraduationCap,
   Loader2,
@@ -9,6 +11,7 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  ScanLine,
   Search,
   Trash2,
   UserRound,
@@ -36,6 +39,7 @@ import type {
   CollectionRecord,
   EducationRecord,
   ExperienceRecord,
+  JobTargetOverride,
   ProjectRecord,
   ProjectSkills,
   ResumeEvidenceRegistry,
@@ -44,8 +48,14 @@ import type {
 import { skillCategories } from "./types";
 import { validateDraftEvidence } from "./validation";
 
-type SectionKey = "user" | "skills" | "experience" | "projects" | "education";
+type SectionKey = "user" | "skills" | "generate" | "experience" | "projects" | "education";
 type BackendStatus = "checking" | "online" | "offline";
+type EnrichmentEvidenceType = "projects" | "experience";
+
+interface EnrichmentTarget {
+  evidenceType: EnrichmentEvidenceType;
+  id: string;
+}
 
 interface AppProps {
   client?: EvidenceApi;
@@ -64,6 +74,7 @@ const sectionDefinitions: Array<{
 }> = [
   { key: "user", label: "User", icon: UserRound },
   { key: "skills", label: "Skills", icon: Wrench },
+  { key: "generate", label: "Generate", icon: FileText },
   { key: "experience", label: "Experience", icon: BriefcaseBusiness },
   { key: "projects", label: "Projects", icon: FolderKanban },
   { key: "education", label: "Education", icon: GraduationCap },
@@ -87,6 +98,11 @@ export default function App({ client = evidenceApi }: AppProps) {
   const [applyError, setApplyError] = useState<string | null>(null);
   const [currentOperation, setCurrentOperation] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [jobTitle, setJobTitle] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
+  const [isGeneratingTex, setIsGeneratingTex] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [enrichingTarget, setEnrichingTarget] = useState<EnrichmentTarget | null>(null);
 
   const resetEvidence = useCallback((evidence: ResumeEvidenceRegistry) => {
     const nextBaseline = cloneEvidence(evidence);
@@ -129,7 +145,10 @@ export default function App({ client = evidenceApi }: AppProps) {
 
   const dirty = useMemo(() => hasDraftChanges(baseline, draft), [baseline, draft]);
   const validationErrors = useMemo(() => (draft ? validateDraftEvidence(draft) : []), [draft]);
-  const applyDisabled = !dirty || isApplying || validationErrors.length > 0;
+  const actionInFlight = isGeneratingTex || isGeneratingPdf || enrichingTarget !== null;
+  const savedActionDisabled =
+    dirty || isLoading || isApplying || actionInFlight || validationErrors.length > 0;
+  const applyDisabled = !dirty || isApplying || actionInFlight || validationErrors.length > 0;
 
   const mutateDraft = useCallback((mutator: (next: ResumeEvidenceRegistry) => void) => {
     setDraft((current) => {
@@ -276,6 +295,147 @@ export default function App({ client = evidenceApi }: AppProps) {
     }));
   }
 
+  function ensureSavedActionReady(): boolean {
+    if (dirty) {
+      setApplyError("Apply or discard staged edits before running this action.");
+      setMessage(null);
+      return false;
+    }
+    if (validationErrors.length > 0) {
+      setApplyError(validationErrors[0]);
+      setMessage(null);
+      return false;
+    }
+    return true;
+  }
+
+  function buildJobTargetPayload(): { job_target?: JobTargetOverride } | null {
+    const title = jobTitle.trim();
+    const description = jobDescription.trim();
+
+    if (!title && description) {
+      setApplyError("Enter a job title before adding a job description.");
+      setMessage(null);
+      return null;
+    }
+
+    if (!title) {
+      return {};
+    }
+
+    return {
+      job_target: {
+        schema_version: 1,
+        title,
+        description: description ? description : null,
+      },
+    };
+  }
+
+  async function handleGenerateTex() {
+    if (!ensureSavedActionReady()) {
+      return;
+    }
+
+    const payload = buildJobTargetPayload();
+    if (payload === null) {
+      return;
+    }
+
+    setIsGeneratingTex(true);
+    setApplyError(null);
+    setMessage(null);
+    setCurrentOperation("Generating .tex resume");
+
+    try {
+      const result = await client.generateResumeTex(payload);
+      setMessage(`Generated .tex at ${result.tex_path}.`);
+    } catch (error) {
+      setApplyError(formatError(error));
+    } finally {
+      setCurrentOperation(null);
+      setIsGeneratingTex(false);
+    }
+  }
+
+  async function handleGeneratePdf() {
+    if (!ensureSavedActionReady()) {
+      return;
+    }
+
+    setIsGeneratingPdf(true);
+    setApplyError(null);
+    setMessage(null);
+    setCurrentOperation("Generating PDF");
+
+    try {
+      const pdf = await client.generateResumePdf();
+      triggerDownload(pdf, "resume.pdf");
+      setMessage("Generated PDF.");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        setApplyError("Generate the .tex file first.");
+      } else {
+        setApplyError(formatError(error));
+      }
+    } finally {
+      setCurrentOperation(null);
+      setIsGeneratingPdf(false);
+    }
+  }
+
+  async function handleEnrichRecord(evidenceType: EnrichmentEvidenceType, id: string) {
+    if (!ensureSavedActionReady()) {
+      return;
+    }
+
+    setEnrichingTarget({ evidenceType, id });
+    setApplyError(null);
+    setMessage(null);
+    setCurrentOperation("Enriching link evidence");
+
+    try {
+      const result = await client.enrichResumeLinkEvidence({
+        evidence_type: evidenceType,
+        evidence_id: id,
+        dry_run: false,
+      });
+      const freshEvidence = await client.getResumeEvidence();
+      resetEvidence(freshEvidence);
+      setActiveSection(evidenceType);
+      setSelectedIds((current) => ({ ...current, [evidenceType]: id }));
+      setMessage(
+        `Link scanning added ${result.total_added_highlights} highlight${
+          result.total_added_highlights === 1 ? "" : "s"
+        }.`,
+      );
+    } catch (error) {
+      setApplyError(formatError(error));
+    } finally {
+      setCurrentOperation(null);
+      setEnrichingTarget(null);
+    }
+  }
+
+  function enrichmentDisabledReason(record: ProjectRecord | ExperienceRecord): string | null {
+    if (dirty) {
+      return "Apply or discard staged edits first";
+    }
+    if (validationErrors.length > 0) {
+      return validationErrors[0];
+    }
+    if (isTempId(record.id)) {
+      return "Apply new record first";
+    }
+    if (!record.links || record.links.length === 0) {
+      return "Add a link before scanning";
+    }
+    if (isLoading || isApplying || actionInFlight) {
+      return "Another operation is running";
+    }
+    return null;
+  }
+
   const validationMessage = dirty && validationErrors.length > 0 ? validationErrors[0] : null;
 
   return (
@@ -296,7 +456,7 @@ export default function App({ client = evidenceApi }: AppProps) {
             className="button secondary"
             type="button"
             onClick={() => void loadEvidence()}
-            disabled={isLoading || isApplying}
+            disabled={isLoading || isApplying || actionInFlight}
             title="Reload evidence"
           >
             <RefreshCw aria-hidden="true" size={17} />
@@ -306,7 +466,7 @@ export default function App({ client = evidenceApi }: AppProps) {
             className="button secondary"
             type="button"
             onClick={handleDiscard}
-            disabled={!dirty || isApplying}
+            disabled={!dirty || isApplying || actionInFlight}
             title="Discard draft changes"
           >
             <RotateCcw aria-hidden="true" size={17} />
@@ -386,6 +546,19 @@ export default function App({ client = evidenceApi }: AppProps) {
                   }}
                 />
               ) : null}
+              {activeSection === "generate" ? (
+                <ResumeGenerationPanel
+                  actionsDisabled={savedActionDisabled}
+                  jobDescription={jobDescription}
+                  jobTitle={jobTitle}
+                  pdfBusy={isGeneratingPdf}
+                  texBusy={isGeneratingTex}
+                  onGeneratePdf={() => void handleGeneratePdf()}
+                  onGenerateTex={() => void handleGenerateTex()}
+                  onJobDescriptionChange={setJobDescription}
+                  onJobTitleChange={setJobTitle}
+                />
+              ) : null}
               {activeSection === "projects" ? (
                 <CollectionPanel
                   addLabel="Add Project"
@@ -402,8 +575,14 @@ export default function App({ client = evidenceApi }: AppProps) {
                   renderEditor={(project) => (
                     <ProjectRecordEditor
                       key={project.id}
+                      enrichDisabledReason={enrichmentDisabledReason(project)}
+                      isEnriching={
+                        enrichingTarget?.evidenceType === "projects" &&
+                        enrichingTarget.id === project.id
+                      }
                       project={project}
                       onChange={(patch) => updateProject(project.id, patch)}
+                      onEnrich={() => void handleEnrichRecord("projects", project.id)}
                     />
                   )}
                 />
@@ -428,8 +607,14 @@ export default function App({ client = evidenceApi }: AppProps) {
                   renderEditor={(experience) => (
                     <ExperienceRecordEditor
                       key={experience.id}
+                      enrichDisabledReason={enrichmentDisabledReason(experience)}
                       experience={experience}
+                      isEnriching={
+                        enrichingTarget?.evidenceType === "experience" &&
+                        enrichingTarget.id === experience.id
+                      }
                       onChange={(patch) => updateExperience(experience.id, patch)}
+                      onEnrich={() => void handleEnrichRecord("experience", experience.id)}
                     />
                   )}
                 />
@@ -603,6 +788,72 @@ function SkillsEditor({
   );
 }
 
+function ResumeGenerationPanel({
+  actionsDisabled,
+  jobDescription,
+  jobTitle,
+  pdfBusy,
+  texBusy,
+  onGeneratePdf,
+  onGenerateTex,
+  onJobDescriptionChange,
+  onJobTitleChange,
+}: {
+  actionsDisabled: boolean;
+  jobDescription: string;
+  jobTitle: string;
+  pdfBusy: boolean;
+  texBusy: boolean;
+  onGeneratePdf: () => void;
+  onGenerateTex: () => void;
+  onJobDescriptionChange: (value: string) => void;
+  onJobTitleChange: (value: string) => void;
+}) {
+  return (
+    <div className="editor-surface">
+      <SectionHeader title="Resume" eyebrow="Generate" />
+      <div className="field-grid">
+        <TextField label="Job Title" value={jobTitle} onChange={onJobTitleChange} />
+      </div>
+      <TextareaField
+        label="Job Description"
+        value={jobDescription}
+        onChange={onJobDescriptionChange}
+      />
+      <div className="generation-actions">
+        <button
+          className="button primary"
+          disabled={actionsDisabled}
+          title="Generate .tex"
+          type="button"
+          onClick={onGenerateTex}
+        >
+          {texBusy ? (
+            <Loader2 className="spin" aria-hidden="true" size={17} />
+          ) : (
+            <FileText aria-hidden="true" size={17} />
+          )}
+          Generate .tex
+        </button>
+        <button
+          className="button secondary"
+          disabled={actionsDisabled}
+          title="Generate PDF"
+          type="button"
+          onClick={onGeneratePdf}
+        >
+          {pdfBusy ? (
+            <Loader2 className="spin" aria-hidden="true" size={17} />
+          ) : (
+            <Download aria-hidden="true" size={17} />
+          )}
+          Generate PDF
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CollectionPanel<T extends CollectionRecord>({
   addLabel,
   getMeta,
@@ -688,15 +939,37 @@ function CollectionPanel<T extends CollectionRecord>({
 }
 
 function ProjectRecordEditor({
+  enrichDisabledReason,
+  isEnriching,
+  onEnrich,
   project,
   onChange,
 }: {
+  enrichDisabledReason: string | null;
+  isEnriching: boolean;
+  onEnrich: () => void;
   project: ProjectRecord;
   onChange: (patch: Partial<ProjectRecord>) => void;
 }) {
   return (
     <div className="editor-surface">
       <SectionHeader title={project.name || "Untitled Project"} eyebrow={project.id} />
+      <div className="record-action-row">
+        <button
+          className="button secondary"
+          disabled={enrichDisabledReason !== null}
+          title={enrichDisabledReason ?? "Enrich with link scanning"}
+          type="button"
+          onClick={onEnrich}
+        >
+          {isEnriching ? (
+            <Loader2 className="spin" aria-hidden="true" size={17} />
+          ) : (
+            <ScanLine aria-hidden="true" size={17} />
+          )}
+          Enrich with link scanning
+        </button>
+      </div>
       <div className="field-grid">
         <TextField label="Name" value={project.name} onChange={(name) => onChange({ name })} />
         <ToggleField
@@ -730,15 +1003,37 @@ function ProjectRecordEditor({
 }
 
 function ExperienceRecordEditor({
+  enrichDisabledReason,
   experience,
+  isEnriching,
   onChange,
+  onEnrich,
 }: {
+  enrichDisabledReason: string | null;
   experience: ExperienceRecord;
+  isEnriching: boolean;
   onChange: (patch: Partial<ExperienceRecord>) => void;
+  onEnrich: () => void;
 }) {
   return (
     <div className="editor-surface">
       <SectionHeader title={experience.name || "Untitled Experience"} eyebrow={experience.id} />
+      <div className="record-action-row">
+        <button
+          className="button secondary"
+          disabled={enrichDisabledReason !== null}
+          title={enrichDisabledReason ?? "Enrich with link scanning"}
+          type="button"
+          onClick={onEnrich}
+        >
+          {isEnriching ? (
+            <Loader2 className="spin" aria-hidden="true" size={17} />
+          ) : (
+            <ScanLine aria-hidden="true" size={17} />
+          )}
+          Enrich with link scanning
+        </button>
+      </div>
       <div className="field-grid">
         <TextField
           label="Organization"
@@ -1004,6 +1299,25 @@ function StatePanel({
       {children}
     </div>
   );
+}
+
+function triggerDownload(blob: Blob, filename: string): void {
+  if (
+    typeof document === "undefined" ||
+    typeof URL === "undefined" ||
+    typeof URL.createObjectURL !== "function"
+  ) {
+    return;
+  }
+
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(href);
 }
 
 function sectionCount(section: SectionKey, evidence: ResumeEvidenceRegistry): number | undefined {

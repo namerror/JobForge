@@ -17,7 +17,11 @@ from app.resume_generation.main import (
     run_resume_generation_pipeline,
     write_resume_latex_from_config,
 )
-from app.resume_generation.models import IntermediateResumeResult, StrictSchemaModel
+from app.resume_generation.models import (
+    IntermediateResumeResult,
+    JobTarget,
+    StrictSchemaModel,
+)
 from app.resume_generation.pdf import LatexPdfRenderError, render_latex_pdf
 from app.resume_generation.selection import ResumeGenerationError
 
@@ -26,6 +30,7 @@ router = APIRouter(prefix="/resume-generation", tags=["resume-generation"])
 
 class ResumeLinkEnrichmentRequest(StrictSchemaModel):
     evidence_type: Literal["projects", "experience", "all"] = "all"
+    evidence_id: str | None = None
     dry_run: bool = False
     dev_mode: bool | None = None
     llm_model: str | None = None
@@ -41,6 +46,16 @@ class ResumeLinkEnrichmentRequest(StrictSchemaModel):
         normalized = value.strip()
         if not normalized:
             raise ValueError("llm_model must not be empty")
+        return normalized
+
+    @field_validator("evidence_id")
+    @classmethod
+    def validate_evidence_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("evidence_id must not be empty")
         return normalized
 
     @field_validator(
@@ -74,7 +89,7 @@ class ResumeLinkEnrichmentResponse(StrictSchemaModel):
 
 
 class ResumeTexGenerationRequest(StrictSchemaModel):
-    pass
+    job_target: JobTarget | None = None
 
 
 class ResumeTexGenerationResponse(StrictSchemaModel):
@@ -102,6 +117,7 @@ async def enrich_resume_link_evidence(
     try:
         result = run_link_evidence_enrichment(
             evidence_type=effective_payload.evidence_type,
+            evidence_id=effective_payload.evidence_id,
             dry_run=effective_payload.dry_run,
             dev_mode=effective_payload.dev_mode,
             llm_model=effective_payload.llm_model,
@@ -139,10 +155,16 @@ async def enrich_resume_link_evidence(
 
 @router.post("/tex", response_model=ResumeTexGenerationResponse)
 async def generate_resume_tex(
-    _payload: ResumeTexGenerationRequest | None = None,
+    payload: ResumeTexGenerationRequest | None = None,
 ) -> ResumeTexGenerationResponse:
+    effective_payload = payload or ResumeTexGenerationRequest()
     try:
-        resume_result = run_resume_generation_pipeline()
+        if effective_payload.job_target is None:
+            resume_result = run_resume_generation_pipeline()
+        else:
+            resume_result = run_resume_generation_pipeline(
+                job_target_override=effective_payload.job_target,
+            )
         tex_path = write_resume_latex_from_config(resume_result)
         tex_content = tex_path.read_text(encoding="utf-8")
     except ResumeGenerationError as exc:
