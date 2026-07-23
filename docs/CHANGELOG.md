@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Local-first React/Vite resume evidence workbench that stages edits in browser state and applies them through the existing `/resume-evidence` FastAPI CRUD endpoints.
+
 ## [0.3.0] - 2026-07-23
 
 ### Added
