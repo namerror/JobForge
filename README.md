@@ -6,7 +6,7 @@ Today the repo ships three capability tracks:
 
 - a FastAPI backend in `app/` with reusable data-processing and generation capabilities
 - a grounded evidence engine in `app/resume_evidence/` for strict schemas, deterministic loading, REST CRUD, and local YAML-backed workflows
-- a resume orchestration pipeline in `resume_generation/` that reads `user/resume_generation/` and `user/resume_evidence/`, calls the FastAPI backend, and assembles resume artifacts
+- a backend-owned resume orchestration pipeline in `app/resume_generation/` that reads `user/resume_generation/` and `user/resume_evidence/`, calls in-process backend services, and assembles resume artifacts
 
 The current `user/` tree is local development data and runtime output. It is useful for prototyping and file-backed operation, but it should be treated as a storage adapter target rather than the final production persistence model.
 
@@ -68,8 +68,10 @@ The first implemented milestone is the app-owned resume evidence package with le
   - shared interactive CLI base helpers
 - `resume_evidence/cli/{projects,skills,education,experience,user}.py`
   - schema-specific command implementations
+- `app/resume_generation/`
+  - evidence-to-selection orchestration, batch link enrichment, bullet-point generation, intermediate result assembly, LaTeX/PDF artifact rendering, and `/resume-generation` facade routes
 - `resume_generation/`
-  - evidence-to-selection orchestration, bullet-point generation, intermediate result assembly, and LaTeX artifact rendering
+  - compatibility shims for legacy imports and `python -m resume_generation.*` entrypoints
 - `app/main.py`
   - loads registered evidence on startup into `app.state.resume_evidence`
 
@@ -166,18 +168,24 @@ JobForge now has a broader resume-engine shape:
 - the skills API helps prioritize and rank skills for the Skills section
 - the project-selection API helps prioritize grounded projects for a target job
 - the app-owned resume-evidence package exposes grounded source-of-truth data from `user/resume_evidence/`
-- the `resume_generation/` layer combines target job context, evidence, and selected service outputs into an intermediate resume result
+- the `app/resume_generation/` layer combines target job context, evidence, and selected service outputs into an intermediate resume result
 - deterministic assembly and LaTeX rendering turn that structured result into resume artifacts without inventing claims
 
 Skill selection is no longer the whole project. It is one subsystem inside the larger grounded resume pipeline.
 
 ## Recommended Service Architecture
 
-The recommended next phase is to integrate generation runs into the FastAPI backend through a product-facing facade while keeping the existing stage endpoints as internal backend capabilities.
+The FastAPI backend now has a synchronous v1 resume-generation facade while keeping the existing stage endpoints as internal backend capabilities.
 
 ### Product-facing facade
 
-Future product clients should call higher-level resume service APIs, not orchestrate every generation stage themselves. The facade now owns evidence CRUD and should next own:
+Product clients should call higher-level resume service APIs, not orchestrate every generation stage themselves. The current facade owns evidence CRUD and synchronous generation actions:
+
+- `POST /resume-generation/enrich-link-evidence`
+- `POST /resume-generation/tex`
+- `POST /resume-generation/pdf`
+
+The next facade step is an async run lifecycle for long-running product workflows:
 
 - generation-run creation with a job target and selected evidence scope
 - generation-run status and artifact retrieval
@@ -220,13 +228,7 @@ The current local CLI-style pipeline can remain synchronous internally, but the 
 
 ## Resume Generation Usage
 
-Resume generation runs from `resume_generation/main.py`. It reads generation settings, the target job, and all registered evidence files, then calls the running FastAPI app over HTTP for selection, job focus derivation, and bullet generation. Link scanning is exposed as a standalone evidence-enrichment capability rather than part of the normal generation pipeline.
-
-Start the app first:
-
-```bash
-uvicorn app.main:app --reload
-```
+Resume generation is implemented in `app/resume_generation/`, with top-level `resume_generation` compatibility entrypoints. It reads generation settings, the target job, and all registered evidence files, then calls in-process backend services for selection, job focus derivation, and bullet generation. Link scanning is exposed as a standalone evidence-enrichment capability rather than part of the normal generation pipeline.
 
 Then run the generation pipeline from the repo root:
 
@@ -248,11 +250,11 @@ PYTHONPATH=. python -m resume_generation.pdf
 
 The PDF renderer uses local `latexmk`, so the runtime environment needs TeX Live plus `latexmk` installed when `resume_output.render_pdf: true`.
 
-`user/resume_generation/config.yaml` controls the local orchestration:
+`user/resume_generation/config.yaml` controls generation:
 
-- `app` - FastAPI base URL and request timeout used by the pipeline
-- `skill_selection` - method, `top_n`, baseline-filter toggle, debug mode, and LLM overrides sent to `/select-skills`
-- `project_selection` - method, `top_n`, debug mode, and LLM overrides sent to `/select-projects`; `top_n: null` omits the request override and lets the app's `PROJ_TOP_N` default decide the limit
+- `app` - compatibility base URL and request timeout for older HTTP-style orchestration tests
+- `skill_selection` - method, `top_n`, baseline-filter toggle, debug mode, and LLM overrides for skill selection
+- `project_selection` - method, `top_n`, debug mode, and LLM overrides for project selection; `top_n: null` omits the request override and lets the app's `PROJ_TOP_N` default decide the limit
 - `job_focus_generation` - LLM overrides for one job-focus derivation per target role
 - `link_scanning` - standalone enrichment settings used by the link enrichment runner
 - `project_bullet_point_generation` - bullet count range, debug mode, and LLM overrides for selected projects
@@ -277,6 +279,21 @@ The pipeline loads every registered resume-evidence schema from `user/resume_evi
 Only `active: true` projects are sent to project selection, and only selected projects are sent to project bullet generation. Only `active: true` experience entries are assembled into the final experience section.
 
 ## API
+
+### Resume generation facade
+
+- `POST /resume-generation/enrich-link-evidence`
+  - scans project and/or experience links in batch
+  - appends unique new highlights to YAML evidence unless `dry_run: true`
+  - returns per-record scan results, skipped reasons, and updated evidence paths
+- `POST /resume-generation/tex`
+  - runs the full configured resume pipeline
+  - writes the structured result, run manifest, and `.tex` artifact
+  - returns the structured result plus `.tex` path and content
+- `POST /resume-generation/pdf`
+  - renders the configured/default `.tex` artifact with local `latexmk`
+  - writes the configured/default PDF artifact
+  - returns `application/pdf` bytes
 
 ### Health
 
@@ -522,7 +539,7 @@ PYTHONPATH=. pytest tests/test_integration.py
 The next backend transition should focus on service integration rather than adding unrelated generation features:
 
 - add repository/adapter boundaries around evidence files, generation runs, cache entries, and artifacts
-- add a product-facing FastAPI facade for evidence CRUD and async resume-generation runs
+- add async resume-generation run creation/status/result endpoints on top of the synchronous v1 facade
 - keep the current stage endpoints available as internal capabilities for the facade and tests
 - defer database persistence until the adapter contract and product API shape are stable
 - expand output formats only after the structured result and run lifecycle are service-ready
@@ -535,9 +552,9 @@ See:
 - [docs/decisions/005-subsystem-package-organization.md](/home/leon/Documents/proj/JobForge/docs/decisions/005-subsystem-package-organization.md)
 - [docs/decisions/008-standalone-resume-evidence-and-generation-layers.md](/home/leon/Documents/proj/JobForge/docs/decisions/008-standalone-resume-evidence-and-generation-layers.md)
 - [docs/decisions/012-fastapi-resume-service-transition.md](/home/leon/Documents/proj/JobForge/docs/decisions/012-fastapi-resume-service-transition.md)
+- [docs/decisions/015-app-owned-resume-generation-api.md](/home/leon/Documents/proj/JobForge/docs/decisions/015-app-owned-resume-generation-api.md)
 
 ## Current Limitations
 
-- JobForge does not yet ship a public full-resume generation API.
-- Resume generation currently runs as a local orchestration module, not as a public HTTP endpoint.
+- Full resume generation is synchronous in v1; async run lifecycle endpoints are still future work.
 - The current output path is structured JSON plus LaTeX; additional export formats are still future work.

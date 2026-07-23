@@ -1,0 +1,152 @@
+"""Resume-generation orchestration boundary.
+
+This package is reserved for code that loads resume evidence, calls the
+selection services, and prepares structured resume fill data.
+"""
+
+import importlib
+
+from app.resume_generation.config import (
+    DEFAULT_GENERATION_CONFIG_PATH,
+    DEFAULT_JOB_TARGET_PATH,
+    load_generation_config,
+    load_job_target,
+)
+from app.resume_generation.assembly import assemble_intermediate_resume_result
+from app.resume_generation.models import (
+    BulletCountRangeConfig,
+    BulletPointGenerationConfig,
+    ExperienceBulletPointResult,
+    GenerationAppConfig,
+    IntermediateResumeResult,
+    JobFocusGenerationConfig,
+    JobFocusResult,
+    JobTarget,
+    LinkScanningConfig,
+    ProjectBulletPointResult,
+    ProjectLinkScanResult,
+    ProjectSelectionConfig,
+    ProjectSelectionResult,
+    ResumeGenerationCacheConfig,
+    ResumeEducationItem,
+    ResumeExperienceItem,
+    ResumeGenerationConfig,
+    ResumeOutputConfig,
+    ResumeProjectItem,
+    ResumeSelectionContext,
+    ResumeSkillsSection,
+    ResumeTopSection,
+    SkillSelectionConfig,
+    SkillSelectionResult,
+)
+from app.resume_generation.bullet_points import (
+    generate_experience_bullet_points,
+    generate_project_bullet_points,
+)
+from app.resume_generation.job_focus import derive_job_focus
+from app.resume_generation.cache import ResumeGenerationStageCache, ResumeGenerationStageCacheResult
+from app.resume_generation.latex import (
+    DEFAULT_RESUME_TEX_ARTIFACT_PATH,
+    latex_escape,
+    render_resume_latex,
+    resolve_resume_latex_output_path,
+    write_resume_latex_artifact,
+)
+from app.resume_generation.pdf import (
+    DEFAULT_LATEX_LOCAL_COMMAND,
+    DEFAULT_RESUME_PDF_ARTIFACT_PATH,
+    DEFAULT_RESUME_TEX_INPUT_PATH,
+    LatexPdfRenderError,
+    render_latex_pdf,
+    resolve_resume_pdf_output_path,
+)
+from app.resume_generation.main import (
+    DEFAULT_RESUME_RESULT_ARTIFACT_PATH,
+    DEFAULT_RESUME_RUN_MANIFEST_ARTIFACT_PATH,
+    build_resume_run_manifest,
+    run_resume_generation_pipeline,
+    write_resume_pdf_from_config,
+    write_resume_result_artifact,
+    write_resume_run_manifest_artifact,
+)
+from app.resume_generation.selection import (
+    ResumeGenerationError,
+    build_skill_selection_payload,
+    generate_selection_context,
+)
+
+_LAZY_ENRICH_EXPORTS = {
+    "LinkEvidenceEnrichmentRecordResult",
+    "LinkEvidenceEnrichmentResult",
+    "run_link_evidence_enrichment",
+}
+
+
+def __getattr__(name: str):
+    if name in _LAZY_ENRICH_EXPORTS:
+        enrich = importlib.import_module(".enrich", __name__)
+        value = getattr(enrich, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+__all__ = [
+    "DEFAULT_GENERATION_CONFIG_PATH",
+    "DEFAULT_LATEX_LOCAL_COMMAND",
+    "DEFAULT_JOB_TARGET_PATH",
+    "DEFAULT_RESUME_PDF_ARTIFACT_PATH",
+    "DEFAULT_RESUME_RESULT_ARTIFACT_PATH",
+    "DEFAULT_RESUME_RUN_MANIFEST_ARTIFACT_PATH",
+    "DEFAULT_RESUME_TEX_ARTIFACT_PATH",
+    "DEFAULT_RESUME_TEX_INPUT_PATH",
+    "BulletCountRangeConfig",
+    "BulletPointGenerationConfig",
+    "ExperienceBulletPointResult",
+    "GenerationAppConfig",
+    "IntermediateResumeResult",
+    "JobFocusGenerationConfig",
+    "JobFocusResult",
+    "JobTarget",
+    "LinkEvidenceEnrichmentRecordResult",
+    "LinkEvidenceEnrichmentResult",
+    "LinkScanningConfig",
+    "LatexPdfRenderError",
+    "ProjectBulletPointResult",
+    "ProjectLinkScanResult",
+    "ProjectSelectionConfig",
+    "ProjectSelectionResult",
+    "ResumeGenerationCacheConfig",
+    "ResumeGenerationStageCache",
+    "ResumeGenerationStageCacheResult",
+    "ResumeEducationItem",
+    "ResumeExperienceItem",
+    "ResumeGenerationConfig",
+    "ResumeGenerationError",
+    "ResumeOutputConfig",
+    "ResumeProjectItem",
+    "ResumeSelectionContext",
+    "ResumeSkillsSection",
+    "ResumeTopSection",
+    "SkillSelectionConfig",
+    "SkillSelectionResult",
+    "assemble_intermediate_resume_result",
+    "build_resume_run_manifest",
+    "build_skill_selection_payload",
+    "derive_job_focus",
+    "generate_experience_bullet_points",
+    "generate_project_bullet_points",
+    "generate_selection_context",
+    "latex_escape",
+    "load_generation_config",
+    "load_job_target",
+    "render_resume_latex",
+    "render_latex_pdf",
+    "resolve_resume_pdf_output_path",
+    "resolve_resume_latex_output_path",
+    "run_link_evidence_enrichment",
+    "run_resume_generation_pipeline",
+    "write_resume_result_artifact",
+    "write_resume_latex_artifact",
+    "write_resume_pdf_from_config",
+    "write_resume_run_manifest_artifact",
+]

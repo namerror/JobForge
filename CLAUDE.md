@@ -7,8 +7,8 @@ Your goal is to help implement features safely and incrementally.
 
 ## Current project shape
 - The repo still ships a FastAPI skill-selection API through `/select-skills`.
-- The repo now also includes `resume_evidence`, which loads `user/resume_evidence/projects.yaml` at startup and provides a local CLI for staged CRUD/session management.
-- The repo reserves `resume_generation/` for orchestration code that will consume evidence, call selection services, and prepare structured fill data.
+- The repo now includes app-owned `app/resume_evidence`, which loads `user/resume_evidence/*.yaml` at startup, exposes REST CRUD, and preserves a top-level CLI compatibility package.
+- The repo now includes app-owned `app/resume_generation`, which consumes evidence, calls backend services, assembles structured fill data, and exposes synchronous `/resume-generation` facade endpoints.
 - Skill selection is now one subsystem inside a broader grounded resume-engine direction.
 
 ## Non-negotiables
@@ -29,12 +29,12 @@ For grounded resume work:
 
 ## Code organization rules
 - FastAPI wiring in `app/main.py`
-- Pydantic models in `app/models.py` and `resume_evidence/models.py`
+- Pydantic models in subsystem packages such as `app/resume_evidence/models.py` and `app/resume_generation/models.py`
 - Skill-selection scorers in `app/skill_selection/scoring/`
 - Skill-selection orchestration in `app/skill_selection/`
 - Project-selection orchestration in `app/project_selection/`
-- Resume evidence loading and local CRUD workflow in `resume_evidence/`
-- Future resume-generation orchestration in `resume_generation/`
+- Resume evidence loading and local CRUD workflow in `app/resume_evidence/`, with `resume_evidence/` as compatibility shims and CLI
+- Resume-generation orchestration and facade endpoints in `app/resume_generation/`, with `resume_generation/` as compatibility shims
 - Role expectations and config data in `app/data/`
 - User-authored evidence in `user/resume_evidence/`
 - Tests in `tests/`
@@ -50,13 +50,14 @@ For grounded resume work:
 ## Resume evidence expectations
 - Treat `user/resume_evidence/` as canonical user-authored source data
 - Validate evidence deterministically before using it at runtime
-- Do not silently mutate evidence files during generation flows
+- Do not silently mutate evidence files during normal resume generation flows; batch link enrichment may append unique scanned highlights when explicitly invoked
 - Keep generated artifacts separate from source-of-truth evidence
 - Preserve compatibility with the shared `technology` / `programming` / `concepts` taxonomy
 
 ## Output contracts
 - Production skill-selection API: selected skills JSON by category
 - Production project-selection API: selected project IDs and scores
+- Resume-generation facade API: batch link enrichment, `.tex` generation, and PDF rendering under `/resume-generation`
 - Dev mode may include scores, explanations, token usage, warnings, or fallback metadata
 - Evidence CLI: staged CRUD/session management for `projects.yaml`
 

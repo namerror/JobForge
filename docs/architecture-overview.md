@@ -24,10 +24,12 @@ This document maps the current JobForge structure so agents can move quickly acr
   - standalone evidence enrichment models, service wrapper, and LLM client
 - `app/resume_evidence/`
   - strict evidence schemas, registry loading, ID-oriented service helpers, FastAPI CRUD routes, and staged CRUD/session logic
+- `app/resume_generation/`
+  - backend-owned resume generation orchestration, batch link enrichment, LaTeX/PDF artifact rendering, and `/resume-generation` facade routes
 - `resume_evidence/`
   - legacy compatibility shims plus the local CLI entrypoint
 - `resume_generation/`
-  - top-level orchestration package that loads evidence, calls backend capabilities over HTTP, caches stages, assembles intermediate resume results, and renders LaTeX artifacts
+  - legacy compatibility shims for existing imports and local module entrypoints
 - `app/skill_selection/selector.py`
   - API orchestration for method selection, metrics, logging, and response shaping
 - `app/models.py`, `app/scoring/*`, `app/services/*`
@@ -97,11 +99,15 @@ app.resume_evidence
   -> app.resume_evidence.service
   -> user/resume_evidence/*.yaml
 
-resume_generation
+app.resume_generation
   -> app.resume_evidence
-  -> app skill/project/focus/bullet HTTP contracts
+  -> app skill/project/focus/bullet services
+  -> app.link_scanning
   -> user/resume_generation/config.yaml
   -> user/resume_generation/job_target.yaml
+
+resume_generation compatibility shims
+  -> app.resume_generation
 
 app.resume_evidence.loader
   -> app.resume_evidence.models
@@ -197,21 +203,22 @@ flowchart TD
     J --> K[project_selection metrics and structured log event]
 ```
 
-### Local resume-generation flow
+### Resume-generation flow
 
 ```mermaid
 flowchart TD
-    A[python -m resume_generation.main] --> B[load config and job target]
+    A[POST /resume-generation/tex<br>or python -m resume_generation.main] --> B[load config and job target]
     B --> C[load registered evidence]
-    C --> D[call FastAPI selection endpoints]
-    D --> E[derive job focus]
-    E --> F[generate project and experience bullets]
+    C --> D[call in-process selection services]
+    D --> E[derive job focus through in-process service]
+    E --> F[generate project and experience bullets through in-process service]
     F --> G[assemble intermediate resume result]
     G --> H[write JSON manifest/result and LaTeX artifact]
 ```
 
-- The current full pipeline is local orchestration in `resume_generation/`, not a product-facing HTTP endpoint.
-- Stage calls go through the running FastAPI app over HTTP, which keeps selection and generation capabilities reusable.
+- The full pipeline is backend-owned orchestration in `app/resume_generation/`.
+- Top-level `resume_generation/` remains a compatibility entrypoint for existing local commands and imports.
+- Stage calls use app service functions by default, not loopback HTTP.
 - Generated artifacts under `user/resume_generation/` are derived runtime state, not source evidence.
 
 ## 4) Current Skill-Selection Logic
@@ -357,8 +364,8 @@ The evidence layer, explicit-candidate project selector, job-focus derivation, b
 ```text
 user/resume_evidence/*.yaml
   -> deterministic load/validate/index
-  -> resume_generation stage orchestration
-  -> FastAPI backend capability calls
+  -> app.resume_generation stage orchestration
+  -> in-process backend service calls
   -> structured intermediate resume result
   -> deterministic assembly
   -> JSON, manifest, and LaTeX artifacts
@@ -366,23 +373,27 @@ user/resume_evidence/*.yaml
 
 Implemented now:
 
-- `user/resume_generation/config.yaml` stores user-level HTTP and selection request options.
+- `user/resume_generation/config.yaml` stores user-level generation and stage request options.
 - `user/resume_generation/job_target.yaml` stores the target job title and optional description.
-- `resume_generation/main.py` owns the pipeline-level loading of config, job target, and evidence.
-- `resume_generation.generate_selection_context(...)` adapts already-loaded evidence into `/select-skills` and `/select-projects` JSON payloads, then posts to a running app with `httpx`.
-- `resume_generation.derive_job_focus(...)` posts the target role context to `/derive-job-focus`.
-- `resume_generation.generate_project_bullet_points(...)` and `generate_experience_bullet_points(...)` post selected evidence records to `/generate-bulletpoints`.
-- `resume_generation.assembly` builds the typed intermediate resume result.
-- `resume_generation.latex` renders the current LaTeX artifact.
-- `resume_generation.cache` can reuse compatible stage responses across runs.
+- `app/resume_generation/main.py` owns the pipeline-level loading of config, job target, and evidence.
+- `app.resume_generation.generate_selection_context(...)` adapts already-loaded evidence into skill and project selection service requests.
+- `app.resume_generation.derive_job_focus(...)` calls the job-focus service through the stage cache boundary.
+- `app.resume_generation.generate_project_bullet_points(...)` and `generate_experience_bullet_points(...)` call the bullet generation service for selected evidence records.
+- `app.resume_generation.assembly` builds the typed intermediate resume result.
+- `app.resume_generation.latex` renders the current LaTeX artifact.
+- `app.resume_generation.pdf` renders configured/default `.tex` artifacts to PDF.
+- `app.resume_generation.enrich` scans project and experience links in batch and can append unique highlights to YAML evidence.
+- `app.resume_generation.api` exposes `/resume-generation/enrich-link-evidence`, `/resume-generation/tex`, and `/resume-generation/pdf`.
+- `app.resume_generation.cache` can reuse compatible stage responses across runs.
+- Top-level `resume_generation` modules are compatibility shims for existing imports and `python -m resume_generation.*`.
 - The generation config becomes explicit request fields, so it takes precedence over app `.env` defaults for supported per-request options.
 
 Still not implemented:
 
-- a product-facing full-resume generation HTTP API
 - durable multi-user persistence
 - user/account isolation, auth, and production artifact storage
 - richer resume format management beyond the current structured JSON and LaTeX output
+- asynchronous generation run creation/status/result APIs
 
 Skill selection remains one prioritization signal for the Skills section, not the whole source of truth for resume generation.
 
@@ -392,12 +403,13 @@ The recommended service path is to keep FastAPI and add a product-facing facade 
 
 - `app/` remains the backend capability layer for selection, focus derivation, bullet generation, link enrichment, metrics, and health.
 - `app/resume_evidence/` owns the evidence domain layer: schema contracts, validation, loading, ID-oriented REST CRUD, and staged local CRUD behavior.
+- `app/resume_generation/` owns the backend full-generation workflow and the synchronous v1 `/resume-generation` facade.
 - `resume_evidence/` remains only as legacy compatibility shims plus the CLI package.
-- `resume_generation/` remains the orchestration layer: it decides which evidence is sent to which backend capability and assembles the responses.
-- Future public product APIs should add async generation-run creation, run status, structured results, and artifacts.
+- `resume_generation/` remains only as compatibility shims for existing imports and local module entrypoints.
+- Future public product APIs should add async generation-run creation, run status, structured result retrieval, and artifact retrieval.
 - Existing stage endpoints should become internal or separately documented from the product API as the web-app boundary matures.
 - File-backed `user/` storage should be wrapped behind repository/adapter interfaces before adding database persistence.
-- Full generation should use async runs: create run, poll status, then fetch result/artifacts.
+- Product-scale full generation should use async runs: create run, poll status, then fetch result/artifacts.
 
 ## 9) Data And State
 
@@ -425,6 +437,7 @@ The recommended service path is to keep FastAPI and add a product-facing facade 
   - `user/resume_generation/resume_result.json`
   - `user/resume_generation/resume_run_manifest.json`
   - `user/resume_generation/resume.tex`
+  - `user/resume_generation/resume.pdf`
 
 ## 10) Routes And Interfaces
 
@@ -442,6 +455,12 @@ The recommended service path is to keep FastAPI and add a product-facing facade 
   - current grounded bullet-point generation capability API
 - `POST /enrich-link-evidence`
   - current standalone evidence-enrichment capability API
+- `POST /resume-generation/enrich-link-evidence`
+  - batch project/experience link enrichment facade that can write appended highlights back to YAML evidence
+- `POST /resume-generation/tex`
+  - full resume-generation facade that writes result, manifest, and `.tex` artifacts and returns `.tex` content
+- `POST /resume-generation/pdf`
+  - PDF rendering facade that renders the configured/default `.tex` artifact and returns PDF bytes
 - `GET /resume-evidence`
   - current product-facing API for reading all registered evidence
 - `/resume-evidence/projects`, `/resume-evidence/experience`, and `/resume-evidence/education`
@@ -450,10 +469,12 @@ The recommended service path is to keep FastAPI and add a product-facing facade 
   - current product-facing singleton evidence APIs
 - `python -m resume_evidence.cli`
   - current local interface for evidence CRUD/session management
+- `app/resume_generation/`
+  - backend-owned orchestration layer for full evidence-to-artifact workflows
 - `resume_generation/`
-  - local orchestration layer for full evidence-to-artifact workflows
+  - compatibility shims for legacy local imports and module entrypoints
 
-Future product-facing routes should sit above these capability APIs rather than requiring clients to coordinate every stage call directly.
+Future async product-facing routes should sit above these capability APIs rather than requiring clients to coordinate every stage call directly.
 
 ## 11) Agent Quick-Read Sequence
 
@@ -470,9 +491,11 @@ Future product-facing routes should sit above these capability APIs rather than 
 11. `app/resume_evidence/service.py`
 12. `app/resume_evidence/loader.py`
 13. `app/resume_evidence/session.py`
-14. `resume_generation/main.py`
-15. `resume_generation/selection.py`
-16. `resume_generation/bullet_points.py`
-15. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
-16. `docs/decisions/012-fastapi-resume-service-transition.md`
-17. `docs/archive/branch-03-grounded-resume-generation.md`
+14. `app/resume_generation/main.py`
+15. `app/resume_generation/selection.py`
+16. `app/resume_generation/bullet_points.py`
+17. `app/resume_generation/api.py`
+18. `docs/decisions/008-standalone-resume-evidence-and-generation-layers.md`
+19. `docs/decisions/012-fastapi-resume-service-transition.md`
+20. `docs/decisions/015-app-owned-resume-generation-api.md`
+21. `docs/archive/branch-03-grounded-resume-generation.md`

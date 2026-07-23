@@ -19,3 +19,16 @@ def test_legacy_project_llm_client_import_aliases_canonical_module():
     canonical_project_llm = importlib.import_module("app.project_selection.llm_client")
 
     assert legacy_project_llm is canonical_project_llm
+
+
+def test_legacy_resume_generation_imports_alias_canonical_modules():
+    legacy_selection = importlib.import_module("resume_generation.selection")
+    canonical_selection = importlib.import_module("app.resume_generation.selection")
+    legacy_main = importlib.import_module("resume_generation.main")
+    canonical_main = importlib.import_module("app.resume_generation.main")
+    legacy_pdf = importlib.import_module("resume_generation.pdf")
+    canonical_pdf = importlib.import_module("app.resume_generation.pdf")
+
+    assert legacy_selection is canonical_selection
+    assert legacy_main is canonical_main
+    assert legacy_pdf is canonical_pdf

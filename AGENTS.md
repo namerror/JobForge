@@ -9,8 +9,8 @@ This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) s
 ## Organization
 - Tests in `tests/`
 - Skill scoring logic in `app/skill_selection/scoring/`
-- Resume evidence logic in `resume_evidence/`
-- Future resume generation orchestration in `resume_generation/`
+- Resume evidence logic in `app/resume_evidence/` with `resume_evidence/` compatibility shims and CLI
+- Resume generation orchestration and facade endpoints in `app/resume_generation/` with `resume_generation/` compatibility shims
 - User-authored evidence files in `user/resume_evidence/`
 
 ## Repository invariants
@@ -26,7 +26,7 @@ This repo is designed to be edited by coding agents (Claude Code, Codex, etc.) s
 - Add a new ADR under `docs/decisions/` when making architectural choices.
 
 ### Avoid accidental scope creep
-- This repo is moving toward grounded resume generation, but it does not yet ship full resume synthesis or polished bullet generation.
+- This repo ships a synchronous app-owned resume generation facade, but async run lifecycle, database-backed persistence, and richer format management are still future work.
 - Do not add database dependencies early.
 - Do not add LLM dependencies without:
   1) baseline success

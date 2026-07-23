@@ -13,8 +13,14 @@ import yaml
 from pydantic import ValidationError
 
 from app.bulletpoints_generation.models import BulletGenerationResponse
+from app.job_focus_generation.models import JobFocus, JobFocusResponse
 from app.link_scanning.models import LinkScanHighlight, LinkScanResponse
 from app.main import app
+from app.project_selection.models import (
+    ProjectSelectionResult as AppProjectSelectionResult,
+    RankedProject,
+)
+from app.skill_selection.models import SkillSelectResponse
 from app.project_selection.llm_client import LLMProjectScoreResult
 from app.skill_selection.llm_client import LLMScoreResult
 from resume_generation import (
@@ -4083,3 +4089,302 @@ def test_project_selection_api_uses_request_llm_overrides(monkeypatch):
     assert captured["model"] == "request-project-model"
     assert captured["max_output_tokens"] == 444
     assert response.json()["details"]["_project_llm"]["model"] == "request-project-model"
+
+
+def test_resume_generation_enrich_link_evidence_route_returns_batch_result_and_refreshes_state(
+    monkeypatch,
+):
+    captured: dict = {}
+
+    def fake_run_link_evidence_enrichment(**kwargs):
+        captured.update(kwargs)
+        return resume_enrich.LinkEvidenceEnrichmentResult(
+            dry_run=bool(kwargs["dry_run"]),
+            records=(
+                resume_enrich.LinkEvidenceEnrichmentRecordResult(
+                    evidence_type="project",
+                    evidence_id="jobforge",
+                    name="JobForge",
+                    scanned=True,
+                    added_highlights=("Scanned project highlight.",),
+                    details={"method": "llm"},
+                ),
+                resume_enrich.LinkEvidenceEnrichmentRecordResult(
+                    evidence_type="experience",
+                    evidence_id="backend-engineer",
+                    name="Example Company",
+                    scanned=False,
+                    added_highlights=(),
+                    skipped_reason="no_links",
+                ),
+            ),
+            updated_paths=("user/resume_evidence/projects.yaml",),
+        )
+
+    monkeypatch.setattr(
+        "app.resume_generation.api.run_link_evidence_enrichment",
+        fake_run_link_evidence_enrichment,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.api.load_registered_evidence",
+        lambda: {"projects": "reloaded"},
+    )
+
+    response = api_request(
+        "POST",
+        "/resume-generation/enrich-link-evidence",
+        json={
+            "evidence_type": "all",
+            "dry_run": False,
+            "llm_model": "route-link-model",
+            "highlight_count": 5,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["evidence_type"] == "all"
+    assert captured["llm_model"] == "route-link-model"
+    assert captured["highlight_count"] == 5
+    assert app.state.resume_evidence == {"projects": "reloaded"}
+    data = response.json()
+    assert data["scanned_count"] == 1
+    assert data["total_added_highlights"] == 1
+    assert data["updated_paths"] == ["user/resume_evidence/projects.yaml"]
+    assert data["records"][0]["added_highlights"] == ["Scanned project highlight."]
+    assert data["records"][1]["skipped_reason"] == "no_links"
+
+
+def test_resume_generation_tex_route_runs_pipeline_and_returns_tex_content(
+    monkeypatch,
+    tmp_path,
+):
+    resume_result = _sample_intermediate_resume_result()
+    tex_path = tmp_path / "resume.tex"
+    tex_path.write_text("rendered tex\n", encoding="utf-8")
+    calls: list[str] = []
+
+    def fake_run_resume_generation_pipeline():
+        calls.append("pipeline")
+        return resume_result
+
+    def fake_write_resume_latex_from_config(result):
+        calls.append("latex")
+        assert result is resume_result
+        return tex_path
+
+    monkeypatch.setattr(
+        "app.resume_generation.api.run_resume_generation_pipeline",
+        fake_run_resume_generation_pipeline,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.api.write_resume_latex_from_config",
+        fake_write_resume_latex_from_config,
+    )
+
+    response = api_request("POST", "/resume-generation/tex", json={})
+
+    assert response.status_code == 200
+    assert calls == ["pipeline", "latex"]
+    data = response.json()
+    assert data["resume_result"]["top"]["name"] == "Example Candidate"
+    assert data["tex_path"] == str(tex_path)
+    assert data["tex_content"] == "rendered tex\n"
+    assert data["resume_result_path"].endswith("user/resume_generation/resume_result.json")
+    assert data["manifest_path"].endswith("user/resume_generation/resume_run_manifest.json")
+
+
+def test_resume_generation_pdf_route_returns_rendered_pdf(monkeypatch, tmp_path):
+    tex_path = tmp_path / "resume.tex"
+    pdf_path = tmp_path / "resume.pdf"
+    tex_path.write_text("tex", encoding="utf-8")
+    pdf_path.write_bytes(b"%PDF-1.4\n")
+    config = ResumeGenerationConfig.model_validate(
+        _config_payload(
+            resume_output={
+                "path": str(tex_path),
+                "pdf_path": str(pdf_path),
+                "pdf_timeout_seconds": 11,
+            }
+        )
+    )
+    calls: list[dict[str, object]] = []
+
+    def fake_render_latex_pdf(tex_arg, pdf_arg, *, timeout_seconds):
+        calls.append(
+            {
+                "tex_arg": tex_arg,
+                "pdf_arg": pdf_arg,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return pdf_path
+
+    monkeypatch.setattr(
+        "app.resume_generation.api.load_generation_config",
+        lambda _path: config,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.api.render_latex_pdf",
+        fake_render_latex_pdf,
+    )
+
+    response = api_request("POST", "/resume-generation/pdf", json={})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["x-jobforge-tex-path"] == str(tex_path)
+    assert response.headers["x-jobforge-pdf-path"] == str(pdf_path)
+    assert response.content == b"%PDF-1.4\n"
+    assert calls == [
+        {
+            "tex_arg": tex_path,
+            "pdf_arg": str(pdf_path),
+            "timeout_seconds": 11.0,
+        }
+    ]
+
+
+def test_resume_generation_pdf_route_returns_404_for_missing_tex(monkeypatch, tmp_path):
+    tex_path = tmp_path / "missing.tex"
+    config = ResumeGenerationConfig.model_validate(
+        _config_payload(resume_output={"path": str(tex_path)})
+    )
+
+    def fake_render_latex_pdf(*_args, **_kwargs):
+        raise FileNotFoundError(f"LaTeX source file does not exist: {tex_path}")
+
+    monkeypatch.setattr(
+        "app.resume_generation.api.load_generation_config",
+        lambda _path: config,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.api.render_latex_pdf",
+        fake_render_latex_pdf,
+    )
+
+    response = api_request("POST", "/resume-generation/pdf", json={})
+
+    assert response.status_code == 404
+    assert "LaTeX source file does not exist" in response.text
+
+
+def test_resume_generation_pdf_route_returns_502_for_latex_failure(
+    monkeypatch,
+    tmp_path,
+):
+    tex_path = tmp_path / "resume.tex"
+    tex_path.write_text("tex", encoding="utf-8")
+    config = ResumeGenerationConfig.model_validate(
+        _config_payload(resume_output={"path": str(tex_path)})
+    )
+
+    def fake_render_latex_pdf(*_args, **_kwargs):
+        raise LatexPdfRenderError("latex failed")
+
+    monkeypatch.setattr(
+        "app.resume_generation.api.load_generation_config",
+        lambda _path: config,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.api.render_latex_pdf",
+        fake_render_latex_pdf,
+    )
+
+    response = api_request("POST", "/resume-generation/pdf", json={})
+
+    assert response.status_code == 502
+    assert "latex failed" in response.text
+
+
+def test_resume_generation_pipeline_uses_local_stage_services_by_default(
+    monkeypatch,
+    tmp_path,
+):
+    config_path = _write_yaml(tmp_path / "config.yaml", _config_payload())
+    job_path = _write_yaml(tmp_path / "job.yaml", _job_target_payload())
+    projects_path = _write_yaml(tmp_path / "projects.yaml", _projects_payload())
+    skills_path = _write_yaml(tmp_path / "skills.yaml", _skills_payload())
+    loaded_evidence = _loaded_evidence(projects_path, skills_path)
+    calls: list[tuple[str, str | None]] = []
+
+    def fake_select_skills_service(req):
+        calls.append(("select-skills", req.llm_model))
+        return SkillSelectResponse(
+            technology=["FastAPI"],
+            programming=["Python"],
+            concepts=["API"],
+            details={"method": "llm"},
+        )
+
+    def fake_select_projects_service(req):
+        calls.append(("select-projects", req.llm_model))
+        return AppProjectSelectionResult(
+            selected_project_ids=["active-project"],
+            ranked_projects=[
+                RankedProject(project_id="active-project", score=1.0, method="llm")
+            ],
+            details={"method": "llm"},
+        )
+
+    def fake_derive_job_focus_service(req):
+        calls.append(("derive-job-focus", req.llm_model))
+        return JobFocusResponse(
+            job_focus=JobFocus(
+                summary="Backend role.",
+                required_skills=["Python", "FastAPI"],
+                preferred_skills=[],
+                responsibilities=["Build APIs"],
+                domain_emphasis=[],
+                resume_relevant_constraints=[],
+                excluded_context=[],
+            ),
+            details={"method": "llm"},
+        )
+
+    def fake_generate_bulletpoints_service(req):
+        calls.append(("generate-bulletpoints", req.evidence_id))
+        return BulletGenerationResponse(
+            bullet_points=[f"Generated bullet for {req.evidence_id}."],
+            details={"method": "llm"},
+        )
+
+    monkeypatch.setattr(
+        "app.resume_generation.selection.select_skills_service",
+        fake_select_skills_service,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.selection.select_projects_service",
+        fake_select_projects_service,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.selection.derive_job_focus_service",
+        fake_derive_job_focus_service,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.selection.generate_bulletpoints_service",
+        fake_generate_bulletpoints_service,
+    )
+    monkeypatch.setattr(
+        "app.resume_generation.main.load_registered_evidence",
+        lambda paths=None: loaded_evidence,
+    )
+
+    result = run_resume_generation_pipeline(
+        config_path=config_path,
+        job_target_path=job_path,
+        evidence_paths={"projects": projects_path, "skills": skills_path},
+        resume_result_artifact_path=tmp_path / "resume_result.json",
+        resume_run_manifest_artifact_path=tmp_path / "resume_run_manifest.json",
+    )
+
+    assert calls == [
+        ("select-skills", "skill-model"),
+        ("select-projects", "project-model"),
+        ("derive-job-focus", "job-focus-model"),
+        ("generate-bulletpoints", "active-project"),
+        ("generate-bulletpoints", "backend-engineer"),
+    ]
+    assert result.projects[0].bullet_points == ["Generated bullet for active-project."]
+    assert result.experience[0].bullet_points == [
+        "Generated bullet for backend-engineer."
+    ]

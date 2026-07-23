@@ -29,9 +29,11 @@ Use this file as the primary navigation index for coding agents.
    - recommended FastAPI facade, file-adapter, and async-run transition path
 9. `docs/decisions/013-app-owned-resume-evidence-crud-api.md`
    - current app-owned evidence package, REST CRUD API, and YAML storage boundary
-10. `docs/archive/branch-03-grounded-resume-generation.md`
+10. `docs/decisions/015-app-owned-resume-generation-api.md`
+   - current app-owned resume-generation package and synchronous facade endpoints
+11. `docs/archive/branch-03-grounded-resume-generation.md`
    - historical Branch 03 plan; use only as background, not current implementation truth
-11. `docs/archive/project-selection-plan.md`
+12. `docs/archive/project-selection-plan.md`
    - historical project-selection plan; use implemented code and current ADRs first
 
 ## Recommended Read Order
@@ -50,12 +52,14 @@ Use this file as the primary navigation index for coding agents.
 12. `app/resume_evidence/service.py`
 13. `app/resume_evidence/loader.py`
 14. `app/resume_evidence/session.py`
-15. `resume_generation/main.py`
-16. `resume_generation/selection.py`
-17. `resume_generation/bullet_points.py`
-18. `resume_generation/assembly.py`
-19. `docs/decisions/012-fastapi-resume-service-transition.md`
-20. `docs/decisions/013-app-owned-resume-evidence-crud-api.md`
+15. `app/resume_generation/main.py`
+16. `app/resume_generation/selection.py`
+17. `app/resume_generation/bullet_points.py`
+18. `app/resume_generation/api.py`
+19. `app/resume_generation/assembly.py`
+20. `docs/decisions/012-fastapi-resume-service-transition.md`
+21. `docs/decisions/013-app-owned-resume-evidence-crud-api.md`
+22. `docs/decisions/015-app-owned-resume-generation-api.md`
 
 ## Skill Selection Entry Points
 
@@ -101,24 +105,28 @@ Use this file as the primary navigation index for coding agents.
 
 ## Resume Generation Entry Points
 
-- `resume_generation/`
-  - implemented resume generation orchestration package
-- `resume_generation/main.py`
+- `app/resume_generation/`
+  - implemented backend-owned resume generation orchestration and facade package
+- `app/resume_generation/api.py`
+  - FastAPI facade routes under `/resume-generation`
+- `app/resume_generation/main.py`
   - pipeline owner for config, job target, evidence loading, selection, job focus, bullet generation, assembly, manifest, and artifacts
-- `resume_generation/selection.py`
-  - `generate_selection_context(...)` HTTP selection stage over `/select-skills` and `/select-projects`
-- `resume_generation/job_focus.py`
-  - cached HTTP job-focus stage over `/derive-job-focus`
-- `resume_generation/bullet_points.py`
-  - project and experience HTTP bullet generation stages over `/generate-bulletpoints`
-- `resume_generation/assembly.py`
+- `app/resume_generation/selection.py`
+  - `generate_selection_context(...)` local-service selection stage over skill and project selection services
+- `app/resume_generation/job_focus.py`
+  - cached local-service job-focus stage over `derive_job_focus_service`
+- `app/resume_generation/bullet_points.py`
+  - project and experience local-service bullet generation stages over `generate_bulletpoints_service`
+- `app/resume_generation/assembly.py`
   - deterministic assembly into the intermediate resume result schema
-- `resume_generation/latex.py`
+- `app/resume_generation/latex.py`
   - LaTeX artifact rendering from the intermediate resume result
-- `resume_generation/config.py`
+- `app/resume_generation/config.py`
   - strict loading for `user/resume_generation/config.yaml` and `job_target.yaml`
+- `resume_generation/`
+  - compatibility shims for legacy imports and local module entrypoints
 - `user/resume_generation/config.yaml`
-  - user-level HTTP and selection request options
+  - user-level generation and stage request options
 - `user/resume_generation/job_target.yaml`
   - target job title and optional description for generation selection
 

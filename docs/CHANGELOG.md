@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `/resume-generation` REST facade for batch link enrichment, full `.tex` resume generation, and PDF rendering from the configured local resume artifacts.
 - `/resume-evidence` REST CRUD API for file-backed resume evidence, with ID-based project, experience, and education routes plus singleton user and skills updates.
 - Optional LaTeX PDF rendering through local `latexmk` via `python -m resume_generation.pdf` or `resume_output.render_pdf`.
 - `POST /derive-job-focus` API and resume-generation job-focus stage that distills long job descriptions into compact resume-relevant context before bullet generation.
@@ -22,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged resume evidence CLI workflows for `education`, `experience`, and `user` schemas via `python -m resume_evidence.cli --schema <schema>`.
 
 ### Changed
+- Resume generation domain code now lives under `app/resume_generation`; top-level `resume_generation` modules remain compatibility shims for legacy imports and local module entrypoints.
+- Resume generation orchestration now calls in-process backend services by default instead of calling the FastAPI app over loopback HTTP.
 - Resume evidence domain code now lives under `app/resume_evidence`; top-level `resume_evidence` modules remain compatibility shims for legacy imports and CLI usage.
 - Resume-generation bullet requests now use derived `job_focus` context from the pipeline instead of repeating the full job description for every selected project and active experience.
 - Resume generation no longer runs link scanning or web search in the normal pipeline; it consumes already-enriched evidence for selection and bullet generation.
