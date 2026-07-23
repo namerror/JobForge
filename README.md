@@ -1,6 +1,6 @@
 # JobForge Resume Engine
 
-JobForge is in a transition from a resume-generation prototype into a FastAPI-backed resume service. The current repo can already run grounded resume generation locally, and the recommended service direction is to keep the FastAPI backend as the integration point for product-facing APIs.
+JobForge is in a transition from a resume-generation prototype into a FastAPI-backed resume service and local-first resume workbench. The current repo can already run grounded resume generation locally, and the recommended service direction is to keep the FastAPI backend as the integration point for product-facing APIs.
 
 Today the repo ships three capability tracks:
 
@@ -9,6 +9,26 @@ Today the repo ships three capability tracks:
 - a backend-owned resume orchestration pipeline in `app/resume_generation/` that reads `user/resume_generation/` and `user/resume_evidence/`, calls in-process backend services, and assembles resume artifacts
 
 The current `user/` tree is local development data and runtime output. It is useful for prototyping and file-backed operation, but it should be treated as a storage adapter target rather than the final production persistence model.
+
+## Product Direction
+
+The first official app model is a local-first web workbench over the existing FastAPI backend, with desktop packaging as the first distribution target once the workflow is proven.
+
+Planned product shape:
+
+```text
+frontend workbench
+  -> localhost FastAPI backend
+  -> local evidence and generation adapters
+  -> structured resume result
+  -> local LaTeX/PDF artifacts
+```
+
+The initial frontend should live in this monorepo, for example under `frontend/`, so UI work can stay aligned with the still-evolving backend API schemas. The backend remains the source of truth for evidence validation, generation orchestration, artifact rendering, and writes to local storage.
+
+The first app should support editing resume evidence, editing a target job description, generating a targeted resume, reviewing or editing generated resume items, and exporting a PDF. It should preserve the product distinction between user-authored source evidence, generated draft content, and final user edits.
+
+The project is intentionally not starting as a hosted multi-user web service. Remote hosting, auth, database-backed persistence, account-level artifact storage, and background workers remain future work after the local product workflow and storage adapter boundaries are stable. See `docs/decisions/016-local-first-web-workbench-desktop-distribution.md`.
 
 ## Vision
 
@@ -176,6 +196,8 @@ Skill selection is no longer the whole project. It is one subsystem inside the l
 ## Recommended Service Architecture
 
 The FastAPI backend now has a synchronous v1 resume-generation facade while keeping the existing stage endpoints as internal backend capabilities.
+
+For the first app, the backend should run locally on loopback and serve as the local product API for a web frontend or packaged desktop shell. A hosted backend is deferred until auth, persistence, artifact storage, and generation-run infrastructure are justified.
 
 ### Product-facing facade
 
