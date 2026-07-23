@@ -326,7 +326,7 @@ Example response:
 ```json
 {
   "status": "ok",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "service": "jobforge-resume-engine",
   "dev_mode": true,
   "skill_selection": {
