@@ -13,6 +13,7 @@
 
 ## Session Index
 
+- `07-24-2026-Codex-desktop-packaging-release-adr.md` - 2026-07-24 - Document desktop packaging and release workflow
 - `07-23-2026-Codex-resume-generation-frontend-integration.md` - 2026-07-23 - Resume generation frontend integration
 - `07-23-2026-Codex-resume-evidence-frontend.md` - 2026-07-23 - Add resume evidence frontend workbench
 - `07-23-2026-Codex-local-first-desktop-plan.md` - 2026-07-23 - Document local-first desktop app plan
